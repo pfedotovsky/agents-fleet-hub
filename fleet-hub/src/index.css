@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-zinc-950 text-zinc-100 antialiased;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+@keyframes flash-ring {
+  0% {
+    box-shadow: 0 0 0 1px rgb(16 185 129 / 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 1px transparent;
+  }
+}
+
+.just-updated {
+  animation: flash-ring 2s ease-out;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.slide-in {
+  animation: slide-in 200ms ease-out;
+}
