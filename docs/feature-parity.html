@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents Hub vs. CloudCLI — Feature Parity</title>
+<style>
+  :root{color-scheme:dark;--bg:#18181b;--panel:#1f1f23;--border:#2e2e33;--text:#e4e4e7;--muted:#a1a1aa;--green:#34d399;--amber:#fbbf24;--rose:#fb7185;--blue:#60a5fa;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,"Segoe UI",Inter,Roboto,sans-serif;padding:40px 20px}
+  main{max-width:1080px;margin:0 auto}
+  h1{font-size:26px;margin:0 0 4px}
+  h2{font-size:19px;margin:40px 0 12px;border-bottom:1px solid var(--border);padding-bottom:6px}
+  h3{font-size:16px;margin:26px 0 8px}
+  p{color:var(--muted)}
+  .meta{font-size:13px;color:var(--muted)}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:14px 0 6px}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:10px}
+  th,td{padding:8px 10px;border:1px solid var(--border);text-align:left;vertical-align:top}
+  th{background:var(--panel);position:sticky;top:0}
+  tr:nth-child(even) td{background:#1c1c20}
+  td.s{text-align:center;white-space:nowrap;width:90px;font-size:15px}
+  .full{color:var(--green)} .part{color:var(--amber)} .miss{color:var(--rose)} .plus{color:var(--blue);font-weight:600}
+  ul{padding-left:22px}
+  li{margin:5px 0}
+  .todo li{list-style:none;margin:8px 0;padding:10px 12px;background:var(--panel);border:1px solid var(--border);border-radius:8px}
+  .todo{padding-left:0}
+  .tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:99px;border:1px solid var(--border);color:var(--muted);margin-left:8px;vertical-align:1px}
+  .tag.api{color:var(--green);border-color:#14532d}
+  .p1{border-left:3px solid var(--green)!important}
+  .p2{border-left:3px solid var(--amber)!important}
+  .p3{border-left:3px solid var(--muted)!important}
+  code{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:12.5px;font-family:ui-monospace,"JetBrains Mono",Menlo,monospace}
+  .adv{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-top:10px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Agents Hub vs. CloudCLI Web App — Feature Parity</h1>
+  <p class="meta">Agents Hub (this repo, <code>fleet-hub/</code>) vs. CloudCLI v1.36.1 web UI. Generated 2026-07-11.</p>
+  <p>Agents Hub is a <strong>multi-host aggregator</strong> over per-VM CloudCLI APIs; CloudCLI's own UI is a <strong>single-host</strong> full-featured client. Many CloudCLI features are server APIs Agents Hub can adopt with frontend-only work; a few (plugins, Electron) are out of scope for a static hub SPA.</p>
+  <div class="legend"><span class="full">✅ full</span><span class="part">⚠️ partial</span><span class="miss">❌ missing</span><span class="plus">➕ Agents Hub advantage</span></div>
+
+  <h2>Feature comparison</h2>
+  <table>
+    <thead><tr><th>Feature area</th><th>Agents Hub</th><th>CloudCLI</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Multi-host fleet view</td><td class="s full">✅ <span class="plus">➕</span></td><td class="s miss">❌</td><td>Hosts → projects → sessions tree, cross-host feed, per-host status polling, offline/hibernation handling</td></tr>
+      <tr><td>Auth (login, first-run setup, JWT refresh)</td><td class="s full">✅</td><td class="s full">✅</td><td>Parity per host, incl. <code>X-Refreshed-Token</code> sliding refresh, 401/403 handling</td></tr>
+      <tr><td>Chat: send / stream / abort</td><td class="s full">✅</td><td class="s full">✅</td><td>Same WS protocol; hub adds seq-replay resubscribe on reconnect ➕</td></tr>
+      <tr><td>Permission prompts &amp; modes</td><td class="s full">✅ <span class="plus">➕</span></td><td class="s full">✅</td><td>Hub: durable "Always allow" per host:project + write-through to <code>.claude/settings.local.json</code></td></tr>
+      <tr><td>Model + reasoning-effort selection</td><td class="s full">✅</td><td class="s full">✅</td><td>Per-provider catalog, per-host persisted choice</td></tr>
+      <tr><td>Markdown / highlighting / tool-call rendering</td><td class="s full">✅</td><td class="s full">✅</td><td>GFM, Prism, edit diffs, todo checklists, Bash cards</td></tr>
+      <tr><td>KaTeX math &amp; Mermaid diagrams</td><td class="s miss">❌</td><td class="s full">✅</td><td>CloudCLI bundles KaTeX + Mermaid</td></tr>
+      <tr><td>Image attachments in chat</td><td class="s miss">❌</td><td class="s full">✅</td><td><code>POST /api/assets/images</code>; all providers support images. Hub chat is text-only</td></tr>
+      <tr><td>Voice input (transcription)</td><td class="s miss">❌</td><td class="s full">✅</td><td>Audio proxied to OpenAI transcription (<code>/api/voice</code>)</td></tr>
+      <tr><td>Full-text conversation search</td><td class="s miss">❌</td><td class="s full">✅</td><td>Host API exists: <code>GET /search/sessions</code>; hub has no search at all</td></tr>
+      <tr><td>Session create</td><td class="s full">✅</td><td class="s full">✅</td><td>Hub adds one-click new session from sidebar ➕</td></tr>
+      <tr><td>Session delete/archive, restore, rename</td><td class="s miss">❌</td><td class="s full">✅</td><td><code>DELETE /sessions/:id</code>, restore, archived list; rename likely via plugin</td></tr>
+      <tr><td>Running-sessions signal</td><td class="s part">⚠️</td><td class="s full">✅</td><td>Hub infers from lastActivity &lt; 2 min; host has <code>GET /sessions/running</code> (verify live)</td></tr>
+      <tr><td>Project star/favorite</td><td class="s full">✅</td><td class="s full">✅</td><td>Parity</td></tr>
+      <tr><td>Project create / rename / delete / clone</td><td class="s miss">❌</td><td class="s full">✅</td><td>Full REST routes incl. git-clone with progress stream</td></tr>
+      <tr><td>File tree + editor (view/edit/save)</td><td class="s full">✅</td><td class="s full">✅</td><td>CodeMirror both sides; hub adds Cmd+S, dirty guard</td></tr>
+      <tr><td>File create / delete / rename / upload</td><td class="s miss">❌</td><td class="s part">⚠️</td><td>Neither is strong; CloudCLI has image upload + shell escape hatch</td></tr>
+      <tr><td>Integrated terminal / shell</td><td class="s miss">❌</td><td class="s full">✅</td><td>PTY over WS (node-pty + xterm.js), agent CLI or plain shell</td></tr>
+      <tr><td>Git panel</td><td class="s miss">❌</td><td class="s full">✅</td><td>Status, diff, stage, commit (+AI messages), branches, history, pull/push</td></tr>
+      <tr><td>MCP server management</td><td class="s miss">❌</td><td class="s full">✅</td><td>Per-provider + global, stdio/HTTP transports</td></tr>
+      <tr><td>Slash commands</td><td class="s miss">❌</td><td class="s full">✅</td><td>Custom <code>.md</code> commands in composer (<code>/api/commands</code>)</td></tr>
+      <tr><td>Skills management</td><td class="s miss">❌</td><td class="s full">✅</td><td>List/add/delete per provider</td></tr>
+      <tr><td>TaskMaster (tasks, PRD parsing, templates)</td><td class="s miss">❌</td><td class="s full">✅</td><td>Full <code>/api/taskmaster</code> suite</td></tr>
+      <tr><td>Browser-use (Playwright automation)</td><td class="s miss">❌</td><td class="s full">✅</td><td>Niche for a hub</td></tr>
+      <tr><td>Plugin system + marketplace</td><td class="s miss">❌</td><td class="s full">✅</td><td>Out of scope for a static SPA</td></tr>
+      <tr><td>Token usage / context-window display</td><td class="s miss">❌</td><td class="s part">⚠️</td><td>Capability flag in core; cost dashboard is an optional plugin</td></tr>
+      <tr><td>Notifications</td><td class="s part">⚠️ <span class="plus">➕</span></td><td class="s full">✅</td><td>Hub: chime + desktop notification, fleet-wide. CloudCLI: Web Push (VAPID), Discord, per-channel prefs</td></tr>
+      <tr><td>Scheduled prompts / cron</td><td class="s miss">❌</td><td class="s part">⚠️</td><td>Optional plugin, not core</td></tr>
+      <tr><td>Themes (light/dark)</td><td class="s miss">❌</td><td class="s full">✅</td><td>Hub is hardcoded dark</td></tr>
+      <tr><td>Mobile / responsive + PWA</td><td class="s miss">❌</td><td class="s full">✅</td><td>Manifest, service worker, standalone mode</td></tr>
+      <tr><td>URL routing / deep links</td><td class="s miss">❌</td><td class="s full">✅</td><td>Hub navigation is in-memory only</td></tr>
+      <tr><td>API keys / credentials management</td><td class="s miss">❌</td><td class="s full">✅</td><td>Host-admin feature; low hub value</td></tr>
+      <tr><td>Electron desktop app</td><td class="s miss">❌</td><td class="s full">✅</td><td>Out of scope</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Agents Hub advantages (no CloudCLI equivalent)</h2>
+  <div class="adv"><ul>
+    <li>Multi-host aggregation: one pane of glass over N VMs, cross-host activity feed, per-host colors and status dots.</li>
+    <li>Sessions started elsewhere (terminal, host UI) flow in via <code>session_upserted</code> + fallback polling.</li>
+    <li>Permission grants persisted per host:project and written through to <code>.claude/settings.local.json</code>.</li>
+    <li>Offline/hibernating VM handling with retained last-known state and setup hints.</li>
+    <li>One-click new session, drag-resizable sidebar, active-session-first ordering.</li>
+  </ul></div>
+
+  <h2>TODO — path to feature parity</h2>
+  <p>Ordered by value ÷ effort. <span class="tag api">API ready</span> = frontend-only work against existing host endpoints.</p>
+
+  <h3>P1 — High value, host API already exists</h3>
+  <ul class="todo">
+    <li class="p1">☐ <strong>Session delete/archive + restore</strong> — <code>DELETE /api/providers/sessions/:id</code>, restore, archived view <span class="tag api">API ready</span></li>
+    <li class="p1">☐ <strong>True "running" indicator</strong> — poll <code>GET /sessions/running</code> instead of the 2-minute heuristic; verify endpoint against a live host first <span class="tag api">API ready — verify</span></li>
+    <li class="p1">☐ <strong>Full-text conversation search</strong> — fan out <code>GET /search/sessions</code> per host, merge into feed UI <span class="tag api">API ready</span></li>
+    <li class="p1">☐ <strong>Image attachments in chat</strong> — paste/drag-drop → <code>POST /api/assets/images</code>, reference in <code>chat.send</code>; render image history <span class="tag api">API ready</span></li>
+    <li class="p1">☐ <strong>Git panel</strong> — status, diff, stage/unstage, commit (+AI commit message), branches, pull/push via <code>/api/git/*</code> <span class="tag api">API ready</span></li>
+    <li class="p1">☐ <strong>Project management</strong> — create, rename, delete/archive+restore, git-clone with progress stream <span class="tag api">API ready</span></li>
+  </ul>
+
+  <h3>P2 — High value, more work</h3>
+  <ul class="todo">
+    <li class="p2">☐ <strong>Integrated terminal</strong> — xterm.js against the host's shell WebSocket (PTY, resize, agent CLI or plain shell). Biggest single UX gap.</li>
+    <li class="p2">☐ <strong>URL routing</strong> — deep-linkable host/project/session views, back-button support; prerequisite for PWA.</li>
+    <li class="p2">☐ <strong>Mobile/responsive layout + PWA</strong> — collapsible sidebar, manifest + service worker.</li>
+    <li class="p2">☐ <strong>Web Push notifications</strong> — subscribe to each host's VAPID push so alerts arrive with the tab closed.</li>
+    <li class="p2">☐ <strong>Token usage / context-window display</strong> — where <code>supportsTokenUsage</code> (claude/codex/opencode).</li>
+    <li class="p2">☐ <strong>Slash commands</strong> — fetch <code>/api/commands</code> per project, composer autocomplete.</li>
+    <li class="p2">☐ <strong>Session rename</strong> — investigate mechanism (plugin-based?); implement if a stable API exists.</li>
+  </ul>
+
+  <h3>P3 — Nice to have</h3>
+  <ul class="todo">
+    <li class="p3">☐ <strong>MCP server management UI</strong> — per-provider + global over <code>/:provider/mcp/servers</code>.</li>
+    <li class="p3">☐ <strong>Light theme / appearance settings.</strong></li>
+    <li class="p3">☐ <strong>KaTeX + Mermaid rendering</strong> in messages.</li>
+    <li class="p3">☐ <strong>File operations</strong> — create/rename/delete (needs shell or new host support).</li>
+    <li class="p3">☐ <strong>Voice input</strong> — mic → host <code>/api/voice</code> (needs host-side OpenAI key).</li>
+    <li class="p3">☐ <strong>Skills management UI.</strong></li>
+    <li class="p3">☐ <strong>TaskMaster integration</strong> — tasks + PRD tooling per project.</li>
+    <li class="p3">☐ <strong>Conversation compaction</strong> control, if exposed over WS.</li>
+  </ul>
+
+  <h3>Explicitly out of scope</h3>
+  <p>Plugin system/marketplace, browser-use automation, Electron build, API-key/credential admin, onboarding/git-identity setup — host-local features or ones requiring a backend the hub deliberately doesn't have.</p>
+</main>
+</body>
+</html>

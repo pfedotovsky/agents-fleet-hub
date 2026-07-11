@@ -106,35 +106,35 @@ export function ProjectPane({ runtime, hostColorIdx, project, onOpenSession, onO
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto">
       <header
-        className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 px-6 py-4 backdrop-blur"
+        className="sticky top-0 z-10 border-b border-ink-800 bg-ink-950/90 px-6 py-4 backdrop-blur"
         style={{ borderLeft: `3px solid ${color}` }}
       >
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-              <span className="inline-flex items-center gap-1 font-medium text-zinc-400">
+            <div className="flex items-center gap-2 text-[11px] text-ink-500">
+              <span className="inline-flex items-center gap-1 font-medium text-ink-400">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
                 {runtime.config.name}
               </span>
               <span>·</span>
               <span className="tnum font-mono">{project.sessionMeta.total} sessions</span>
             </div>
-            <h2 className="truncate text-base font-semibold text-zinc-100">{project.displayName}</h2>
-            <p className="truncate font-mono text-xs text-zinc-600">{project.fullPath}</p>
+            <h2 className="font-display truncate text-base font-semibold text-ink-100">{project.displayName}</h2>
+            <p className="truncate font-mono text-xs text-ink-600">{project.fullPath}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={onOpenFiles}
               disabled={runtime.status !== 'online'}
-              className="inline-flex items-center gap-1.5 rounded-md border border-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-800 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md border border-ink-800 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:bg-ink-800 disabled:opacity-50"
             >
               <FolderTree size={13} /> Files
             </button>
             <select
               value={provider}
               onChange={(event) => setProvider(event.target.value as Provider)}
-              className="rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1.5 text-xs text-zinc-300 outline-none"
+              className="rounded-md border border-ink-800 bg-ink-900 px-2 py-1.5 text-xs text-ink-300 outline-none"
             >
               {PROVIDERS.map((p) => (
                 <option key={p} value={p}>
@@ -146,7 +146,7 @@ export function ProjectPane({ runtime, hostColorIdx, project, onOpenSession, onO
               type="button"
               onClick={() => void startNewSession()}
               disabled={creating || runtime.status !== 'online'}
-              className="inline-flex items-center gap-1.5 rounded-md bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-900 transition-colors hover:bg-white disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md bg-brass-400 px-3 py-1.5 text-xs font-medium text-ink-950 transition-colors hover:bg-brass-300 disabled:opacity-50"
             >
               {creating ? <LoaderCircle size={13} className="animate-spin" /> : <Plus size={13} />}
               New session
@@ -158,7 +158,7 @@ export function ProjectPane({ runtime, hostColorIdx, project, onOpenSession, onO
 
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 py-4">
         {sessions.length === 0 && (
-          <p className="py-16 text-center text-sm text-zinc-500">
+          <p className="py-16 text-center text-sm text-ink-500">
             No sessions in this project yet — start one above.
           </p>
         )}
@@ -170,7 +170,7 @@ export function ProjectPane({ runtime, hostColorIdx, project, onOpenSession, onO
             type="button"
             onClick={() => void loadMore()}
             disabled={loadingMore}
-            className="mx-auto mt-2 inline-flex items-center gap-1 rounded-full border border-zinc-800 px-3 py-1 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 disabled:opacity-50"
+            className="mx-auto mt-2 inline-flex items-center gap-1 rounded-full border border-ink-800 px-3 py-1 text-xs text-ink-400 transition-colors hover:bg-ink-800 disabled:opacity-50"
           >
             {loadingMore ? <LoaderCircle size={12} className="animate-spin" /> : <ChevronDown size={12} />}
             Load more sessions

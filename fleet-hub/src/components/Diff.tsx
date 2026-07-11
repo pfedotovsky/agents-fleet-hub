@@ -10,7 +10,7 @@ interface Props {
 
 const BADGE_CLASS: Record<NonNullable<Props['badgeColor']>, string> = {
   green: 'bg-emerald-500/15 text-emerald-300',
-  gray: 'bg-zinc-700/50 text-zinc-300',
+  gray: 'bg-ink-700/50 text-ink-300',
   amber: 'bg-amber-500/15 text-amber-300',
 }
 
@@ -40,9 +40,9 @@ export function Diff({ oldContent, newContent, filePath, badge, badgeColor = 'gr
   }
 
   return (
-    <div className="overflow-hidden rounded-md border border-zinc-800">
+    <div className="overflow-hidden rounded-md border border-ink-800">
       {(filePath || badge) && (
-        <div className="flex items-center gap-2 border-b border-zinc-800 bg-zinc-900/80 px-2.5 py-1.5">
+        <div className="flex items-center gap-2 border-b border-ink-800 bg-ink-900/80 px-2.5 py-1.5">
           {filePath && (
             <span className="truncate font-mono text-[11px] text-sky-400">{basename(filePath)}</span>
           )}
@@ -65,7 +65,7 @@ export function Diff({ oldContent, newContent, filePath, badge, badgeColor = 'gr
                   : ''
             }`}
           >
-            <span className="w-4 shrink-0 select-none text-center text-zinc-600">
+            <span className="w-4 shrink-0 select-none text-center text-ink-600">
               {row.sign === ' ' ? '' : row.sign}
             </span>
             <span
@@ -74,7 +74,7 @@ export function Diff({ oldContent, newContent, filePath, badge, badgeColor = 'gr
                   ? 'text-emerald-300'
                   : row.sign === '-'
                     ? 'text-rose-300'
-                    : 'text-zinc-400'
+                    : 'text-ink-400'
               }`}
             >
               {row.text || ' '}

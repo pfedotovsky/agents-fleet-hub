@@ -107,34 +107,34 @@ export function FileBrowser({ runtime, hostColorIdx, project, onBack }: Props) {
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
       <header
-        className="flex shrink-0 items-center gap-3 border-b border-zinc-800 px-4 py-3"
+        className="flex shrink-0 items-center gap-3 border-b border-ink-800 px-4 py-3"
         style={{ borderLeft: `3px solid ${color}` }}
       >
         <button
           type="button"
           onClick={onBack}
           title="Back to project"
-          className="shrink-0 rounded-md p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+          className="shrink-0 rounded-md p-1.5 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
         >
           <ArrowLeft size={16} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-            <span className="inline-flex items-center gap-1 font-medium text-zinc-400">
+          <div className="flex items-center gap-2 text-[11px] text-ink-500">
+            <span className="inline-flex items-center gap-1 font-medium text-ink-400">
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
               {runtime.config.name}
             </span>
             <span>·</span>
             <span className="truncate font-mono">Files</span>
           </div>
-          <h2 className="truncate text-sm font-semibold text-zinc-100">{project.displayName}</h2>
+          <h2 className="font-display truncate text-sm font-semibold text-ink-100">{project.displayName}</h2>
         </div>
         {selected && (
           <button
             type="button"
             onClick={() => void save()}
             disabled={!dirty || saving}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-900 transition-colors hover:bg-white disabled:opacity-40"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-brass-400 px-3 py-1.5 text-xs font-medium text-ink-950 transition-colors hover:bg-brass-300 disabled:opacity-40"
           >
             {saving ? <LoaderCircle size={13} className="animate-spin" /> : <Save size={13} />}
             {savedAt && !dirty ? 'Saved' : 'Save'}
@@ -143,16 +143,16 @@ export function FileBrowser({ runtime, hostColorIdx, project, onBack }: Props) {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-64 shrink-0 flex-col border-r border-zinc-800/80">
+        <div className="flex w-64 shrink-0 flex-col border-r border-ink-800/80">
           <div className="flex items-center justify-between px-2 py-1.5">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-ink-500">
               Explorer
             </span>
             <button
               type="button"
               onClick={loadTree}
               title="Refresh"
-              className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+              className="rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
             >
               <RefreshCw size={12} />
             </button>
@@ -160,7 +160,7 @@ export function FileBrowser({ runtime, hostColorIdx, project, onBack }: Props) {
           <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-4">
             {treeLoading ? (
               <div className="flex justify-center py-8">
-                <LoaderCircle size={16} className="animate-spin text-zinc-600" />
+                <LoaderCircle size={16} className="animate-spin text-ink-600" />
               </div>
             ) : treeError ? (
               <p className="px-2 py-4 text-xs text-rose-400">{treeError}</p>
@@ -172,30 +172,30 @@ export function FileBrowser({ runtime, hostColorIdx, project, onBack }: Props) {
 
         <div className="flex min-w-0 flex-1 flex-col">
           {!selected ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-zinc-600">
+            <div className="flex flex-1 items-center justify-center text-sm text-ink-600">
               Select a file to view or edit
             </div>
           ) : (
             <>
-              <div className="flex items-center gap-2 border-b border-zinc-800/60 px-4 py-1.5 font-mono text-[11px] text-zinc-500">
+              <div className="flex items-center gap-2 border-b border-ink-800/60 px-4 py-1.5 font-mono text-[11px] text-ink-500">
                 <span className="truncate">{selected.path}</span>
                 {dirty && <span className="shrink-0 text-amber-400">● unsaved</span>}
               </div>
               {fileError && (
-                <div className="flex items-center gap-2 border-b border-zinc-800/60 bg-rose-500/5 px-4 py-1.5 text-xs text-rose-400">
+                <div className="flex items-center gap-2 border-b border-ink-800/60 bg-rose-500/5 px-4 py-1.5 text-xs text-rose-400">
                   <TriangleAlert size={12} /> {fileError}
                 </div>
               )}
               <div className="min-h-0 flex-1 overflow-hidden">
                 {fileLoading ? (
                   <div className="flex h-full items-center justify-center">
-                    <LoaderCircle size={18} className="animate-spin text-zinc-600" />
+                    <LoaderCircle size={18} className="animate-spin text-ink-600" />
                   </div>
                 ) : (
                   <Suspense
                     fallback={
                       <div className="flex h-full items-center justify-center">
-                        <LoaderCircle size={18} className="animate-spin text-zinc-600" />
+                        <LoaderCircle size={18} className="animate-spin text-ink-600" />
                       </div>
                     }
                   >

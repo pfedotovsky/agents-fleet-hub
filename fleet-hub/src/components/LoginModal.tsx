@@ -44,31 +44,31 @@ export function LoginModal({ runtime, onSubmit, onClose }: Props) {
       <form
         onSubmit={handleSubmit}
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-sm rounded-xl border border-zinc-800 bg-zinc-900 p-5 shadow-2xl"
+        className="w-full max-w-sm rounded-xl border border-ink-800 bg-ink-900 p-5 shadow-2xl"
       >
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <h2 className="text-sm font-semibold">
+            <h2 className="font-display text-sm font-semibold">
               {setup ? `Set up ${runtime.config.name}` : `Sign in to ${runtime.config.name}`}
             </h2>
-            <p className="mt-0.5 font-mono text-xs text-zinc-500">{runtime.config.baseUrl}</p>
+            <p className="mt-0.5 font-mono text-xs text-ink-500">{runtime.config.baseUrl}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+            className="rounded-md p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
           >
             <X size={16} />
           </button>
         </div>
         {setup && (
-          <p className="mb-4 text-xs text-zinc-500">
+          <p className="mb-4 text-xs text-ink-500">
             First run — create this host's single account. You'll use it to sign in from the hub
             and from the host's own UI.
           </p>
         )}
         <label className="mb-3 block">
-          <span className="mb-1 block text-xs text-zinc-400">
+          <span className="mb-1 block text-xs text-ink-400">
             Username{setup ? ' (min 3 characters)' : ''}
           </span>
           <input
@@ -76,11 +76,11 @@ export function LoginModal({ runtime, onSubmit, onClose }: Props) {
             onChange={(event) => setUsername(event.target.value)}
             autoFocus={!username}
             autoComplete="username"
-            className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+            className="w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm outline-none focus:border-brass-400/70"
           />
         </label>
         <label className="mb-4 block">
-          <span className="mb-1 block text-xs text-zinc-400">
+          <span className="mb-1 block text-xs text-ink-400">
             Password{setup ? ' (min 6 characters)' : ''}
           </span>
           <input
@@ -89,18 +89,18 @@ export function LoginModal({ runtime, onSubmit, onClose }: Props) {
             onChange={(event) => setPassword(event.target.value)}
             autoFocus={!!username}
             autoComplete={setup ? 'new-password' : 'current-password'}
-            className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+            className="w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm outline-none focus:border-brass-400/70"
           />
         </label>
         {setup && (
           <label className="mb-4 block">
-            <span className="mb-1 block text-xs text-zinc-400">Confirm password</span>
+            <span className="mb-1 block text-xs text-ink-400">Confirm password</span>
             <input
               type="password"
               value={confirm}
               onChange={(event) => setConfirm(event.target.value)}
               autoComplete="new-password"
-              className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+              className="w-full rounded-md border border-ink-700 bg-ink-950 px-3 py-2 text-sm outline-none focus:border-brass-400/70"
             />
             {confirm.length > 0 && confirm !== password && (
               <span className="mt-1 block text-xs text-rose-400">Passwords don't match</span>
@@ -111,11 +111,11 @@ export function LoginModal({ runtime, onSubmit, onClose }: Props) {
         <button
           type="submit"
           disabled={busy || !username || !password || invalid}
-          className="w-full rounded-md bg-zinc-100 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-white disabled:opacity-50"
+          className="w-full rounded-md bg-brass-400 py-2 text-sm font-medium text-ink-950 transition-colors hover:bg-brass-300 disabled:opacity-50"
         >
           {busy ? (setup ? 'Creating account…' : 'Signing in…') : setup ? 'Create account' : 'Sign in'}
         </button>
-        <p className="mt-3 text-center text-[11px] text-zinc-600">
+        <p className="mt-3 text-center text-[11px] text-ink-600">
           Only the session token is stored — never your password.
         </p>
       </form>

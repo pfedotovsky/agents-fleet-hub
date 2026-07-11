@@ -1,4 +1,4 @@
-# Fleet Hub
+# Agents Hub
 
 A multi-host CloudCLI client: projects, sessions, and live agent chat across
 several CloudCLI instances (remote VMs + localhost) in one UI. A static React

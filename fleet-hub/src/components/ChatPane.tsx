@@ -82,7 +82,7 @@ function PermissionCard({
         Permission requested: <span className="font-mono">{request.toolName ?? 'tool'}</span>
       </div>
       {request.input !== undefined && (
-        <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-zinc-950/60 p-2 font-mono text-[11px] text-zinc-400">
+        <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-ink-950/60 p-2 font-mono text-[11px] text-ink-400">
           {contentToText(request.input)}
         </pre>
       )}
@@ -107,7 +107,7 @@ function PermissionCard({
         <button
           type="button"
           onClick={() => onRespond(request.requestId, false)}
-          className="inline-flex items-center gap-1 rounded-md border border-zinc-700 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-800"
+          className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:bg-ink-800"
         >
           <X size={12} /> Deny
         </button>
@@ -598,27 +598,27 @@ export function ChatPane({ target, onBack }: Props) {
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
       <header
-        className="flex shrink-0 items-center gap-3 border-b border-zinc-800 px-4 py-3"
+        className="flex shrink-0 items-center gap-3 border-b border-ink-800 px-4 py-3"
         style={{ borderLeft: `3px solid ${color}` }}
       >
         <button
           type="button"
           onClick={onBack}
           title="Back"
-          className="shrink-0 rounded-md p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+          className="shrink-0 rounded-md p-1.5 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
         >
           <ArrowLeft size={16} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-            <span className="inline-flex items-center gap-1 font-medium text-zinc-400">
+          <div className="flex items-center gap-2 text-[11px] text-ink-500">
+            <span className="inline-flex items-center gap-1 font-medium text-ink-400">
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
               {target.hostName}
             </span>
             <span>·</span>
             <span className="truncate font-mono">{target.projectName}</span>
           </div>
-          <h2 className="truncate text-sm font-semibold text-zinc-100">
+          <h2 className="font-display truncate text-sm font-semibold text-ink-100">
             {target.session.summary || 'New session'}
           </h2>
         </div>
@@ -628,7 +628,7 @@ export function ChatPane({ target, onBack }: Props) {
           target="_blank"
           rel="noreferrer"
           title="Open in this host's own CloudCLI UI"
-          className="shrink-0 rounded-md p-1.5 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+          className="shrink-0 rounded-md p-1.5 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
         >
           <ExternalLink size={15} />
         </a>
@@ -643,15 +643,15 @@ export function ChatPane({ target, onBack }: Props) {
         className="flex-1 overflow-y-auto px-4 py-4"
       >
         {loading ? (
-          <div className="flex h-full items-center justify-center text-zinc-500">
+          <div className="flex h-full items-center justify-center text-ink-500">
             <LoaderCircle size={20} className="animate-spin" />
           </div>
         ) : fatalError ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
             <TriangleAlert size={20} className="text-amber-400" />
-            <p className="text-sm text-zinc-400">{fatalError}</p>
+            <p className="text-sm text-ink-400">{fatalError}</p>
             {target.session.provider === 'cursor' && (
-              <p className="text-xs text-zinc-600">
+              <p className="text-xs text-ink-600">
                 Cursor sessions created from the Cursor IDE have no readable store — this is a known
                 CloudCLI limitation.
               </p>
@@ -664,14 +664,14 @@ export function ChatPane({ target, onBack }: Props) {
                 type="button"
                 onClick={() => void loadOlder()}
                 disabled={loadingOlder}
-                className="mx-auto inline-flex items-center gap-1 rounded-full border border-zinc-800 px-3 py-1 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 disabled:opacity-50"
+                className="mx-auto inline-flex items-center gap-1 rounded-full border border-ink-800 px-3 py-1 text-xs text-ink-400 transition-colors hover:bg-ink-800 disabled:opacity-50"
               >
                 {loadingOlder ? <LoaderCircle size={12} className="animate-spin" /> : <ChevronUp size={12} />}
                 Load older messages
               </button>
             )}
             {visible.length === 0 && !processing && (
-              <p className="py-16 text-center text-sm text-zinc-500">
+              <p className="py-16 text-center text-sm text-ink-500">
                 No messages yet — send the first one below.
               </p>
             )}
@@ -682,7 +682,7 @@ export function ChatPane({ target, onBack }: Props) {
               <PermissionCard key={request.requestId} request={request} onRespond={respondPermission} />
             ))}
             {processing && permissions.length === 0 && (
-              <div className="mr-6 flex items-center gap-2 text-xs text-zinc-500">
+              <div className="mr-6 flex items-center gap-2 text-xs text-ink-500">
                 <LoaderCircle size={12} className="animate-spin" /> working…
               </div>
             )}
@@ -690,14 +690,14 @@ export function ChatPane({ target, onBack }: Props) {
         )}
       </div>
 
-      <footer className="shrink-0 border-t border-zinc-800 px-4 py-3">
+      <footer className="shrink-0 border-t border-ink-800 px-4 py-3">
         <div className="mx-auto max-w-2xl">
           {banner && (
             <div className="mb-2 flex items-center gap-2 text-xs text-amber-400">
               <TriangleAlert size={12} /> {banner}
             </div>
           )}
-          <div className="flex items-end gap-2 rounded-xl border border-zinc-700 bg-zinc-900 p-2 focus-within:border-zinc-500">
+          <div className="flex items-end gap-2 rounded-xl border border-ink-700 bg-ink-900 p-2 focus-within:border-brass-400/60">
             <textarea
               ref={textareaRef}
               value={input}
@@ -720,7 +720,7 @@ export function ChatPane({ target, onBack }: Props) {
                   : 'Connecting to host…'
               }
               disabled={!canChat || socketState !== 'open'}
-              className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 disabled:opacity-50"
+              className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-ink-100 outline-none placeholder:text-ink-600 disabled:opacity-50"
             />
             {processing ? (
               <button
@@ -737,13 +737,13 @@ export function ChatPane({ target, onBack }: Props) {
                 onClick={send}
                 disabled={!input.trim() || socketState !== 'open'}
                 title="Send (Enter)"
-                className="shrink-0 rounded-lg bg-zinc-100 p-2 text-zinc-900 transition-colors hover:bg-white disabled:opacity-40"
+                className="shrink-0 rounded-lg bg-brass-400 p-2 text-ink-950 transition-colors hover:bg-brass-300 disabled:opacity-40"
               >
                 <ArrowUp size={16} />
               </button>
             )}
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-600">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-ink-600">
             <select
               value={permissionMode}
               onChange={(event) => {
@@ -752,7 +752,7 @@ export function ChatPane({ target, onBack }: Props) {
                 savePermissionMode(target.hostId, mode)
               }}
               title="Permission mode"
-              className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[11px] text-zinc-400 outline-none"
+              className="rounded border border-ink-800 bg-ink-900 px-1.5 py-0.5 text-[11px] text-ink-400 outline-none"
             >
               {PERMISSION_MODES.map((mode) => (
                 <option key={mode.value} value={mode.value}>
@@ -765,7 +765,7 @@ export function ChatPane({ target, onBack }: Props) {
                 value={model}
                 onChange={(event) => changeModel(event.target.value)}
                 title="Model"
-                className="max-w-40 rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[11px] text-zinc-400 outline-none"
+                className="max-w-40 rounded border border-ink-800 bg-ink-900 px-1.5 py-0.5 text-[11px] text-ink-400 outline-none"
               >
                 {modelOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -779,7 +779,7 @@ export function ChatPane({ target, onBack }: Props) {
                 value={effort || activeModel.effort.default}
                 onChange={(event) => changeEffort(event.target.value)}
                 title="Reasoning effort"
-                className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[11px] text-zinc-400 outline-none"
+                className="rounded border border-ink-800 bg-ink-900 px-1.5 py-0.5 text-[11px] text-ink-400 outline-none"
               >
                 {activeModel.effort.values.map((option) => (
                   <option key={option.value} value={option.value}>

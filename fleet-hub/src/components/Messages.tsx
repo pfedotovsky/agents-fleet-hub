@@ -19,7 +19,7 @@ export function ProviderBadge({ provider }: { provider: Provider }) {
   const isCursor = provider === 'cursor'
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-zinc-800 bg-zinc-900 px-2 py-0.5 text-[11px] text-zinc-400"
+      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-ink-800 bg-ink-900 px-2 py-0.5 text-[11px] text-ink-400"
       title={isCursor ? 'Cursor IDE sessions may not open correctly in CloudCLI' : undefined}
     >
       <meta.Icon size={11} style={{ color: meta.color }} />
@@ -43,7 +43,7 @@ export function MessageItem({ message }: { message: NormalizedMessage }) {
     const text = contentToText(message.content)
     if (message.role === 'user') {
       return (
-        <div className="ml-10 self-end whitespace-pre-wrap break-words rounded-lg rounded-br-sm bg-zinc-800 px-3.5 py-2.5 text-sm text-zinc-100">
+        <div className="ml-10 self-end whitespace-pre-wrap break-words rounded-lg rounded-br-sm bg-ink-800 px-3.5 py-2.5 text-sm text-ink-100">
           {text}
         </div>
       )
@@ -56,9 +56,9 @@ export function MessageItem({ message }: { message: NormalizedMessage }) {
   }
   if (message.kind === 'thinking') {
     return (
-      <details className="mr-10 text-xs text-zinc-500">
+      <details className="mr-10 text-xs text-ink-500">
         <summary className="cursor-pointer select-none italic">thinking…</summary>
-        <div className="mt-1 whitespace-pre-wrap break-words border-l border-zinc-800 pl-3 italic">
+        <div className="mt-1 whitespace-pre-wrap break-words border-l border-ink-800 pl-3 italic">
           {contentToText(message.content)}
         </div>
       </details>

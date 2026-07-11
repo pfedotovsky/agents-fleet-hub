@@ -1,10 +1,10 @@
-# Fleet Hub — Architecture
+# Agents Hub — Architecture
 
 Last verified: 2026-07-11 (CloudCLI 1.36.1).
 
 ## Overview
 
-Fleet Hub is a **static React SPA with no backend**. The browser talks
+Agents Hub is a **static React SPA with no backend**. The browser talks
 directly to each configured CloudCLI host:
 
 - REST (`/api/...`) with a Bearer JWT — projects, sessions, transcripts,
@@ -16,7 +16,7 @@ CloudCLI's CORS is wide open, which is what makes the no-backend design work.
 All state that must survive a reload lives in the browser's localStorage.
 
 ```
-Browser (Fleet Hub SPA)
+Browser (Agents Hub SPA)
   ├─ REST poll every 12 s ──► host A  (remote VM, CloudCLI :3001)
   ├─ REST poll every 12 s ──► host B  (localhost:3001)
   └─ /ws?token=JWT ────────► whichever host owns the open chat
@@ -112,7 +112,10 @@ Browser (Fleet Hub SPA)
 
 ## Verified CloudCLI 1.36.1 quirks
 
-Non-obvious facts this code depends on (verified from source + live):
+Non-obvious facts this code depends on (verified from source + live). Server
+*defects* (as opposed to quirks) are cataloged separately in
+[cloudcli-server-issues.md](cloudcli-server-issues.md), which also tracks the
+fork-vs-workaround considerations.
 
 - `GET /api/projects` returns a **bare array** (no envelope) and triggers a
   disk→DB session sync server-side — it can be slow.
@@ -127,6 +130,16 @@ Non-obvious facts this code depends on (verified from source + live):
   once — its frontend keeps its JWT in *its own origin's* localStorage
   (`auth-token`) with no URL-token handoff, so the hub cannot authenticate it.
 - Some VMs are IPv6-only: CloudCLI must then be launched with `HOST=:: cloudcli`.
+- **Sessions can be permanently "lost" by a U+2028 in a message**
+  ([siteboon/claudecodeui#1002](https://github.com/siteboon/claudecodeui/issues/1002),
+  reported by us 2026-07-11): CloudCLI's indexer reads transcript JSONL with
+  Node `readline`, which splits lines on U+2028/U+2029, so one such character
+  (common in pasted text) makes the whole file unparseable to it; incremental
+  scans filter by file *birthtime*, so the file is never retried. The session
+  then shows as "Untitled" with an empty transcript, though the JSONL on disk
+  is intact. Recovery: escape raw `E2 80 A8` bytes to `\u2028` in the JSONL,
+  rewind `scan_state.last_scanned_at` in `~/.cloudcli/auth.db` to before the
+  file's creation time, then hit `GET /api/projects` to re-index.
 
 ## Security model
 

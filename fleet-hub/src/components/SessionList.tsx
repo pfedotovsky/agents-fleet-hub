@@ -9,12 +9,12 @@ interface Props {
 
 function SkeletonRow() {
   return (
-    <div className="flex animate-pulse items-center gap-3 rounded-lg border border-zinc-800/80 bg-zinc-900/60 px-4 py-3">
+    <div className="flex animate-pulse items-center gap-3 rounded-lg border border-ink-800/80 bg-ink-900/60 px-4 py-3">
       <div className="flex-1 space-y-2">
-        <div className="h-2.5 w-40 rounded bg-zinc-800" />
-        <div className="h-3.5 w-72 max-w-full rounded bg-zinc-800" />
+        <div className="h-2.5 w-40 rounded bg-ink-800" />
+        <div className="h-3.5 w-72 max-w-full rounded bg-ink-800" />
       </div>
-      <div className="h-4 w-16 rounded-full bg-zinc-800" />
+      <div className="h-4 w-16 rounded-full bg-ink-800" />
     </div>
   )
 }
@@ -32,7 +32,7 @@ export function SessionList({ sessions, hosts, onOpen }: Props) {
       )
     }
     return (
-      <p className="py-16 text-center text-sm text-zinc-500">
+      <p className="py-16 text-center text-sm text-ink-500">
         No sessions yet — they will appear here as soon as a host reports activity.
       </p>
     )

@@ -6,6 +6,24 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-11
 
+### Changed
+- Renamed the product Fleet Hub → **Agents Hub**: sidebar wordmark, browser
+  title, new brass-beacon favicon, `package.json` name (`agents-hub`), and
+  all doc mentions. Repo directory `fleet-hub/`, localStorage keys
+  (`fleethub.v1.*`, so existing hosts/tokens survive), and internal
+  identifiers (`useFleet`, `FleetSession`) intentionally unchanged.
+- UI overhaul to an "ink & brass" theme: the zinc grays became a
+  blue-graphite `ink-*` token scale (Tailwind v4 `@theme` in
+  `src/index.css`), primary actions (send, new session, add host, sign in,
+  checkbox accents, focus rings) moved from white buttons to a single brass
+  accent, and fonts changed from Inter/JetBrains Mono to Space Grotesk
+  (wordmark/pane titles), IBM Plex Sans (body), and IBM Plex Mono (data).
+  The sidebar wordmark gained a live-agent counter chip ("N live", pulsing
+  beacon) computed from the 2-minute activity window. Emerald active
+  signals and the CVD-validated host identity palette are unchanged; both
+  CSS animations now respect `prefers-reduced-motion`. All 15 components
+  restyled; no behavior, data-flow, or API changes.
+
 ### Added
 - One-click new session from the sidebar: each project row has a hover "+"
   button (next to the pin star, Cursor-Agents-style) that creates a session
@@ -74,7 +92,7 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   chat opens it directly; the active chat is highlighted and its project
   auto-expands (manual toggle overrides). An "all N chats…" link defers to
   the project pane for the full paged list.
-- Initial Fleet Hub SPA (`fleet-hub/`): multi-host CloudCLI client — sidebar
+- Initial Agents Hub SPA (`fleet-hub/`): multi-host CloudCLI client — sidebar
   with hosts → projects (starred + recency ordering), merged cross-host
   session feed, project view with paged sessions and new-session creation
   (claude / codex / opencode), live chat over `/ws` (streaming, tool-call

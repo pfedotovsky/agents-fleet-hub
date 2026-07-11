@@ -66,4 +66,19 @@ formatting), before finishing:
 3. If user-visible behavior changed, check `fleet-hub/README.md` still tells
    the truth.
 
+Also, whenever you discover something important that isn't obvious from the
+code — a verified CloudCLI API quirk, a design decision and its rationale, a
+constraint you had to work around, results of an investigation — write it
+down in `docs/` before finishing:
+
+- CloudCLI API behavior and architecture details → `docs/architecture.md`
+  (extend the relevant section).
+- Findings that don't fit architecture (research notes, comparisons,
+  investigation results) → a dedicated markdown file in `docs/` with a
+  descriptive name (like the existing `docs/feature-parity.md`), and mention
+  it in the changelog.
+
+Rule of thumb: if rediscovering the fact would cost another agent real time,
+it belongs in `docs/`, not just in the conversation.
+
 A Stop hook will remind you about this; the source of truth is this list.
