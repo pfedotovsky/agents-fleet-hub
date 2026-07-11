@@ -44,6 +44,7 @@ export interface FleetSession {
   baseUrl: string
   projectName: string
   projectPath: string
+  projectId: string
   session: SessionSummary
   href: string
   stale: boolean
@@ -52,6 +53,8 @@ export interface FleetSession {
 
 export interface Prefs {
   hideCursor: boolean
+  /** Chime + desktop notification when a run finishes or asks for permission. */
+  soundAlerts: boolean
 }
 
 /** Provider-normalized transcript message from GET /api/providers/sessions/:id/messages. */

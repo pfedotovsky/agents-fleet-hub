@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   ChevronDown,
   ChevronRight,
@@ -8,6 +8,7 @@ import {
   LoaderCircle,
   MessageSquare,
   MoonStar,
+  Plus,
   RefreshCw,
   Settings,
   Star,
@@ -15,7 +16,13 @@ import {
 } from 'lucide-react'
 import type { HostRuntime, Project, SessionSummary } from '../types'
 import type { View } from '../App'
-import { hostColor, relativeTime } from '../lib/format'
+import { hostColor, isActive, relativeTime } from '../lib/format'
+import {
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  loadSidebarWidth,
+  saveSidebarWidth,
+} from '../lib/storage'
 
 const COLLAPSED_COUNT = 7
 /** How many chats to show under an expanded project before deferring to the project pane. */
@@ -28,6 +35,9 @@ interface Props {
   onSelectFeed: () => void
   onSelectProject: (hostId: string, projectId: string) => void
   onOpenSession: (hostId: string, projectId: string, session: SessionSummary) => void
+  onNewSession: (hostId: string, projectId: string) => void
+  /** `hostId:projectId` of the project whose session is being created, if any. */
+  creatingKey: string | null
   onToggleStar: (hostId: string, projectId: string) => void
   onSignIn: (hostId: string) => void
   onOpenSettings: () => void
@@ -91,6 +101,7 @@ function SessionLink({
   onOpen: () => void
 }) {
   const title = session.summary || 'Untitled session'
+  const running = isActive(session.lastActivity)
   return (
     <button
       type="button"
@@ -102,9 +113,19 @@ function SessionLink({
     >
       <MessageSquare size={11} className="shrink-0 text-zinc-600" />
       <span className="min-w-0 flex-1 truncate text-left">{title}</span>
-      <span className="tnum shrink-0 font-mono text-[10px] text-zinc-700">
-        {relativeTime(session.lastActivity)}
-      </span>
+      {running ? (
+        <span
+          title="Active in the last 2 minutes"
+          className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-emerald-400"
+        >
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+          active
+        </span>
+      ) : (
+        <span className="tnum shrink-0 font-mono text-[10px] text-zinc-700">
+          {relativeTime(session.lastActivity)}
+        </span>
+      )}
     </button>
   )
 }
@@ -115,9 +136,12 @@ function ProjectRow({
   activeSessionId,
   dimmed,
   expanded,
+  creating,
+  canCreate,
   onToggleExpand,
   onSelect,
   onOpenSession,
+  onNewSession,
   onToggleStar,
 }: {
   project: Project
@@ -125,9 +149,12 @@ function ProjectRow({
   activeSessionId: string | null
   dimmed: boolean
   expanded: boolean
+  creating: boolean
+  canCreate: boolean
   onToggleExpand: () => void
   onSelect: () => void
   onOpenSession: (session: SessionSummary) => void
+  onNewSession: () => void
   onToggleStar: () => void
 }) {
   const sessions = expanded
@@ -135,6 +162,7 @@ function ProjectRow({
         .sort((a, b) => Date.parse(b.lastActivity) - Date.parse(a.lastActivity))
         .slice(0, SESSIONS_PER_PROJECT)
     : []
+  const hasActivity = project.sessions.some((session) => isActive(session.lastActivity))
   const Chevron = expanded ? ChevronDown : ChevronRight
   return (
     <div className={dimmed ? 'opacity-60' : ''}>
@@ -161,10 +189,33 @@ function ProjectRow({
         >
           <Folder size={13} className="shrink-0 text-zinc-600" />
           <span className="min-w-0 flex-1 truncate text-left">{project.displayName}</span>
+          {hasActivity && (
+            <span
+              title="Has a session active in the last 2 minutes"
+              className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400"
+            />
+          )}
           <span className="tnum shrink-0 font-mono text-[10px] text-zinc-600">
             {project.sessionMeta.total}
           </span>
         </button>
+        {canCreate && (
+          <button
+            type="button"
+            onClick={onNewSession}
+            disabled={creating}
+            title="New session"
+            className={`shrink-0 rounded p-1 text-zinc-600 transition-opacity hover:bg-zinc-700 hover:text-zinc-200 ${
+              creating ? '' : 'opacity-0 group-hover:opacity-100'
+            }`}
+          >
+            {creating ? (
+              <LoaderCircle size={12} className="animate-spin text-zinc-400" />
+            ) : (
+              <Plus size={12} />
+            )}
+          </button>
+        )}
         <button
           type="button"
           onClick={onToggleStar}
@@ -207,8 +258,10 @@ function HostSection({
   hostIndex,
   recent,
   view,
+  creatingKey,
   onSelectProject,
   onOpenSession,
+  onNewSession,
   onToggleStar,
   onSignIn,
 }: {
@@ -216,8 +269,10 @@ function HostSection({
   hostIndex: number
   recent: Record<string, number>
   view: View
+  creatingKey: string | null
   onSelectProject: (hostId: string, projectId: string) => void
   onOpenSession: (hostId: string, projectId: string, session: SessionSummary) => void
+  onNewSession: (hostId: string, projectId: string) => void
   onToggleStar: (hostId: string, projectId: string) => void
   onSignIn: (hostId: string) => void
 }) {
@@ -227,7 +282,13 @@ function HostSection({
   const color = hostColor(hostIndex)
   const hostId = runtime.config.id
 
+  // Projects with a currently-active session outrank everything — the user is
+  // navigating to running agents far more often than to pinned archives.
+  const activityRank = (project: Project) =>
+    project.sessions.some((session) => isActive(session.lastActivity)) ? 1 : 0
   const sorted = [...runtime.projects].sort((a, b) => {
+    const activeDelta = activityRank(b) - activityRank(a)
+    if (activeDelta !== 0) return activeDelta
     if (a.isStarred !== b.isStarred) return a.isStarred ? -1 : 1
     return recencyKey(b, hostId, recent) - recencyKey(a, hostId, recent)
   })
@@ -270,11 +331,14 @@ function HostSection({
             activeSessionId={hasActiveChat ? activeChat.session.id : null}
             dimmed={dimmed}
             expanded={isOpen}
+            creating={creatingKey === `${hostId}:${project.projectId}`}
+            canCreate={runtime.status === 'online'}
             onToggleExpand={() =>
               setOpenOverrides((prev) => ({ ...prev, [project.projectId]: !isOpen }))
             }
             onSelect={() => onSelectProject(hostId, project.projectId)}
             onOpenSession={(session) => onOpenSession(hostId, project.projectId, session)}
+            onNewSession={() => onNewSession(hostId, project.projectId)}
             onToggleStar={() => onToggleStar(hostId, project.projectId)}
           />
         )
@@ -311,13 +375,38 @@ export function Sidebar({
   onSelectFeed,
   onSelectProject,
   onOpenSession,
+  onNewSession,
+  creatingKey,
   onToggleStar,
   onSignIn,
   onOpenSettings,
   onRefresh,
 }: Props) {
+  const [width, setWidth] = useState(() => loadSidebarWidth())
+  const widthRef = useRef(width)
+  widthRef.current = width
+
+  function startResize(event: React.PointerEvent) {
+    event.preventDefault()
+    const onMove = (move: PointerEvent) => {
+      const next = Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, move.clientX))
+      widthRef.current = next
+      setWidth(next)
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      saveSidebarWidth(widthRef.current)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-zinc-800/80 bg-zinc-950">
+    <aside
+      style={{ width }}
+      className="relative flex h-full shrink-0 flex-col border-r border-zinc-800/80 bg-zinc-950"
+    >
       <div className="flex items-center justify-between px-4 py-3">
         <h1 className="text-sm font-semibold tracking-wide">Fleet Hub</h1>
         <div className="flex gap-0.5">
@@ -359,13 +448,21 @@ export function Sidebar({
             hostIndex={hostIndex}
             recent={recent}
             view={view}
+            creatingKey={creatingKey}
             onSelectProject={onSelectProject}
             onOpenSession={onOpenSession}
+            onNewSession={onNewSession}
             onToggleStar={onToggleStar}
             onSignIn={onSignIn}
           />
         ))}
       </nav>
+
+      <div
+        onPointerDown={startResize}
+        title="Drag to resize"
+        className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize transition-colors hover:bg-zinc-700/50"
+      />
     </aside>
   )
 }

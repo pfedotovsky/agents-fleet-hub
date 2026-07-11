@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { Server } from 'lucide-react'
+import { Server, X } from 'lucide-react'
 import type { FleetSession, SessionSummary } from './types'
+import { createSession } from './lib/api'
+import { getToken, saveToken } from './lib/storage'
 import { useFleet } from './hooks/useFleet'
 import { Sidebar } from './components/Sidebar'
 import { SessionList } from './components/SessionList'
@@ -22,6 +24,8 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [loginHostId, setLoginHostId] = useState<string | null>(null)
   const [view, setView] = useState<View>({ kind: 'feed' })
+  const [creatingKey, setCreatingKey] = useState<string | null>(null)
+  const [createError, setCreateError] = useState<string | null>(null)
 
   const loginRuntime = fleet.hosts.find((runtime) => runtime.config.id === loginHostId)
   const downHosts = fleet.hosts.filter(
@@ -49,11 +53,56 @@ export default function App() {
       baseUrl: runtime.config.baseUrl,
       projectName: project.displayName,
       projectPath: project.fullPath,
+      projectId: project.projectId,
       session,
       href: `${runtime.config.baseUrl}/session/${session.id}`,
       stale: runtime.status !== 'online',
       justUpdated: false,
     })
+  }
+
+  /** One-click "new session" from the sidebar: create on the host, jump straight into the chat. */
+  const newSession = async (hostId: string, projectId: string) => {
+    const { hostIndex, runtime, project } = findProject(hostId, projectId)
+    if (!runtime || !project) return
+    const key = `${hostId}:${projectId}`
+    setCreatingKey(key)
+    setCreateError(null)
+    try {
+      const token = getToken(hostId)
+      if (!token) throw new Error(`Not signed in to ${runtime.config.name}`)
+      const created = await createSession(
+        runtime.config.baseUrl,
+        token,
+        'claude',
+        project.fullPath,
+        (refreshed) => saveToken(hostId, refreshed),
+      )
+      openChat({
+        key: `${hostId}:${created.sessionId}`,
+        hostId,
+        hostName: runtime.config.name,
+        hostColorIdx: hostIndex,
+        baseUrl: runtime.config.baseUrl,
+        projectName: project.displayName,
+        projectPath: project.fullPath,
+        projectId: project.projectId,
+        session: {
+          id: created.sessionId,
+          provider: created.provider,
+          summary: '',
+          messageCount: 0,
+          lastActivity: new Date().toISOString(),
+        },
+        href: `${runtime.config.baseUrl}/session/${created.sessionId}`,
+        stale: false,
+        justUpdated: false,
+      })
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : 'Failed to create a session')
+    } finally {
+      setCreatingKey(null)
+    }
   }
 
   function findProject(hostId: string, projectId: string) {
@@ -153,12 +202,26 @@ export default function App() {
         onSelectFeed={() => setView({ kind: 'feed' })}
         onSelectProject={openProject}
         onOpenSession={openSessionFromSidebar}
+        onNewSession={(hostId, projectId) => void newSession(hostId, projectId)}
+        creatingKey={creatingKey}
         onToggleStar={(hostId, projectId) => void fleet.toggleStar(hostId, projectId)}
         onSignIn={setLoginHostId}
         onOpenSettings={() => setSettingsOpen(true)}
         onRefresh={fleet.refresh}
       />
       <main className="flex min-w-0 flex-1 flex-col">{renderMain()}</main>
+      {createError && (
+        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-md border border-rose-900/60 bg-zinc-900 px-3 py-2 text-xs text-rose-400 shadow-lg">
+          <span>{createError}</span>
+          <button
+            type="button"
+            onClick={() => setCreateError(null)}
+            className="rounded p-0.5 text-zinc-500 hover:text-zinc-200"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
       {settingsOpen && (
         <SettingsPanel
           hosts={fleet.hosts}

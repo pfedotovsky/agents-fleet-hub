@@ -29,14 +29,14 @@ Browser (Fleet Hub SPA)
 | `App.tsx` | View router: a `View` union (`feed` / `project` / `files` / `chat`) in component state. No URL routing. |
 | `hooks/useFleet.ts` | The heart of the app: host configs + prefs from storage, 12 s polling loop per host, host status machine, merged cross-host session feed, star toggle, login. |
 | `lib/api.ts` | All REST calls. `fetchJson` adds timeout (AbortController), Bearer header, captures `X-Refreshed-Token`, maps 401/403 → `AuthError`, network failure → `HostUnreachableError`. |
-| `lib/chatSocket.ts` | `ChatSocket` class — one reconnecting WS per chat (fixed 3 s retry until `close()`), typed senders: `chat.send` / `chat.subscribe` / `chat.abort` / `chat.permission-response`. |
-| `lib/storage.ts` | localStorage wrapper, keys `fleethub.v1.{hosts,tokens,prefs,recentProjects,models}`. |
+| `lib/chatSocket.ts` | `ChatSocket` class — one reconnecting WS per chat (fixed 3 s retry until `close()`), typed senders: `chat.send` / `chat.subscribe` / `chat.abort` / `chat.permission-response` (with optional `rememberEntry`). |
+| `lib/storage.ts` | localStorage wrapper, keys `fleethub.v1.{hosts,tokens,prefs,recentProjects,models,permissions}`. Permissions (mode + "always allow" grants) are keyed `hostId:projectPath`. |
 | `lib/format.ts` | Relative-time and path helpers. |
 | `types.ts` | Shared types: `HostConfig/HostRuntime/HostStatus`, `Project`, `SessionSummary`, `FleetSession`, `ChatEvent`, `PermissionMode`, model catalog. |
-| `components/Sidebar.tsx` | Hosts → projects → chats tree: starred first, then recency; long tails behind "N more"; per-project disclosure lists recent sessions inline (embedded poll data, capped at 6; "all N chats…" opens the project pane); the active chat's project auto-expands; status dots. |
+| `components/Sidebar.tsx` | Hosts → projects → chats tree: starred first, then recency; long tails behind "N more"; per-project disclosure lists recent sessions inline (embedded poll data, capped at 6; "all N chats…" opens the project pane); the active chat's project auto-expands; status dots. Hover "+" per project row creates a `claude` session and opens the chat directly (handler in `App.tsx`; errors → toast). |
 | `components/SessionList.tsx` + `SessionRow.tsx` | "All sessions" merged feed rows. |
 | `components/ProjectPane.tsx` | One project: paged session list, "New session" (provider picker), Files button. |
-| `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts, model/effort picker, permission mode, abort, `chat.subscribe` seq replay on reconnect. |
+| `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts (allow / always-allow / deny), model/effort picker, persisted permission mode, abort, `chat.subscribe` seq replay on reconnect. |
 | `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
 | `components/FileBrowser.tsx`, `FileTree.tsx`, `CodeEditor.tsx` | Project file tree + lazy-loaded CodeMirror editor (One Dark); Cmd+S saves via `PUT /file`. |
 | `components/LoginModal.tsx`, `SettingsPanel.tsx`, `OfflineCard.tsx` | Per-host login and first-time setup (register; password never stored), host/prefs management, hibernated-VM card with restart hint. |
@@ -64,11 +64,30 @@ Browser (Fleet Hub SPA)
 - History: `GET /api/providers/sessions/:id/messages?limit&offset` —
   `offset=0` is the **newest** page; offsets walk backward and count raw
   messages including `tool_result` kinds.
-- Live: `chat.send {sessionId, content, options{permissionMode, model, effort}}`;
+- Live: `chat.send {sessionId, content, options{permissionMode, model, effort,
+  toolsSettings{allowedTools, disallowedTools, skipPermissions}}}`;
   the server streams the same normalized message kinds as history plus
   `complete{success}`, `permission_request{requestId,toolName,input}`,
   `chat_subscribed{isProcessing,pendingPermissions}`, `session_upserted`,
   `protocol_error{code}`.
+- Permissions: the server rebuilds SDK options from `chat.send` options on
+  **every message** — nothing is stored per session — so the hub persists the
+  permission mode and "always allow" grants per host+project and re-sends the
+  grants as `toolsSettings.allowedTools` each send. Approving with
+  `chat.permission-response {requestId, allow, rememberEntry}` additionally
+  covers the rest of the in-flight run server-side. `rememberEntry` accepts
+  only two shapes: a bare tool name (`Edit`) or a Bash prefix rule
+  (`Bash(git:*)`). The SDK on the host loads the VM's own `.claude/settings*`
+  (`settingSources: ['project','user','local']`), so `permission_request`
+  frames only appear for tools not already allowed there. "Always allow"
+  grants for claude sessions are also written through to the project's
+  `.claude/settings.local.json` (`permissions.allow`) via the file API —
+  best-effort: unparseable files are never overwritten, and PUT cannot create
+  the `.claude/` directory, so a missing directory degrades to hub-only grants.
+- CloudCLI runs Claude via `@anthropic-ai/claude-agent-sdk` `query()`
+  in-process; the SDK in turn spawns the regular Claude Code executable
+  (`pathToClaudeCodeExecutable`) using the VM's own `claude` login — same
+  binary and auth as a terminal session, driven programmatically.
 - Reconnect: on every WS open the owner re-subscribes with
   `chat.subscribe {sessions:[{sessionId,lastSeq}]}` — the server replays
   missed events by sequence number.

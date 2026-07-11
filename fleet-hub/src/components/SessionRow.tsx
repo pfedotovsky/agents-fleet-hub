@@ -1,6 +1,6 @@
 import { ExternalLink } from 'lucide-react'
 import type { FleetSession } from '../types'
-import { hostColor, relativeTime } from '../lib/format'
+import { hostColor, isActive, relativeTime } from '../lib/format'
 import { ProviderBadge } from './Messages'
 
 interface Props {
@@ -40,9 +40,19 @@ export function SessionRow({ item, onOpen }: Props) {
         </div>
       </div>
       <ProviderBadge provider={item.session.provider} />
-      <span className="tnum w-16 shrink-0 text-right font-mono text-xs text-zinc-500">
-        {relativeTime(item.session.lastActivity)}
-      </span>
+      {isActive(item.session.lastActivity) ? (
+        <span
+          title="Active in the last 2 minutes"
+          className="inline-flex w-16 shrink-0 items-center justify-end gap-1.5 text-xs font-medium text-emerald-400"
+        >
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+          active
+        </span>
+      ) : (
+        <span className="tnum w-16 shrink-0 text-right font-mono text-xs text-zinc-500">
+          {relativeTime(item.session.lastActivity)}
+        </span>
+      )}
       <a
         href={item.href}
         target="_blank"

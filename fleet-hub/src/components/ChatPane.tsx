@@ -19,10 +19,27 @@ import type {
   PermissionMode,
   PermissionRequest,
 } from '../types'
-import { AuthError, HostUnreachableError, getModels, getSessionMessages } from '../lib/api'
+import {
+  AuthError,
+  HostUnreachableError,
+  getModels,
+  getSessionMessages,
+  readFile,
+  saveFile,
+} from '../lib/api'
 import { ChatSocket } from '../lib/chatSocket'
 import type { SocketState } from '../lib/chatSocket'
-import { getToken, loadModelChoice, saveModelChoice, saveToken } from '../lib/storage'
+import {
+  addAllowedTool,
+  getToken,
+  loadModelChoice,
+  loadPermissionMode,
+  loadPermissions,
+  saveModelChoice,
+  savePermissionMode,
+  saveToken,
+} from '../lib/storage'
+import { notify, requestNotifyPermission } from '../lib/notify'
 import { hostColor } from '../lib/format'
 import { MessageItem, RENDERED_KINDS, ProviderBadge, contentToText } from './Messages'
 
@@ -35,13 +52,29 @@ const PERMISSION_MODES: { value: PermissionMode; label: string }[] = [
   { value: 'bypassPermissions', label: 'Bypass permissions' },
 ]
 
+/**
+ * Server permission-rule token for "Always allow": the bare tool name, or a
+ * `Bash(<first word>:*)` prefix rule — the only two shapes CloudCLI's
+ * matchesToolPermission understands.
+ */
+function rememberEntryFor(request: PermissionRequest): string | undefined {
+  if (!request.toolName) return undefined
+  if (request.toolName !== 'Bash') return request.toolName
+  const input = request.input as { command?: unknown } | string | null | undefined
+  const command =
+    typeof input === 'string' ? input : typeof input?.command === 'string' ? input.command : ''
+  const firstWord = command.trim().split(/\s+/)[0]
+  return firstWord ? `Bash(${firstWord}:*)` : 'Bash'
+}
+
 function PermissionCard({
   request,
   onRespond,
 }: {
   request: PermissionRequest
-  onRespond: (requestId: string, allow: boolean) => void
+  onRespond: (requestId: string, allow: boolean, rememberEntry?: string) => void
 }) {
+  const rememberEntry = rememberEntryFor(request)
   return (
     <div className="mr-6 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
       <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-300">
@@ -61,6 +94,16 @@ function PermissionCard({
         >
           <Check size={12} /> Allow
         </button>
+        {rememberEntry && (
+          <button
+            type="button"
+            onClick={() => onRespond(request.requestId, true, rememberEntry)}
+            title={`Stop asking for ${rememberEntry} in this project`}
+            className="inline-flex items-center gap-1 rounded-md border border-emerald-600/50 px-3 py-1.5 text-xs font-medium text-emerald-400 transition-colors hover:bg-emerald-600/10"
+          >
+            <Check size={12} /> Always allow <span className="font-mono">{rememberEntry}</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onRespond(request.requestId, false)}
@@ -90,7 +133,12 @@ export function ChatPane({ target, onBack }: Props) {
   const [socketState, setSocketState] = useState<SocketState>('connecting')
   const [permissions, setPermissions] = useState<PermissionRequest[]>([])
   const [input, setInput] = useState('')
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>('default')
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>(
+    () => loadPermissionMode(target.hostId, target.projectPath) ?? 'default',
+  )
+  const [allowedTools, setAllowedTools] = useState<string[]>(
+    () => loadPermissions(target.hostId, target.projectPath).allowedTools ?? [],
+  )
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
   const [model, setModel] = useState<string>(() => loadModelChoice(target.hostId)?.model ?? '')
   const [effort, setEffort] = useState<string>(() => loadModelChoice(target.hostId)?.effort ?? '')
@@ -110,17 +158,38 @@ export function ChatPane({ target, onBack }: Props) {
   const loadedOlderRef = useRef(false)
   loadedOlderRef.current = loadedOlder
   const upsertTimer = useRef<number | undefined>(undefined)
+  const notifiedPermissionIds = useRef(new Set<string>())
 
-  const scrollToBottom = useCallback((onlyIfNear: boolean) => {
+  /**
+   * Sticky autoscroll: `pinnedRef` tracks whether the user is at (or near) the
+   * bottom, updated on every scroll. While pinned, a ResizeObserver on the
+   * message column re-snaps to the bottom whenever content grows — including
+   * async height changes (markdown, syntax highlighting, diffs) that land well
+   * after the message frame arrived, which used to break autoscroll.
+   */
+  const pinnedRef = useRef(true)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  const scrollToBottom = useCallback((onlyIfPinned: boolean) => {
     const el = scrollRef.current
     if (!el) return
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < 120
-    if (!onlyIfNear || near) {
-      requestAnimationFrame(() => {
-        el.scrollTop = el.scrollHeight
-      })
-    }
+    if (onlyIfPinned && !pinnedRef.current) return
+    pinnedRef.current = true
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight
+    })
   }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    const content = contentRef.current
+    if (!el || !content) return
+    const observer = new ResizeObserver(() => {
+      if (pinnedRef.current) el.scrollTop = el.scrollHeight
+    })
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [loading, fatalError])
 
   const appendMessage = useCallback(
     (message: NormalizedMessage) => {
@@ -232,6 +301,14 @@ export function ChatPane({ target, onBack }: Props) {
           }
           return
         case 'complete':
+          if (processingRef.current) {
+            notify(
+              'done',
+              `${target.projectName} — run finished`,
+              target.session.summary || 'The agent completed its run.',
+              `done:${sessionId}`,
+            )
+          }
           setProcessing(false)
           setPermissions([])
           // True-up from persisted history once the transcript flushes: replaces
@@ -244,6 +321,15 @@ export function ChatPane({ target, onBack }: Props) {
               requestId: event.requestId,
               toolName: event.toolName,
               input: event.input,
+            }
+            if (!notifiedPermissionIds.current.has(request.requestId)) {
+              notifiedPermissionIds.current.add(request.requestId)
+              notify(
+                'permission',
+                `${target.projectName} — permission needed`,
+                `The agent wants to use ${request.toolName ?? 'a tool'}.`,
+                `perm:${sessionId}`,
+              )
             }
             setPermissions((prev) =>
               prev.some((p) => p.requestId === request.requestId) ? prev : [...prev, request],
@@ -279,13 +365,15 @@ export function ChatPane({ target, onBack }: Props) {
           }
       }
     },
-    [appendMessage, mergeNewest, scrollToBottom, sessionId],
+    [appendMessage, mergeNewest, scrollToBottom, sessionId, target.projectName, target.session.summary],
   )
 
   // History load + socket lifecycle, once per session target.
   useEffect(() => {
     seenIds.current = new Set()
     lastSeq.current = 0
+    pinnedRef.current = true
+    notifiedPermissionIds.current = new Set()
     setMessages([])
     setPermissions([])
     setBanner(null)
@@ -417,15 +505,19 @@ export function ChatPane({ target, onBack }: Props) {
     const text = input.trim()
     const socket = socketRef.current
     if (!text || processing || !socket) return
-    const options: { permissionMode?: PermissionMode; model?: string; effort?: string } = {}
+    const options: Parameters<ChatSocket['sendChat']>[2] = {}
     if (permissionMode !== 'default') options.permissionMode = permissionMode
     if (model) options.model = model
     if (effort) options.effort = effort
+    if (allowedTools.length > 0) {
+      options.toolsSettings = { allowedTools, disallowedTools: [], skipPermissions: false }
+    }
     if (!socket.sendChat(sessionId, text, options)) {
       setBanner('Not connected to the host — reconnecting…')
       return
     }
     setBanner(null)
+    requestNotifyPermission()
     localCounter.current += 1
     appendMessage({
       id: `local_${localCounter.current}`,
@@ -442,9 +534,61 @@ export function ChatPane({ target, onBack }: Props) {
     scrollToBottom(false)
   }
 
-  function respondPermission(requestId: string, allow: boolean) {
-    socketRef.current?.respondPermission(requestId, allow)
+  function respondPermission(requestId: string, allow: boolean, rememberEntry?: string) {
+    socketRef.current?.respondPermission(requestId, allow, rememberEntry)
+    if (allow && rememberEntry) {
+      setAllowedTools(addAllowedTool(target.hostId, target.projectPath, rememberEntry))
+      if (target.session.provider === 'claude') void persistGrantToHost(rememberEntry)
+    }
     setPermissions((prev) => prev.filter((p) => p.requestId !== requestId))
+  }
+
+  /**
+   * Write-through of an "Always allow" grant into the host project's
+   * `.claude/settings.local.json` (`permissions.allow`), so the grant also
+   * applies to terminal Claude Code and the host's own UI — the SDK loads
+   * settings fresh on every chat.send. Best-effort: the hub's own
+   * localStorage grant already covers hub chats if this fails.
+   */
+  async function persistGrantToHost(entry: string) {
+    const token = getToken(target.hostId)
+    if (!token) return
+    const filePath = '.claude/settings.local.json'
+    const onRefresh = (t: string) => saveToken(target.hostId, t)
+    let settings: Record<string, unknown> = {}
+    try {
+      const raw = await readFile(target.baseUrl, token, target.projectId, filePath, onRefresh)
+      settings = JSON.parse(raw) as Record<string, unknown>
+      if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) {
+        return // unexpected shape — never clobber a file we don't understand
+      }
+    } catch (err) {
+      if (err instanceof SyntaxError) return // corrupt JSON — leave it alone
+      // Missing file (or transient read failure) — start from empty settings.
+      settings = {}
+    }
+    const permissions =
+      settings.permissions && typeof settings.permissions === 'object'
+        ? (settings.permissions as { allow?: unknown })
+        : {}
+    const allow = Array.isArray(permissions.allow) ? (permissions.allow as string[]) : []
+    if (allow.includes(entry)) return
+    settings.permissions = { ...permissions, allow: [...allow, entry] }
+    try {
+      await saveFile(
+        target.baseUrl,
+        token,
+        target.projectId,
+        filePath,
+        `${JSON.stringify(settings, null, 2)}\n`,
+        onRefresh,
+      )
+    } catch {
+      // Likely the .claude/ directory doesn't exist (PUT never creates parents).
+      setBanner(
+        `Allowed in the hub, but couldn't save to ${filePath} on the host — create the .claude directory there to persist grants.`,
+      )
+    }
   }
 
   const color = hostColor(target.hostColorIdx)
@@ -490,7 +634,14 @@ export function ChatPane({ target, onBack }: Props) {
         </a>
       </header>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4">
+      <div
+        ref={scrollRef}
+        onScroll={() => {
+          const el = scrollRef.current
+          if (el) pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60
+        }}
+        className="flex-1 overflow-y-auto px-4 py-4"
+      >
         {loading ? (
           <div className="flex h-full items-center justify-center text-zinc-500">
             <LoaderCircle size={20} className="animate-spin" />
@@ -507,7 +658,7 @@ export function ChatPane({ target, onBack }: Props) {
             )}
           </div>
         ) : (
-          <div className="mx-auto flex max-w-2xl flex-col gap-3">
+          <div ref={contentRef} className="mx-auto flex max-w-2xl flex-col gap-3">
             {hasMore && (
               <button
                 type="button"
@@ -595,7 +746,11 @@ export function ChatPane({ target, onBack }: Props) {
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-600">
             <select
               value={permissionMode}
-              onChange={(event) => setPermissionMode(event.target.value as PermissionMode)}
+              onChange={(event) => {
+                const mode = event.target.value as PermissionMode
+                setPermissionMode(mode)
+                savePermissionMode(target.hostId, mode)
+              }}
               title="Permission mode"
               className="rounded border border-zinc-800 bg-zinc-900 px-1.5 py-0.5 text-[11px] text-zinc-400 outline-none"
             >

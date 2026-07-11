@@ -73,7 +73,14 @@ export class ChatSocket {
   sendChat(
     sessionId: string,
     content: string,
-    options: { permissionMode?: PermissionMode; model?: string; effort?: string } = {},
+    options: {
+      permissionMode?: PermissionMode
+      model?: string
+      effort?: string
+      // The server rebuilds SDK options on every chat.send, so persistent
+      // "always allow" grants must ride along as toolsSettings each time.
+      toolsSettings?: { allowedTools: string[]; disallowedTools: string[]; skipPermissions: boolean }
+    } = {},
   ): boolean {
     return this.sendJson({ type: 'chat.send', sessionId, content, options })
   }
@@ -82,8 +89,13 @@ export class ChatSocket {
     return this.sendJson({ type: 'chat.abort', sessionId })
   }
 
-  respondPermission(requestId: string, allow: boolean): boolean {
-    return this.sendJson({ type: 'chat.permission-response', requestId, allow })
+  respondPermission(requestId: string, allow: boolean, rememberEntry?: string): boolean {
+    return this.sendJson({
+      type: 'chat.permission-response',
+      requestId,
+      allow,
+      ...(rememberEntry ? { rememberEntry } : {}),
+    })
   }
 
   close(): void {

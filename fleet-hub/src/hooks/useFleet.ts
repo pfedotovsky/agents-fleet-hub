@@ -233,6 +233,7 @@ export function useFleet() {
               baseUrl: runtime.config.baseUrl,
               projectName: project.displayName,
               projectPath: project.fullPath,
+              projectId: project.projectId,
               session,
               href: `${runtime.config.baseUrl}/session/${session.id}`,
               stale: runtime.status !== 'online',

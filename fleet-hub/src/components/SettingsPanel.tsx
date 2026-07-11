@@ -120,7 +120,7 @@ export function SettingsPanel({
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500">
           Preferences
         </h3>
-        <label className="mb-5 flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
+        <label className="mb-3 flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
           <input
             type="checkbox"
             checked={prefs.hideCursor}
@@ -128,6 +128,15 @@ export function SettingsPanel({
             className="accent-zinc-100"
           />
           Hide Cursor sessions (deep links to them are unreliable)
+        </label>
+        <label className="mb-5 flex cursor-pointer items-center gap-2 text-sm text-zinc-300">
+          <input
+            type="checkbox"
+            checked={prefs.soundAlerts}
+            onChange={(event) => onUpdatePrefs({ ...prefs, soundAlerts: event.target.checked })}
+            className="accent-zinc-100"
+          />
+          Chime + desktop notification when a run finishes or needs approval
         </label>
 
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500">Security</h3>

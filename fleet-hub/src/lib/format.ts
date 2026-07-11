@@ -18,6 +18,14 @@ export function hostColor(index: number): string {
   return HOST_COLORS[index % HOST_COLORS.length]
 }
 
+/** Activity within this window counts as "active" — the hub has no live run signal for unopened sessions. */
+const ACTIVE_WINDOW_MS = 2 * 60_000
+
+export function isActive(lastActivity: string, now = Date.now()): boolean {
+  const t = Date.parse(lastActivity)
+  return !Number.isNaN(t) && now - t < ACTIVE_WINDOW_MS
+}
+
 export function relativeTime(iso: string, now = Date.now()): string {
   const t = Date.parse(iso)
   if (Number.isNaN(t)) return '—'

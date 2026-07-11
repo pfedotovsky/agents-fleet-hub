@@ -1,10 +1,17 @@
-import type { HostConfig, Prefs } from '../types'
+import type { HostConfig, PermissionMode, Prefs } from '../types'
 
 const HOSTS_KEY = 'fleethub.v1.hosts'
 const TOKENS_KEY = 'fleethub.v1.tokens'
 const PREFS_KEY = 'fleethub.v1.prefs'
 const RECENT_KEY = 'fleethub.v1.recentProjects'
 const MODEL_KEY = 'fleethub.v1.models'
+const PERMISSIONS_KEY = 'fleethub.v1.permissions'
+const PERMISSION_MODES_KEY = 'fleethub.v1.permissionModes'
+const SIDEBAR_WIDTH_KEY = 'fleethub.v1.sidebarWidth'
+
+export const SIDEBAR_MIN_WIDTH = 200
+export const SIDEBAR_MAX_WIDTH = 480
+const SIDEBAR_DEFAULT_WIDTH = 256
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -54,7 +61,7 @@ export function clearTokens(): void {
 }
 
 export function loadPrefs(): Prefs {
-  return readJson<Prefs>(PREFS_KEY, { hideCursor: false })
+  return { hideCursor: false, soundAlerts: true, ...readJson<Partial<Prefs>>(PREFS_KEY, {}) }
 }
 
 export function savePrefs(prefs: Prefs): void {
@@ -84,4 +91,59 @@ export function saveModelChoice(hostId: string, choice: ModelChoice): void {
   const all = readJson<Record<string, ModelChoice>>(MODEL_KEY, {})
   all[hostId] = choice
   localStorage.setItem(MODEL_KEY, JSON.stringify(all))
+}
+
+/**
+ * Per host+project chat permissions, keyed `hostId:projectPath`. `allowedTools`
+ * holds server permission-rule tokens (`Edit`, `Bash(git:*)`, …) granted via
+ * "Always allow" — CloudCLI keeps rememberEntry grants only for the in-flight
+ * query, so the hub must re-send them as toolsSettings on every chat.send.
+ */
+export interface ProjectPermissions {
+  mode?: PermissionMode
+  allowedTools?: string[]
+}
+
+function loadAllPermissions(): Record<string, ProjectPermissions> {
+  return readJson<Record<string, ProjectPermissions>>(PERMISSIONS_KEY, {})
+}
+
+export function loadPermissions(hostId: string, projectPath: string): ProjectPermissions {
+  return loadAllPermissions()[`${hostId}:${projectPath}`] ?? {}
+}
+
+/**
+ * Permission mode is a per-host-instance choice (the same VM is trusted the
+ * same way across its projects), keyed by hostId. Reads fall back to the
+ * legacy per-project `ProjectPermissions.mode` written by earlier builds.
+ */
+export function loadPermissionMode(hostId: string, projectPath: string): PermissionMode | undefined {
+  const perHost = readJson<Record<string, PermissionMode>>(PERMISSION_MODES_KEY, {})[hostId]
+  return perHost ?? loadPermissions(hostId, projectPath).mode
+}
+
+export function savePermissionMode(hostId: string, mode: PermissionMode): void {
+  const all = readJson<Record<string, PermissionMode>>(PERMISSION_MODES_KEY, {})
+  all[hostId] = mode
+  localStorage.setItem(PERMISSION_MODES_KEY, JSON.stringify(all))
+}
+
+export function loadSidebarWidth(): number {
+  const width = readJson<number>(SIDEBAR_WIDTH_KEY, SIDEBAR_DEFAULT_WIDTH)
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, width))
+}
+
+export function saveSidebarWidth(width: number): void {
+  localStorage.setItem(SIDEBAR_WIDTH_KEY, JSON.stringify(width))
+}
+
+/** Adds an "Always allow" rule token; returns the updated list. */
+export function addAllowedTool(hostId: string, projectPath: string, entry: string): string[] {
+  const all = loadAllPermissions()
+  const key = `${hostId}:${projectPath}`
+  const current = all[key]?.allowedTools ?? []
+  const allowedTools = current.includes(entry) ? current : [...current, entry]
+  all[key] = { ...all[key], allowedTools }
+  localStorage.setItem(PERMISSIONS_KEY, JSON.stringify(all))
+  return allowedTools
 }
