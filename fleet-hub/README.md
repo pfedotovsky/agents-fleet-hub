@@ -15,15 +15,19 @@ npm run dev     # http://localhost:5173
 Open settings (gear in the sidebar) → add each host: a name, its base URL
 (e.g. `http://my-vm.example.net:3001` or `http://localhost:3001`),
 and optionally a username to prefill the login form. Sign in once per host —
-only the JWT is kept (localStorage), never the password, and the token slides
-forward via CloudCLI's `X-Refreshed-Token` header while the page is open.
+on a freshly installed CloudCLI the hub offers first-time setup instead
+(creates the host's single account via `POST /api/auth/register`). Only the
+JWT is kept (localStorage), never the password, and the token slides forward
+via CloudCLI's `X-Refreshed-Token` header while the page is open.
 
 ## What it does
 
 - **Sidebar**: every host with its projects — pinned (starred) first, then by
-  recent activity, long tails collapsed behind "N more". Star toggles persist
-  on the host (`toggle-star` API); "recently opened in the hub" is tracked in
-  localStorage. "All sessions" is a merged recent-activity feed across hosts.
+  recent activity, long tails collapsed behind "N more". Each project expands
+  (chevron) to show its recent chats inline; click one to open it. Star
+  toggles persist on the host (`toggle-star` API); "recently opened in the
+  hub" is tracked in localStorage. "All sessions" is a merged recent-activity
+  feed across hosts.
 - **Project view**: the project's sessions (paged), "New session" with a
   provider picker (claude / codex / opencode), and a **Files** button.
 - **Chat**: full transcript (history over REST, paged) + live agent chat over

@@ -33,13 +33,13 @@ Browser (Fleet Hub SPA)
 | `lib/storage.ts` | localStorage wrapper, keys `fleethub.v1.{hosts,tokens,prefs,recentProjects,models}`. |
 | `lib/format.ts` | Relative-time and path helpers. |
 | `types.ts` | Shared types: `HostConfig/HostRuntime/HostStatus`, `Project`, `SessionSummary`, `FleetSession`, `ChatEvent`, `PermissionMode`, model catalog. |
-| `components/Sidebar.tsx` | Hosts → projects tree: starred first, then recency; long tails behind "N more"; status dots. |
+| `components/Sidebar.tsx` | Hosts → projects → chats tree: starred first, then recency; long tails behind "N more"; per-project disclosure lists recent sessions inline (embedded poll data, capped at 6; "all N chats…" opens the project pane); the active chat's project auto-expands; status dots. |
 | `components/SessionList.tsx` + `SessionRow.tsx` | "All sessions" merged feed rows. |
 | `components/ProjectPane.tsx` | One project: paged session list, "New session" (provider picker), Files button. |
 | `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts, model/effort picker, permission mode, abort, `chat.subscribe` seq replay on reconnect. |
 | `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
 | `components/FileBrowser.tsx`, `FileTree.tsx`, `CodeEditor.tsx` | Project file tree + lazy-loaded CodeMirror editor (One Dark); Cmd+S saves via `PUT /file`. |
-| `components/LoginModal.tsx`, `SettingsPanel.tsx`, `OfflineCard.tsx` | Per-host login (password never stored), host/prefs management, hibernated-VM card with restart hint. |
+| `components/LoginModal.tsx`, `SettingsPanel.tsx`, `OfflineCard.tsx` | Per-host login and first-time setup (register; password never stored), host/prefs management, hibernated-VM card with restart hint. |
 
 ## Data flow
 
@@ -82,6 +82,10 @@ Browser (Fleet Hub SPA)
 
 - Login: `POST /api/auth/login {username,password}` → JWT. Only the JWT is
   stored (localStorage, per host); passwords never leave component state.
+- First-time setup: CloudCLI is single-user; while a host has no account,
+  `GET /api/auth/status` reports `needsSetup` and the login modal switches to
+  create-account mode → `POST /api/auth/register {username,password}` → JWT
+  (allowed only while no user exists; server rules: username ≥ 3, password ≥ 6).
 - Sliding refresh: any authenticated response may carry `X-Refreshed-Token`;
   `fetchJson` always captures it via a callback.
 - **Both 401 and 403 mean auth failure** (CloudCLI returns 403 for a *bad*

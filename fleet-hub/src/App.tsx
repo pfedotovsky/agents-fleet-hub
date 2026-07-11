@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Server } from 'lucide-react'
-import type { FleetSession } from './types'
+import type { FleetSession, SessionSummary } from './types'
 import { useFleet } from './hooks/useFleet'
 import { Sidebar } from './components/Sidebar'
 import { SessionList } from './components/SessionList'
@@ -36,6 +36,24 @@ export default function App() {
   const openProject = (hostId: string, projectId: string) => {
     fleet.markProjectOpened(hostId, projectId)
     setView({ kind: 'project', hostId, projectId })
+  }
+
+  const openSessionFromSidebar = (hostId: string, projectId: string, session: SessionSummary) => {
+    const { hostIndex, runtime, project } = findProject(hostId, projectId)
+    if (!runtime || !project) return
+    openChat({
+      key: `${hostId}:${session.id}`,
+      hostId,
+      hostName: runtime.config.name,
+      hostColorIdx: hostIndex,
+      baseUrl: runtime.config.baseUrl,
+      projectName: project.displayName,
+      projectPath: project.fullPath,
+      session,
+      href: `${runtime.config.baseUrl}/session/${session.id}`,
+      stale: runtime.status !== 'online',
+      justUpdated: false,
+    })
   }
 
   function findProject(hostId: string, projectId: string) {
@@ -114,7 +132,11 @@ export default function App() {
         <div className="mx-auto flex max-w-3xl flex-col gap-2 px-4 py-6">
           <h2 className="mb-1 text-sm font-semibold text-zinc-300">All sessions</h2>
           {downHosts.map((runtime) => (
-            <OfflineCard key={runtime.config.id} runtime={runtime} />
+            <OfflineCard
+              key={runtime.config.id}
+              runtime={runtime}
+              onSetup={() => setLoginHostId(runtime.config.id)}
+            />
           ))}
           <SessionList sessions={fleet.sessions} hosts={fleet.hosts} onOpen={openChat} />
         </div>
@@ -130,6 +152,7 @@ export default function App() {
         view={view}
         onSelectFeed={() => setView({ kind: 'feed' })}
         onSelectProject={openProject}
+        onOpenSession={openSessionFromSidebar}
         onToggleStar={(hostId, projectId) => void fleet.toggleStar(hostId, projectId)}
         onSignIn={setLoginHostId}
         onOpenSettings={() => setSettingsOpen(true)}
@@ -151,7 +174,12 @@ export default function App() {
         <LoginModal
           runtime={loginRuntime}
           onSubmit={(username, password) =>
-            fleet.loginHost(loginRuntime.config.id, username, password)
+            fleet.loginHost(
+              loginRuntime.config.id,
+              username,
+              password,
+              loginRuntime.status === 'needs-setup' ? 'setup' : 'login',
+            )
           }
           onClose={() => setLoginHostId(null)}
         />

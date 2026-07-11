@@ -1,7 +1,7 @@
-import { ExternalLink, MoonStar, UserPlus } from 'lucide-react'
+import { MoonStar, UserPlus } from 'lucide-react'
 import type { HostRuntime } from '../types'
 
-export function OfflineCard({ runtime }: { runtime: HostRuntime }) {
+export function OfflineCard({ runtime, onSetup }: { runtime: HostRuntime; onSetup?: () => void }) {
   if (runtime.status === 'needs-setup') {
     return (
       <div className="flex items-center gap-3 rounded-lg border border-zinc-800/80 bg-zinc-900/40 px-4 py-3 text-sm text-zinc-400">
@@ -9,15 +9,10 @@ export function OfflineCard({ runtime }: { runtime: HostRuntime }) {
         <div className="min-w-0">
           <span className="font-medium text-zinc-300">{runtime.config.name}</span> needs first-time
           setup —{' '}
-          <a
-            href={runtime.config.baseUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-sky-400 hover:underline"
-          >
-            open it <ExternalLink size={12} />
-          </a>{' '}
-          to create the admin account.
+          <button type="button" onClick={onSetup} className="text-sky-400 hover:underline">
+            create its account
+          </button>{' '}
+          to start using it.
         </div>
       </div>
     )

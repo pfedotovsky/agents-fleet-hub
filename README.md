@@ -16,7 +16,8 @@ API on each host.
   cloudcli          # HOST=:: cloudcli on IPv6-only machines
   ```
 
-  Open `http://<host>:3001` once to create the account you'll sign in with.
+  No further setup on the host — the hub itself will prompt you to create the
+  account on first connect.
 - Node.js 20+ locally to run the hub.
 
 ## Quick start

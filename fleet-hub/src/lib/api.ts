@@ -63,7 +63,13 @@ async function fetchJson(baseUrl: string, path: string, opts: RequestOptions = {
       .catch(() => undefined)
     throw new AuthError(message)
   }
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  if (!res.ok) {
+    const message = await res
+      .json()
+      .then((body) => (body as { error?: string }).error)
+      .catch(() => undefined)
+    throw new Error(message ?? `${res.status} ${res.statusText}`)
+  }
   return res.json()
 }
 
@@ -78,6 +84,21 @@ export async function login(baseUrl: string, username: string, password: string)
     timeoutMs: 10000,
   })) as { token?: string }
   if (!body.token) throw new Error('Login response did not include a token')
+  return body.token
+}
+
+/**
+ * First-time setup: creates the host's single user and returns its JWT.
+ * CloudCLI only allows this while no user exists (403 afterwards).
+ * Server rules: username ≥ 3 chars, password ≥ 6 chars.
+ */
+export async function register(baseUrl: string, username: string, password: string): Promise<string> {
+  const body = (await fetchJson(baseUrl, '/api/auth/register', {
+    method: 'POST',
+    body: { username, password },
+    timeoutMs: 10000,
+  })) as { token?: string }
+  if (!body.token) throw new Error('Setup response did not include a token')
   return body.token
 }
 

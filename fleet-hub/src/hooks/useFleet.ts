@@ -6,6 +6,7 @@ import {
   getAuthStatus,
   getProjects,
   login,
+  register,
   toggleProjectStar,
 } from '../lib/api'
 import * as storage from '../lib/storage'
@@ -113,12 +114,18 @@ export function useFleet() {
     }
   }, [refresh])
 
-  /** Password lives only in the caller's component state — never persisted. */
+  /**
+   * Password lives only in the caller's component state — never persisted.
+   * `setup` runs CloudCLI's one-time registration instead of login (both return a JWT).
+   */
   const loginHost = useCallback(
-    async (hostId: string, username: string, password: string) => {
+    async (hostId: string, username: string, password: string, mode: 'login' | 'setup' = 'login') => {
       const config = hostsRef.current.find((host) => host.id === hostId)
       if (!config) throw new Error('Unknown host')
-      const token = await login(config.baseUrl, username, password)
+      const token =
+        mode === 'setup'
+          ? await register(config.baseUrl, username, password)
+          : await login(config.baseUrl, username, password)
       storage.saveToken(hostId, token)
       patchRuntime(config, { status: 'loading' })
       void pollHost(config)
