@@ -1,7 +1,7 @@
 # Fleet Hub
 
 A multi-host CloudCLI client: projects, sessions, and live agent chat across
-several CloudCLI instances (CodEnv VMs + localhost) in one UI. A static React
+several CloudCLI instances (remote VMs + localhost) in one UI. A static React
 SPA with no backend — the browser talks to each host's CloudCLI API and chat
 WebSocket directly (CloudCLI's CORS is wide open).
 
@@ -13,7 +13,7 @@ npm run dev     # http://localhost:5173
 ```
 
 Open settings (gear in the sidebar) → add each host: a name, its base URL
-(e.g. `http://<env-id>.<dc>.yp-c.yandex.net:3001` or `http://localhost:3001`),
+(e.g. `http://my-vm.example.net:3001` or `http://localhost:3001`),
 and optionally a username to prefill the login form. Sign in once per host —
 only the JWT is kept (localStorage), never the password, and the token slides
 forward via CloudCLI's `X-Refreshed-Token` header while the page is open.
@@ -51,7 +51,7 @@ forward via CloudCLI's `X-Refreshed-Token` header while the page is open.
   providers; `offset=0` is the newest page). New sessions:
   `POST /api/providers/sessions {provider, projectPath}`, then the first
   `chat.send` starts the agent.
-- An unreachable host (hibernated CodEnv VM) shows an offline card with the
+- An unreachable host (hibernated remote VM) shows an offline card with the
   restart hint (`HOST=:: cloudcli`); its last-known sessions stay dimmed as stale.
 - Cursor sessions carry a warning badge — ones created from the Cursor IDE have
   no readable store, so transcripts and deep links fail for them. A settings

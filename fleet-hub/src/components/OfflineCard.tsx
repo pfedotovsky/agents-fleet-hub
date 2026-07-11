@@ -27,7 +27,7 @@ export function OfflineCard({ runtime }: { runtime: HostRuntime }) {
       <MoonStar size={16} className="shrink-0 text-zinc-500" />
       <div className="min-w-0">
         <span className="font-medium text-zinc-300">{runtime.config.name}</span> is offline — if it
-        is a CodEnv VM it may be hibernating; wake it and run{' '}
+        is a remote VM it may be hibernating; wake it and run{' '}
         <code className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-xs text-zinc-300">
           HOST=:: cloudcli
         </code>

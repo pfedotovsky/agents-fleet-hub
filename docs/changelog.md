@@ -14,6 +14,6 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   rendering, permission prompts, abort, model + effort picker, permission
   modes, seq-replay reconnect), per-project file browser with CodeMirror
   editor, per-host JWT auth with sliding refresh, offline cards for
-  hibernated CodEnv VMs.
+  hibernated remote VMs.
 - Documentation set: `AGENTS.md`, `docs/architecture.md`, this changelog,
   plus a Stop hook that reminds agents to keep docs in sync.

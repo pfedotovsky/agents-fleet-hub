@@ -99,7 +99,7 @@ export function SettingsPanel({
           <input
             value={baseUrl}
             onChange={(event) => setBaseUrl(event.target.value)}
-            placeholder="Base URL (e.g. http://…yandex.net:3001)"
+            placeholder="Base URL (e.g. http://my-vm.example.net:3001)"
             className={`${inputClass} font-mono text-xs`}
           />
           <input

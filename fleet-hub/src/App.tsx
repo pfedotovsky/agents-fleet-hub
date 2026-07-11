@@ -53,7 +53,7 @@ export default function App() {
           <div>
             <h2 className="text-base font-semibold text-zinc-200">No hosts configured</h2>
             <p className="mt-1 max-w-sm text-sm text-zinc-500">
-              Add your CloudCLI instances — CodEnv VMs or localhost — and their projects and
+              Add your CloudCLI instances — remote VMs or localhost — and their projects and
               sessions will appear here.
             </p>
           </div>

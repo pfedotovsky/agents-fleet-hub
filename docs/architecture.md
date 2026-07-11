@@ -17,7 +17,7 @@ All state that must survive a reload lives in the browser's localStorage.
 
 ```
 Browser (Fleet Hub SPA)
-  ├─ REST poll every 12 s ──► host A  (CodEnv VM, CloudCLI :3001)
+  ├─ REST poll every 12 s ──► host A  (remote VM, CloudCLI :3001)
   ├─ REST poll every 12 s ──► host B  (localhost:3001)
   └─ /ws?token=JWT ────────► whichever host owns the open chat
 ```
@@ -50,7 +50,7 @@ Browser (Fleet Hub SPA)
 - With a token: `GET /api/projects?sessionsLimit=5` → status `online` +
   projects. `AuthError` → drop token, `needs-auth`. Unreachable → `offline`.
 - Without a token: `GET /api/auth/status` → `needs-setup` or `needs-auth`.
-- In-flight guard per host: hibernating CodEnv VMs eat the full fetch timeout,
+- In-flight guard per host: hibernating remote VMs eat the full fetch timeout,
   so polls must not stack.
 - When a host goes offline its last-known projects are kept so sessions stay
   visible, dimmed as stale.
@@ -103,7 +103,7 @@ Non-obvious facts this code depends on (verified from source + live):
 - Deep links into a host's own UI require having signed into that host's page
   once — its frontend keeps its JWT in *its own origin's* localStorage
   (`auth-token`) with no URL-token handoff, so the hub cannot authenticate it.
-- CodEnv VMs are IPv6-only: CloudCLI must be launched with `HOST=:: cloudcli`.
+- Some VMs are IPv6-only: CloudCLI must then be launched with `HOST=:: cloudcli`.
 
 ## Security model
 

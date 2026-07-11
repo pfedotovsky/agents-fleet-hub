@@ -7,7 +7,7 @@ Guidance for coding agents working in this workspace.
 `agents-remote-control` is a workspace for remotely controlling coding agents
 (Claude Code and others) running on CloudCLI hosts. The only project right now
 is **`fleet-hub/`** — a static React SPA that aggregates projects, sessions,
-and live agent chat across several CloudCLI instances (CodEnv VMs +
+and live agent chat across several CloudCLI instances (remote VMs +
 localhost). There is no backend: the browser talks to each host's CloudCLI
 REST API and `/ws` chat WebSocket directly.
 
@@ -52,7 +52,7 @@ the UI against a live CloudCLI host.
 - A host's JWT allows running code as the user on that machine — never log
   tokens, never send them anywhere except the host they belong to, never
   persist passwords (only the JWT goes to localStorage).
-- CodEnv VMs are IPv6-only: CloudCLI there is launched with `HOST=:: cloudcli`.
+- IPv6-only VMs need CloudCLI launched with `HOST=:: cloudcli`.
   Never `pkill -f cloudcli` from an agent shell.
 
 ## Documentation upkeep
