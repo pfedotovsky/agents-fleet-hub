@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Plus, Trash2, X } from 'lucide-react'
+import { Plus, Trash2, X, Radar } from 'lucide-react'
 import type { HostRuntime, Prefs } from '../types'
 import type { NewHostInput } from '../hooks/useFleet'
 import { hostColor } from '../lib/format'
+import { discoverLocalHosts, type DiscoveredHost } from '../lib/api'
 
 interface Props {
   hosts: HostRuntime[]
@@ -30,6 +31,25 @@ export function SettingsPanel({
   const [name, setName] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
   const [username, setUsername] = useState('')
+  const [discovered, setDiscovered] = useState<DiscoveredHost[]>([])
+
+  const existingBaseUrls = hosts.map((runtime) => runtime.config.baseUrl)
+  // Probe well-known localhost ports whenever the set of configured hosts
+  // changes, so a local fleet-server/CloudCLI can be added in one click.
+  const existingKey = existingBaseUrls.join('|')
+  useEffect(() => {
+    let cancelled = false
+    discoverLocalHosts(existingKey ? existingKey.split('|') : [])
+      .then((found) => {
+        if (!cancelled) setDiscovered(found)
+      })
+      .catch(() => {
+        if (!cancelled) setDiscovered([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [existingKey])
 
   function handleAdd(event: FormEvent) {
     event.preventDefault()
@@ -38,6 +58,12 @@ export function SettingsPanel({
     setName('')
     setBaseUrl('')
     setUsername('')
+  }
+
+  function handleAddDiscovered(host: DiscoveredHost) {
+    const label = host.kind === 'cloudcli' ? 'localhost (cloudcli)' : 'localhost'
+    onAddHost({ name: label, baseUrl: host.baseUrl })
+    setDiscovered((prev) => prev.filter((entry) => entry.baseUrl !== host.baseUrl))
   }
 
   return (
@@ -88,6 +114,35 @@ export function SettingsPanel({
             </div>
           ))}
         </div>
+
+        {discovered.length > 0 && (
+          <div className="mb-4 flex flex-col gap-2 rounded-lg border border-brass-400/30 bg-brass-400/5 p-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-brass-300">
+              <Radar size={12} /> Found on this machine
+            </div>
+            {discovered.map((host) => (
+              <button
+                key={host.baseUrl}
+                type="button"
+                onClick={() => handleAddDiscovered(host)}
+                className="flex items-center justify-between gap-2 rounded-md border border-ink-800 bg-ink-900/60 px-3 py-2 text-left transition-colors hover:border-brass-400/60"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate font-mono text-xs text-ink-200">
+                    {host.baseUrl}
+                  </span>
+                  <span className="block text-[11px] text-ink-500">
+                    {host.kind === 'cloudcli' ? 'CloudCLI' : 'fleet-server'}
+                    {host.version ? ` ${host.version}` : ''}
+                  </span>
+                </span>
+                <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-brass-300">
+                  <Plus size={13} /> Add
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
 
         <form onSubmit={handleAdd} className="mb-6 flex flex-col gap-2.5">
           <input

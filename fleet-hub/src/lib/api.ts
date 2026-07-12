@@ -83,6 +83,50 @@ export async function getAuthStatus(baseUrl: string): Promise<{ needsSetup: bool
   return (await fetchJson(baseUrl, '/api/auth/status')) as { needsSetup: boolean }
 }
 
+export interface DiscoveredHost {
+  baseUrl: string
+  /** 'fleet-server' | 'cloudcli' — distinguished by the /health payload. */
+  kind: 'fleet-server' | 'cloudcli'
+  version: string | null
+}
+
+/**
+ * Well-known localhost ports for an agent server: fleet-server defaults to
+ * 3011, stock CloudCLI to 3001. `/health` is public (no auth).
+ */
+const LOCAL_DISCOVERY_URLS = ['http://localhost:3011', 'http://localhost:3001'] as const
+
+async function probeLocalHealth(baseUrl: string): Promise<DiscoveredHost | null> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 1500)
+  try {
+    const res = await fetch(`${baseUrl}/health`, { signal: controller.signal })
+    if (!res.ok) return null
+    const body = (await res.json()) as { status?: string; version?: string; installMode?: string }
+    if (body.status !== 'ok') return null
+    // Only CloudCLI's /health carries `installMode`; fleet-server omits it.
+    const kind = body.installMode !== undefined ? 'cloudcli' : 'fleet-server'
+    return { baseUrl, kind, version: body.version ?? null }
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * Probes well-known localhost ports for a reachable agent server, excluding
+ * URLs already configured. Used to offer a one-click "add localhost" instead
+ * of making the user type the URL.
+ */
+export async function discoverLocalHosts(existingBaseUrls: string[]): Promise<DiscoveredHost[]> {
+  const existing = new Set(existingBaseUrls.map((url) => url.replace(/\/+$/, '')))
+  const results = await Promise.all(
+    LOCAL_DISCOVERY_URLS.filter((url) => !existing.has(url)).map((url) => probeLocalHealth(url)),
+  )
+  return results.filter((entry): entry is DiscoveredHost => entry !== null)
+}
+
 export async function login(baseUrl: string, username: string, password: string): Promise<string> {
   const body = (await fetchJson(baseUrl, '/api/auth/login', {
     method: 'POST',
