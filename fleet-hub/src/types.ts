@@ -149,6 +149,9 @@ export interface ChatEvent extends NormalizedMessage {
 
 export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'
 
+/** Outcome of reviewing a finished plan (ExitPlanMode request). */
+export type PlanDecision = 'build' | 'acceptEdits' | 'revise'
+
 export interface EffortOption {
   value: string
 }

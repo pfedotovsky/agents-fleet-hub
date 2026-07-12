@@ -53,8 +53,8 @@ via CloudCLI's `X-Refreshed-Token` header while the page is open.
   message (CloudCLI keeps no permission state between sends), and writes it
   through to the project's `.claude/settings.local.json` on the host so
   terminal Claude Code honors it too — stop a running agent, pick a
-  permission mode (ask / accept edits / plan / bypass; persisted per
-  host+project) and a **model + effort**
+  permission mode (ask / accept edits / bypass; persisted per host) and a
+  **model + effort**
   (from `GET /api/providers/:provider/models`; sent as `options.model/effort`
   in `chat.send`). Assistant replies render as Markdown (GFM tables, code
   blocks with syntax highlighting and a copy button). Tool calls render like
@@ -65,6 +65,12 @@ via CloudCLI's `X-Refreshed-Token` header while the page is open.
   the project tree and `/` skills + custom commands (message start only) from
   the host's `.claude` directories — Tab/Enter inserts, and the command is
   sent as plain text for the host's Claude Code binary to expand.
+  **Plan mode** is a separate composer toggle (Shift+Tab, persisted per
+  host); a finished plan opens in a docked right-hand drawer with
+  approve / approve-and-accept-edits / revise buttons.
+- **Chat side panels**: two header toggles dock the file browser or the git
+  panel to the right of the conversation (Cursor-style) — resizable by
+  dragging the edge, choice and width persisted in localStorage.
 - **File browser/editor**: per-project tree (`GET /files`, node_modules/.git
   pruned server-side) with a lazy-loaded CodeMirror editor (One Dark, language
   by extension); Cmd+S / Save button writes via `PUT /file`.

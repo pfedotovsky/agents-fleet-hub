@@ -27,6 +27,7 @@ import type {
   NormalizedMessage,
   PermissionMode,
   PermissionRequest,
+  PlanDecision,
 } from '../types'
 import {
   AuthError,
@@ -47,9 +48,11 @@ import {
   loadModelChoice,
   loadPermissionMode,
   loadPermissions,
+  loadPlanMode,
   saveDraft,
   saveModelChoice,
   savePermissionMode,
+  savePlanMode,
   saveToken,
 } from '../lib/storage'
 import { notify, requestNotifyPermission } from '../lib/notify'
@@ -57,7 +60,7 @@ import { hostColor } from '../lib/format'
 import { useComposerAutocomplete } from '../hooks/useComposerAutocomplete'
 import type { CompletionItem } from '../hooks/useComposerAutocomplete'
 import { MessageItem, RENDERED_KINDS, ProviderBadge, contentToText } from './Messages'
-import { Markdown } from './Markdown'
+import { PlanPanel } from './PlanPanel'
 import { seedImageCache } from './AuthedImage'
 
 const PAGE_SIZE = 100
@@ -84,10 +87,11 @@ interface PendingImage {
   path?: string
 }
 
+// Plan mode is intentionally absent: it's an independent toggle in the
+// composer (Shift+Tab), not a permission mode — see the planMode state.
 const PERMISSION_MODES: { value: PermissionMode; label: string }[] = [
   { value: 'default', label: 'Ask for permissions' },
   { value: 'acceptEdits', label: 'Accept edits' },
-  { value: 'plan', label: 'Plan mode' },
   { value: 'bypassPermissions', label: 'Bypass permissions' },
 ]
 
@@ -100,53 +104,21 @@ function isPlanRequest(request: PermissionRequest): boolean {
   return request.toolName === 'ExitPlanMode' || request.toolName === 'exit_plan_mode'
 }
 
-export type PlanDecision = 'build' | 'acceptEdits' | 'revise'
-
-function PlanApprovalCard({
-  request,
-  onDecide,
-}: {
-  request: PermissionRequest
-  onDecide: (requestId: string, decision: PlanDecision) => void
-}) {
-  const input = request.input as { plan?: unknown } | null | undefined
-  const plan = typeof input?.plan === 'string' ? input.plan : ''
+/**
+ * Inline stand-in for a pending plan: the plan itself lives in the PlanPanel
+ * drawer so it stays visible while the chat scrolls; this chip just reopens it.
+ */
+function PlanReadyChip({ panelOpen, onOpen }: { panelOpen: boolean; onOpen: () => void }) {
   return (
-    <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-3">
-      <div className="mb-2 flex items-center gap-2 text-xs font-medium text-indigo-300">
-        <ClipboardList size={14} />
-        Plan ready for review
-      </div>
-      {plan && (
-        <div className="mb-3 max-h-96 overflow-auto rounded-md border border-ink-800 bg-ink-950/60 p-3 text-[13px]">
-          <Markdown>{plan}</Markdown>
-        </div>
-      )}
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => onDecide(request.requestId, 'build')}
-          className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-500"
-        >
-          <Check size={12} /> Approve &amp; build
-        </button>
-        <button
-          type="button"
-          onClick={() => onDecide(request.requestId, 'acceptEdits')}
-          title="Approve the plan and auto-accept file edits during the build"
-          className="inline-flex items-center gap-1 rounded-md border border-indigo-500/50 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-600/10"
-        >
-          <Check size={12} /> Approve, auto-accept edits
-        </button>
-        <button
-          type="button"
-          onClick={() => onDecide(request.requestId, 'revise')}
-          className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:bg-ink-800"
-        >
-          <X size={12} /> Revise
-        </button>
-      </div>
-    </div>
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex items-center gap-2 rounded-lg border border-indigo-500/30 bg-indigo-500/5 px-3 py-2 text-left text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-500/10"
+    >
+      <ClipboardList size={14} />
+      Plan ready for review
+      {!panelOpen && <span className="ml-auto text-indigo-400/80">Open panel →</span>}
+    </button>
   )
 }
 
@@ -452,9 +424,17 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
   const [socketState, setSocketState] = useState<SocketState>('connecting')
   const [permissions, setPermissions] = useState<PermissionRequest[]>([])
   const [input, setInput] = useState(() => loadDraft(target.hostId, sessionId))
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>(
-    () => loadPermissionMode(target.hostId, target.projectPath) ?? 'default',
+  const [permissionMode, setPermissionMode] = useState<PermissionMode>(() => {
+    const stored = loadPermissionMode(target.hostId, target.projectPath) ?? 'default'
+    // 'plan' written by older builds migrates to the separate planMode toggle.
+    return stored === 'plan' ? 'default' : stored
+  })
+  const [planMode, setPlanMode] = useState<boolean>(
+    () =>
+      loadPlanMode(target.hostId) ??
+      loadPermissionMode(target.hostId, target.projectPath) === 'plan',
   )
+  const [planPanelOpen, setPlanPanelOpen] = useState(true)
   const [allowedTools, setAllowedTools] = useState<string[]>(
     () => loadPermissions(target.hostId, target.projectPath).allowedTools ?? [],
   )
@@ -945,7 +925,10 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
       (chip): chip is PendingImage & { path: string } => chip.status === 'ready' && !!chip.path,
     )
     const options: Parameters<ChatSocket['sendChat']>[2] = {}
-    if (permissionMode !== 'default') options.permissionMode = permissionMode
+    // The plan toggle wins over the select while it's on; the select's choice
+    // is untouched and applies again once the toggle goes off.
+    if (planMode) options.permissionMode = 'plan'
+    else if (permissionMode !== 'default') options.permissionMode = permissionMode
     if (model) options.model = model
     if (effort) options.effort = effort
     if (allowedTools.length > 0) {
@@ -1019,20 +1002,29 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
     setPermissions((prev) => prev.filter((p) => p.requestId !== requestId))
   }
 
+  function togglePlanMode() {
+    const next = !planMode
+    setPlanMode(next)
+    savePlanMode(target.hostId, next)
+  }
+
   /**
    * Plan review decision. On approval the running query exits plan mode by
    * itself, but the server rebuilds SDK options from our options on every
-   * chat.send — so the hub must also drop 'plan' locally or the next message
-   * would silently re-enter plan mode.
+   * chat.send — so the hub must also switch the plan toggle off or the next
+   * message would silently re-enter plan mode.
    */
   function respondPlan(requestId: string, decision: PlanDecision) {
     if (decision === 'revise') {
       socketRef.current?.respondPermission(requestId, false, undefined, 'User asked to revise the plan')
     } else {
       socketRef.current?.respondPermission(requestId, true)
-      const nextMode: PermissionMode = decision === 'acceptEdits' ? 'acceptEdits' : 'default'
-      setPermissionMode(nextMode)
-      savePermissionMode(target.hostId, nextMode)
+      setPlanMode(false)
+      savePlanMode(target.hostId, false)
+      if (decision === 'acceptEdits') {
+        setPermissionMode('acceptEdits')
+        savePermissionMode(target.hostId, 'acceptEdits')
+      }
     }
     setPermissions((prev) => prev.filter((p) => p.requestId !== requestId))
   }
@@ -1089,7 +1081,15 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
   const visible = useMemo(() => messages.filter((m) => RENDERED_KINDS.has(m.kind)), [messages])
   const canChat = target.session.provider !== 'cursor' || !fatalError
 
+  const planRequest = permissions.find(isPlanRequest)
+  const planRequestId = planRequest?.requestId
+  // Each new finished plan pops the drawer open, even if the user hid it before.
+  useEffect(() => {
+    if (planRequestId) setPlanPanelOpen(true)
+  }, [planRequestId])
+
   return (
+    <div className="flex h-full min-w-0 flex-1">
     <div className="flex h-full min-w-0 flex-1 flex-col">
       <header
         className="flex shrink-0 items-center gap-3 border-b border-ink-800 px-4 py-3"
@@ -1203,7 +1203,11 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
             {permissions.map((request) => {
               if (isPlanRequest(request)) {
                 return (
-                  <PlanApprovalCard key={request.requestId} request={request} onDecide={respondPlan} />
+                  <PlanReadyChip
+                    key={request.requestId}
+                    panelOpen={planPanelOpen}
+                    onOpen={() => setPlanPanelOpen(true)}
+                  />
                 )
               }
               // Unparseable question input falls through to the generic card.
@@ -1337,6 +1341,14 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
                 el.style.height = `${Math.min(el.scrollHeight, 160)}px`
               }}
               onKeyDown={(event) => {
+                // Shift+Tab toggles plan mode (Claude Code CLI muscle memory),
+                // even while the completion dropdown is open — plain Tab still
+                // accepts a completion there.
+                if (event.key === 'Tab' && event.shiftKey) {
+                  event.preventDefault()
+                  togglePlanMode()
+                  return
+                }
                 if (autocomplete.onKeyDown(event.key)) {
                   event.preventDefault()
                   return
@@ -1379,6 +1391,19 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
             </div>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-ink-600">
+            <button
+              type="button"
+              onClick={togglePlanMode}
+              aria-pressed={planMode}
+              title="Plan mode — the agent researches and proposes a plan before making changes (Shift+Tab)"
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                planMode
+                  ? 'border-indigo-500/60 bg-indigo-500/15 text-indigo-300'
+                  : 'border-ink-800 text-ink-500 hover:border-ink-700 hover:text-ink-300'
+              }`}
+            >
+              <ClipboardList size={11} /> Plan
+            </button>
             <select
               value={permissionMode}
               onChange={(event) => {
@@ -1423,10 +1448,16 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
                 ))}
               </select>
             )}
-            <span className="ml-auto hidden sm:inline">Enter to send · Shift+Enter for a new line</span>
+            <span className="ml-auto hidden sm:inline">
+              Enter to send · Shift+Enter for a new line · Shift+Tab to toggle Plan
+            </span>
           </div>
         </div>
       </footer>
+    </div>
+    {planRequest && planPanelOpen && (
+      <PlanPanel request={planRequest} onDecide={respondPlan} onClose={() => setPlanPanelOpen(false)} />
+    )}
     </div>
   )
 }

@@ -7,6 +7,17 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-07-12
 
 ### Added
+- **Plan mode toggle + plan drawer**: plan mode is no longer one of the
+  permission-mode select options but an independent composer toggle
+  (Shift+Tab), persisted per host in `fleethub.v1.planMode` (a legacy stored
+  `permissionMode: 'plan'` migrates on read). While on, `chat.send` still goes
+  out with `permissionMode: 'plan'`; approving a plan switches the toggle off
+  so the next message doesn't silently re-enter plan mode. A finished plan
+  (ExitPlanMode request) now opens as a docked right-hand drawer
+  (`PlanPanel.tsx`) with the decision buttons in its header, so the plan stays
+  visible while the chat scrolls; the transcript shows a small "Plan ready for
+  review" chip that reopens the drawer. `PlanDecision` moved to `types.ts`.
+  (`ChatPane.tsx`, `PlanPanel.tsx`, `lib/storage.ts`, `types.ts`)
 - **Chat side panels (files & git)**: Cursor/Codex-style instant access to the
   project's file system and source control straight from a chat. Two toggle
   buttons in the chat header (folder tree / git branch icons) dock the existing

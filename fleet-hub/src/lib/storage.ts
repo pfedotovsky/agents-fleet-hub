@@ -7,6 +7,7 @@ const RECENT_KEY = 'fleethub.v1.recentProjects'
 const MODEL_KEY = 'fleethub.v1.models'
 const PERMISSIONS_KEY = 'fleethub.v1.permissions'
 const PERMISSION_MODES_KEY = 'fleethub.v1.permissionModes'
+const PLAN_MODE_KEY = 'fleethub.v1.planMode'
 const SIDEBAR_WIDTH_KEY = 'fleethub.v1.sidebarWidth'
 const DRAFTS_KEY = 'fleethub.v1.drafts'
 const CHAT_PANEL_KEY = 'fleethub.v1.chatPanel'
@@ -128,6 +129,21 @@ export function savePermissionMode(hostId: string, mode: PermissionMode): void {
   const all = readJson<Record<string, PermissionMode>>(PERMISSION_MODES_KEY, {})
   all[hostId] = mode
   localStorage.setItem(PERMISSION_MODES_KEY, JSON.stringify(all))
+}
+
+/**
+ * Plan mode is a separate toggle (Shift+Tab in the composer), not one of the
+ * permission modes, keyed by hostId like the permission mode. Reads fall back
+ * to a legacy `permissionMode === 'plan'` in the caller.
+ */
+export function loadPlanMode(hostId: string): boolean | undefined {
+  return readJson<Record<string, boolean>>(PLAN_MODE_KEY, {})[hostId]
+}
+
+export function savePlanMode(hostId: string, on: boolean): void {
+  const all = readJson<Record<string, boolean>>(PLAN_MODE_KEY, {})
+  all[hostId] = on
+  localStorage.setItem(PLAN_MODE_KEY, JSON.stringify(all))
 }
 
 /** The chat's right-hand utility panel (files / git), Cursor-style. */
