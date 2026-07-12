@@ -32,7 +32,8 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   `brew install --cask pfedotovsky/tap/agents-hub` (v0.1.0 released and
   verified end-to-end). Release bump = update `version` + `sha256` in the cask.
 - Version bumped to 0.1.2 (`package.json`, `tauri.conf.json`, `Cargo.toml`),
-  tagged `v0.1.2` — 0.1.1 was never tagged, so this release rolls up both.
+  tagged `v0.1.2` (chat side panels + AskUserQuestion cards); v0.1.1 was
+  released earlier the same day.
 - P1 feature-parity batch (all verified live against CloudCLI 1.36.1 on
   localhost:3001):
   - **True running indicator**: each 12s fleet poll now also fetches
