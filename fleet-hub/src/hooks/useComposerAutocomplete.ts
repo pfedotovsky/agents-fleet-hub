@@ -12,7 +12,7 @@ export interface CompletionItem {
 }
 
 interface Trigger {
-  char: '@' | '/'
+  char: '@' | '/' | '$'
   /** Index of the trigger character in the input. */
   start: number
   /** Caret position when the trigger was detected (end of the query). */
@@ -23,16 +23,17 @@ interface Trigger {
 const MAX_ITEMS = 10
 
 /**
- * A completable token is `@query` anywhere after whitespace/start, or `/query`
- * at the very start of the message (slash commands only mean anything there).
- * The query runs up to the caret and cannot contain whitespace.
+ * A completable token is `@query` anywhere after whitespace/start, or a
+ * `/query` (claude) / `$query` (codex skills) command at the very start of
+ * the message — commands only mean anything there. The query runs up to the
+ * caret and cannot contain whitespace.
  */
 function detectTrigger(value: string, caret: number): Trigger | null {
-  const match = /(?:^|\s)([@/])(\S*)$/.exec(value.slice(0, caret))
+  const match = /(?:^|\s)([@/$])(\S*)$/.exec(value.slice(0, caret))
   if (!match) return null
-  const char = match[1] as '@' | '/'
+  const char = match[1] as '@' | '/' | '$'
   const start = caret - match[2].length - 1
-  if (char === '/' && start !== 0) return null
+  if (char !== '@' && start !== 0) return null
   return { char, start, end: caret, query: match[2] }
 }
 
@@ -70,14 +71,15 @@ function filterFiles(paths: string[], query: string): CompletionItem[] {
   }))
 }
 
-function filterSlash(items: CompletionItem[], query: string): CompletionItem[] {
+function filterSlash(items: CompletionItem[], trigger: string, query: string): CompletionItem[] {
   const q = query.toLowerCase()
-  if (!q) return items.slice(0, MAX_ITEMS)
-  const byName = items.filter((item) => item.label.toLowerCase().startsWith(`/${q}`))
+  const withPrefix = items.filter((item) => item.label.startsWith(trigger))
+  if (!q) return withPrefix.slice(0, MAX_ITEMS)
+  const byName = withPrefix.filter((item) => item.label.toLowerCase().startsWith(`${trigger}${q}`))
   const pool =
     byName.length > 0
       ? byName
-      : items.filter(
+      : withPrefix.filter(
           (item) =>
             item.label.toLowerCase().includes(q) || item.detail?.toLowerCase().includes(q),
         )
@@ -117,7 +119,10 @@ export function useComposerAutocomplete(
         getSkills(target.baseUrl, token, target.session.provider, target.projectPath, onRefresh).catch(
           () => [],
         ),
-        getSlashCommands(target.baseUrl, token, target.projectPath, onRefresh).catch(() => []),
+        // .claude/commands only exist for claude; other providers keep skills only.
+        target.session.provider === 'claude'
+          ? getSlashCommands(target.baseUrl, token, target.projectPath, onRefresh).catch(() => [])
+          : Promise.resolve([]),
       ]).then(([skills, commands]) => {
         const seen = new Set<string>()
         return [...skills, ...commands]
@@ -163,13 +168,13 @@ export function useComposerAutocomplete(
         setItems([])
         return
       }
-      const load = next.char === '/' ? loadSlash() : loadFiles()
+      const load = next.char === '@' ? loadFiles() : loadSlash()
       void load.then((all) => {
         if (updateSeq.current !== seq) return
         setItems(
-          next.char === '/'
-            ? filterSlash(all as CompletionItem[], next.query)
-            : filterFiles(all as string[], next.query),
+          next.char === '@'
+            ? filterFiles(all as string[], next.query)
+            : filterSlash(all as CompletionItem[], next.char, next.query),
         )
         setSelected(0)
       })

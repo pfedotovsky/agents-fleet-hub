@@ -11,10 +11,11 @@ const PLAN_MODE_KEY = 'fleethub.v1.planMode'
 const SIDEBAR_WIDTH_KEY = 'fleethub.v1.sidebarWidth'
 const DRAFTS_KEY = 'fleethub.v1.drafts'
 const CHAT_PANEL_KEY = 'fleethub.v1.chatPanel'
+const LAST_PROVIDER_KEY = 'fleethub.v1.lastProvider'
 
 export const SIDEBAR_MIN_WIDTH = 200
 export const SIDEBAR_MAX_WIDTH = 480
-const SIDEBAR_DEFAULT_WIDTH = 288
+const SIDEBAR_DEFAULT_WIDTH = 304
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -82,17 +83,37 @@ export function markProjectOpened(hostId: string, projectId: string, at: number)
   localStorage.setItem(RECENT_KEY, JSON.stringify(recent))
 }
 
-/** Per-host chosen model+effort for chat.send, keyed by hostId. */
+/**
+ * Provider last used to create a session on a host — the default for the
+ * project pane's picker and the sidebar's quick-create "+".
+ */
+export function loadLastProvider(hostId: string): string | undefined {
+  return readJson<Record<string, string>>(LAST_PROVIDER_KEY, {})[hostId]
+}
+export function saveLastProvider(hostId: string, provider: string): void {
+  const all = readJson<Record<string, string>>(LAST_PROVIDER_KEY, {})
+  all[hostId] = provider
+  localStorage.setItem(LAST_PROVIDER_KEY, JSON.stringify(all))
+}
+
+/**
+ * Chosen model+effort for chat.send, keyed `hostId:provider` — Claude and
+ * Codex catalogs don't overlap, so a shared per-host choice would send one
+ * provider's model id to the other. Legacy bare-hostId entries (written
+ * before Codex support) were always Claude models, hence the claude-only
+ * fallback read.
+ */
 export interface ModelChoice {
   model: string
   effort?: string
 }
-export function loadModelChoice(hostId: string): ModelChoice | undefined {
-  return readJson<Record<string, ModelChoice>>(MODEL_KEY, {})[hostId]
-}
-export function saveModelChoice(hostId: string, choice: ModelChoice): void {
+export function loadModelChoice(hostId: string, provider: string): ModelChoice | undefined {
   const all = readJson<Record<string, ModelChoice>>(MODEL_KEY, {})
-  all[hostId] = choice
+  return all[`${hostId}:${provider}`] ?? (provider === 'claude' ? all[hostId] : undefined)
+}
+export function saveModelChoice(hostId: string, provider: string, choice: ModelChoice): void {
+  const all = readJson<Record<string, ModelChoice>>(MODEL_KEY, {})
+  all[`${hostId}:${provider}`] = choice
   localStorage.setItem(MODEL_KEY, JSON.stringify(all))
 }
 

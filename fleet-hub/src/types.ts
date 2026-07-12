@@ -92,8 +92,20 @@ export interface NormalizedMessage {
   toolInput?: unknown
   toolId?: string
   toolResult?: { content: string; isError?: boolean }
-  /** Image attachments on user messages: stored-asset paths in ~/.cloudcli/assets. */
-  images?: { path: string; name?: string }[]
+  /**
+   * Codex live tool_use frames carry the result inline instead of a separate
+   * tool_result frame (command_execution → output/exitCode, plus a
+   * running/completed/failed item status).
+   */
+  output?: string
+  exitCode?: number
+  status?: string
+  /**
+   * Image attachments on user messages. Hub-sent images are stored-asset
+   * paths in ~/.cloudcli/assets; messages sent from CloudCLI's own UI carry
+   * inline `data:` URLs instead of a path.
+   */
+  images?: { path?: string; name?: string; data?: string }[]
 }
 
 /** One uploaded chat image, as returned by POST /api/assets/images. */
@@ -137,8 +149,10 @@ export interface ChatEvent extends NormalizedMessage {
   requestId?: string
   input?: unknown
   reason?: string
-  exitCode?: number
   success?: boolean
+  /** Codex emits a `status` frame with text 'token_budget' after each turn. */
+  text?: string
+  tokenBudget?: { used?: number; total?: number; inputTokens?: number; outputTokens?: number }
   aborted?: boolean
   isProcessing?: boolean
   lastSeq?: number

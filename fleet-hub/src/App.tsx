@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Server, X } from 'lucide-react'
-import type { FleetSession, SessionSummary } from './types'
+import type { FleetSession, Provider, SessionSummary } from './types'
 import { createSession } from './lib/api'
 import type { ChatPanelKind } from './lib/storage'
 import {
   CHAT_PANEL_MIN_WIDTH,
   getToken,
   loadChatPanel,
+  loadLastProvider,
   saveChatPanel,
   saveToken,
 } from './lib/storage'
@@ -135,10 +136,14 @@ export default function App() {
     try {
       const token = getToken(hostId)
       if (!token) throw new Error(`Not signed in to ${runtime.config.name}`)
+      // Quick-create follows the provider last picked in the project pane.
+      const last = loadLastProvider(hostId)
+      const provider: Provider =
+        last === 'claude' || last === 'codex' || last === 'opencode' ? last : 'claude'
       const created = await createSession(
         runtime.config.baseUrl,
         token,
-        'claude',
+        provider,
         project.fullPath,
         (refreshed) => saveToken(hostId, refreshed),
       )

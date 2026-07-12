@@ -87,22 +87,66 @@ Browser (Agents Hub SPA)
   `.claude/settings.local.json` (`permissions.allow`) via the file API —
   best-effort: unparseable files are never overwritten, and PUT cannot create
   the `.claude/` directory, so a missing directory degrades to hub-only grants.
+- Multi-client caveats (verified against 1.36.1 server source): the server
+  emits **no frame** when a pending permission is resolved by another client —
+  `permission_cancelled` fires only on timeout/abort — and each run's live
+  stream is routed to **one** socket (`attachConnection` reroutes the writer to
+  the latest subscriber, stealing the stream — including `complete`). The hub
+  therefore treats `chat_subscribed.pendingPermissions` as the authoritative
+  full pending set (state is replaced, never merged) and re-sends
+  `chat.subscribe` on the 15 s fallback poll, which both reconciles the cards
+  and re-attaches the stream. Permission responses are checked for delivery:
+  a send on a closed socket keeps the card and shows a banner instead of
+  silently dropping the answer (interactive requests wait server-side forever).
+- Image attachments on user messages come in two shapes: hub-sent ones are
+  stored-asset paths (`{path, name}`, fetched with auth via `AuthedImage`);
+  messages sent from CloudCLI's own UI inline the image as
+  `{data: 'data:image/…;base64,…'}` with no path, rendered as a plain `<img>`.
 - CloudCLI runs Claude via `@anthropic-ai/claude-agent-sdk` `query()`
   in-process; the SDK in turn spawns the regular Claude Code executable
   (`pathToClaudeCodeExecutable`) using the VM's own `claude` login — same
   binary and auth as a terminal session, driven programmatically.
 - Reconnect: on every WS open the owner re-subscribes with
   `chat.subscribe {sessions:[{sessionId,lastSeq}]}` — the server replays
-  missed events by sequence number.
+  missed events by sequence number. The hub also resubscribes every 15 s
+  while the tab is visible (piggybacked on the fallback poll) to reconcile
+  pending permissions and reclaim the live stream from other clients.
+  Replay caveat: a mid-run subscribe with `lastSeq: 0` (every ChatPane mount)
+  replays the run's whole event log **including already-resolved
+  `permission_request` frames**. The `chat_subscribed` ack precedes the
+  replay and carries the run's current `lastSeq`; ChatPane keeps it in
+  `ackedRunSeq` and drops `permission_request` frames at `seq <=` that mark
+  (still-pending ones arrive via the ack's `pendingPermissions`). Seqs
+  restart at 0 per run, so the mark resets on complete/send/mount/idle acks.
 - New session: `POST /api/providers/sessions {provider, projectPath}` creates
   an empty app session; the first `chat.send` actually starts the agent.
+- **Codex sessions** run server-side via `@openai/codex-sdk` threads and
+  differ from claude in ways the hub accounts for: no interactive approvals
+  (`permission_request` never fires; `permissionMode` is remapped to a
+  sandbox — default→workspace-write+ask-untrusted, acceptEdits→never-ask,
+  bypass→danger-full-access — and `'plan'` silently degrades to default, so
+  the plan toggle is hidden and the mode select is relabeled), `toolsSettings`
+  is ignored (not sent), live `tool_use` frames carry results inline
+  (`output`/`exitCode`, no `tool_result` frame; repeated ids are upserted in
+  place by `appendMessage`), history serializes `toolInput` as a JSON string
+  and `toolResult.content` sometimes as `{type,text}[]` parts, history shell
+  tools are named `exec_command`/`exec`/`write_stdin`, skills are
+  `$`-prefixed, and a turn-end `status {text:'token_budget'}` frame feeds the
+  header usage chip. Empty codex chats preflight
+  `GET /api/providers/codex/auth/status` into a banner.
 - Model catalog: `GET /api/providers/:provider/models` →
   `{OPTIONS:[{value,label,effort?}], DEFAULT}`; the chosen model+effort is
-  stored per host and sent in `chat.send` options.
+  stored per `hostId:provider` (legacy bare-hostId entries still read for
+  claude) and sent in `chat.send` options. `fleethub.v1.lastProvider` (per
+  host) seeds the project pane's provider picker and the sidebar
+  quick-create "+".
 - Composer autocomplete (`useComposerAutocomplete`): typing `@` (after
   whitespace/start) completes project files from `GET /api/projects/:id/files`
-  flattened to project-relative paths; typing `/` **at the start of the
-  message** completes skills and custom commands. Skills come from
+  flattened to project-relative paths; typing `/` (claude) or `$` (codex
+  skills) **at the start of the message** completes skills and custom
+  commands — the menu only shows entries matching the typed prefix, and the
+  `.claude/commands` catalog is fetched for claude sessions only. Skills come
+  from
   `GET /api/providers/:provider/skills?workspacePath=<abs>` →
   `{success, data:{skills:[{name, description, command, scope, sourcePath}]}}`
   (SKILL.md files, project + user scope; verified live on 1.36.1); custom

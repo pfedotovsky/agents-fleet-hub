@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sidebar readability — proposal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    color-scheme:dark;
+    --ink-950:#0a0e16; --ink-900:#0f141f; --ink-850:#141a27; --ink-800:#1a2130;
+    --ink-700:#2a3347; --ink-600:#46516b; --ink-500:#6b7692; --ink-400:#94a0bc;
+    --ink-300:#b9c3d8; --ink-200:#d6ddeb; --ink-100:#ecf0f8;
+    --brass-300:#f0c868; --brass-400:#e3b44c;
+    --emerald:#34d399; --amber:#fbbf24; --sky:#38bdf8; --host-a:#38bdf8; --host-b:#f472b6;
+    --bg:var(--ink-950); --surface:var(--ink-900); --border:var(--ink-800);
+    --text:var(--ink-100); --text-dim:var(--ink-500);
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--text);font:15px/1.6 "IBM Plex Sans",ui-sans-serif,sans-serif;padding:40px 24px 80px;-webkit-font-smoothing:antialiased}
+  main{max-width:1240px;margin:0 auto}
+  h1{font-family:"Space Grotesk";font-size:26px;font-weight:600;letter-spacing:.01em}
+  h1 .accent{color:var(--brass-400)}
+  .lede{color:var(--ink-400);max-width:70ch;margin:8px 0 36px;font-size:14.5px}
+  h2{font-family:"Space Grotesk";font-size:17px;font-weight:600;margin:44px 0 14px;color:var(--ink-200)}
+
+  /* ---- variant columns ---- */
+  .variants{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;align-items:start}
+  .variant{min-width:0}
+  .variant-head{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+  .variant-head h3{font-family:"Space Grotesk";font-size:15px;font-weight:600}
+  .variant-head .w{font-family:"IBM Plex Mono";font-size:11px;color:var(--ink-500)}
+  .variant-head .pill{font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:1px 8px;border-radius:99px;border:1px solid var(--ink-700);color:var(--ink-500)}
+  .variant.reco .variant-head .pill{color:var(--brass-300);border-color:rgba(227,180,76,.4);background:rgba(227,180,76,.08)}
+  .variant-notes{font-size:12.5px;color:var(--ink-500);margin:8px 0 14px;min-height:58px}
+  .variant-notes b{color:var(--ink-300);font-weight:500}
+
+  /* ---- pixel-accurate sidebar mock ---- */
+  .sb{
+    background:var(--ink-950);border:1px solid var(--border);border-radius:10px;overflow:hidden;
+    box-shadow:0 8px 30px rgba(0,0,0,.35);margin-inline:auto;
+    font-family:"IBM Plex Sans",ui-sans-serif,sans-serif;line-height:1.45;
+  }
+  .sb .mono{font-family:"IBM Plex Mono";font-variant-numeric:tabular-nums}
+  .sb svg{flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .sb-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px}
+  .wordmark{display:flex;align-items:center;gap:8px;font-family:"Space Grotesk";font-size:15px;font-weight:600;letter-spacing:.025em}
+  .dot{width:8px;height:8px;border-radius:99px;flex:none}
+  .dot.live{background:var(--brass-400);box-shadow:0 0 8px rgba(227,180,76,.7)}
+  .live-pill{font-family:"IBM Plex Mono";font-size:11px;font-weight:500;color:var(--brass-300);border:1px solid rgba(227,180,76,.3);background:rgba(227,180,76,.1);border-radius:99px;padding:1px 6px}
+  .hdr-actions{display:flex;gap:2px;color:var(--ink-500)}
+  .hdr-actions span{padding:6px;display:flex}
+  .sb-nav{padding:0 8px 16px}
+  .row{display:flex;align-items:center;border-radius:6px;min-width:0}
+  .row.active{background:var(--ink-800)}
+  .feed{gap:8px;padding:6px 8px;color:var(--ink-400);margin-bottom:8px}
+  .host-h{gap:8px;padding:6px 8px;font-weight:500;color:var(--ink-300)}
+  .host-h .hdot{width:8px;height:8px;border-radius:99px}
+  .proj{padding:6px 4px 6px 0;color:var(--ink-400)}
+  .proj .chev{color:var(--ink-600);padding:2px 2px 2px 6px;display:flex}
+  .proj .body{display:flex;align-items:center;gap:8px;min-width:0;flex:1;padding-left:4px}
+  .proj .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+  .proj.active .name{color:var(--ink-100)}
+  .count{color:var(--ink-600)}
+  .sess{gap:8px;padding-top:6px;padding-bottom:6px;padding-right:4px;color:var(--ink-500)}
+  .sess.active{color:var(--ink-100)}
+  .sess .icon{color:var(--ink-600);display:flex}
+  .sess .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .running{display:inline-flex;align-items:center;gap:4px;font-weight:500;color:var(--emerald)}
+  .running .rdot{width:6px;height:6px;border-radius:99px;background:var(--emerald)}
+  .time{color:var(--ink-600)}
+  .muted-row{color:var(--ink-500);padding-top:6px;padding-bottom:6px;display:flex;align-items:center;gap:4px}
+  .arch-h{display:flex;align-items:center;gap:6px;padding:4px 8px 4px 0;color:var(--ink-600)}
+  .arch-item{display:flex;align-items:center;gap:8px;padding:4px 4px 4px 0;color:var(--ink-500);min-width:0}
+  .arch-item .lines{min-width:0;flex:1}
+  .arch-item .l1{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .arch-item .l2{color:var(--ink-600);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gap{height:10px}
+
+  /* per-variant knobs */
+  .sb{--fs-host:13px;--fs-proj:14px;--fs-sess:13px;--fs-meta:11px;--fs-arch:12px;--fs-arch-sub:10px;--fs-misc:13px;
+      --pl-sess:40px;--pl-arch-h:20px;--pl-arch:40px;--pl-misc:20px;
+      --i-chev:12px;--i-folder:13px;--i-msg:11px;--i-arch:11px}
+  .host-h{font-size:var(--fs-host)}
+  .feed{font-size:14px}
+  .proj .body{font-size:var(--fs-proj)}
+  .sess{font-size:var(--fs-sess);padding-left:var(--pl-sess)}
+  .time,.count,.running,.arch-count{font-size:var(--fs-meta)}
+  .arch-h{font-size:var(--fs-arch);padding-left:var(--pl-arch-h)}
+  .arch-item{font-size:var(--fs-arch);padding-left:var(--pl-arch)}
+  .arch-item .l2{font-size:var(--fs-arch-sub)}
+  .muted-row{font-size:var(--fs-misc);padding-left:var(--pl-misc)}
+  .i-chev{width:var(--i-chev);height:var(--i-chev)}
+  .i-folder{width:var(--i-folder);height:var(--i-folder)}
+  .i-msg{width:var(--i-msg);height:var(--i-msg)}
+  .i-arch{width:var(--i-arch);height:var(--i-arch)}
+  .sess-group{margin-bottom:2px}
+
+  .sb.proposed,.sb.compact{
+    --fs-host:14px;--fs-proj:15px;--fs-sess:14px;--fs-meta:12px;--fs-arch:13px;--fs-arch-sub:11px;--fs-misc:14px;
+    --pl-arch-h:8px;--pl-arch:24px;--pl-misc:8px;
+    --i-chev:13px;--i-folder:14px;--i-msg:12px;--i-arch:12px}
+  .sb.proposed{--pl-sess:12px}
+  .sb.proposed .sess-group,.sb.compact .sess-group{margin-left:13px;border-left:1px solid rgba(26,33,48,.9);padding-left:0}
+  .sb.proposed .feed,.sb.compact .feed{font-size:15px}
+  .sb.compact{--pl-sess:10px}
+  .sb.compact .sess{padding-top:4px;padding-bottom:4px}
+  .sb.compact .sess .icon{display:none}
+
+  /* measurement overlay */
+  .measure{position:relative}
+  .measure .ruler{position:absolute;left:0;top:0;bottom:0;background:rgba(227,180,76,.14);border-right:1px dashed rgba(227,180,76,.55);pointer-events:none}
+  .measure .ruler b{position:absolute;bottom:2px;right:4px;font:500 9.5px "IBM Plex Mono";color:var(--brass-300)}
+
+  /* ---- spec table ---- */
+  table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  caption{caption-side:bottom;text-align:left;font-size:12px;color:var(--ink-500);padding:8px 2px}
+  th,td{text-align:left;padding:8px 14px;border-bottom:1px solid var(--border);overflow-wrap:break-word}
+  th{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-500);background:var(--ink-850)}
+  tr:last-child td{border-bottom:none}
+  td.mono{font-family:"IBM Plex Mono";font-size:12.5px}
+  td .old{color:var(--ink-500);text-decoration:line-through;text-decoration-color:var(--ink-600)}
+  td .new{color:var(--emerald);font-weight:500}
+  .note{border-left:3px solid var(--brass-400);background:var(--ink-900);border-radius:0 8px 8px 0;padding:12px 16px;font-size:13.5px;color:var(--ink-300);margin-top:18px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Sidebar readability <span class="accent">— bigger type, tighter indents</span></h1>
+  <p class="lede">Pixel-accurate mockups of the fleet-hub sidebar. <b style="color:var(--ink-200)">Current</b> runs 10–13px with a 48px dead zone before session titles. Both alternatives bump every size one step and replace deep padding with a vertical indent guide. The gold ruler marks the empty space before a session title starts.</p>
+
+  <svg width="0" height="0" style="position:absolute"><defs>
+    <symbol id="chev-d" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="chev-r" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+    <symbol id="msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="archive" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></symbol>
+    <symbol id="inbox" viewBox="0 0 24 24"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+    <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+    <symbol id="gear" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></symbol>
+  </defs></svg>
+
+  <div class="variants">
+
+    <!-- ======== CURRENT ======== -->
+    <div class="variant">
+      <div class="variant-head"><h3>Current</h3><span class="w">288px default</span><span class="pill">as shipped</span></div>
+      <div class="sb current" style="width:288px">
+        <div class="sb-header">
+          <div class="wordmark"><span class="dot live"></span>Agents Hub <span class="live-pill">2 live</span></div>
+          <div class="hdr-actions"><span><svg width="14" height="14"><use href="#search"/></svg></span><span><svg width="14" height="14"><use href="#refresh"/></svg></span><span><svg width="14" height="14"><use href="#gear"/></svg></span></div>
+        </div>
+        <div class="sb-nav">
+          <div class="row feed"><svg width="14" height="14"><use href="#inbox"/></svg>All sessions</div>
+
+          <div class="row host-h"><span class="hdot" style="background:var(--host-a)"></span><span>hetzner-dev</span></div>
+          <div class="row proj active"><span class="chev"><svg class="i-chev"><use href="#chev-d"/></svg></span><div class="body"><svg class="i-folder"><use href="#folder"/></svg><span class="name">agents-remote-control</span><span class="rdot running" style="padding:0"><span class="rdot" style="width:6px;height:6px;border-radius:99px;background:var(--emerald)"></span></span><span class="count mono">14</span></div></div>
+          <div class="sess-group">
+            <div class="row sess active measure"><span class="ruler" style="width:48px"><b>48px</b></span><span class="icon"><svg class="i-msg"><use href="#msg"/></svg></span><span class="t">Wider chat messages — density pass</span><span class="running"><span class="rdot"></span>running</span></div>
+            <div class="row sess"><span class="icon"><svg class="i-msg"><use href="#msg"/></svg></span><span class="t">Fix plan drawer resize handle</span><span class="time mono">2h</span></div>
+            <div class="row sess"><span class="icon"><svg class="i-msg"><use href="#msg"/></svg></span><span class="t">Investigate 403 on token refresh</span><span class="time mono">1d</span></div>
+            <div class="row muted-row">all 14 chats…</div>
+          </div>
+          <div class="row proj"><span class="chev"><svg class="i-chev"><use href="#chev-r"/></svg></span><div class="body"><svg class="i-folder"><use href="#folder"/></svg><span class="name">homebrew-tap</span><span class="count mono">3</span></div></div>
+          <div class="row muted-row"><svg class="i-chev"><use href="#chev-d"/></svg>4 more</div>
+          <div class="arch-h"><svg class="i-chev"><use href="#chev-d"/></svg><svg class="i-arch"><use href="#archive"/></svg>Archived<span class="arch-count mono" style="margin-left:auto">2</span></div>
+          <div class="arch-item measure"><span class="ruler" style="width:40px"><b>40px</b></span><div class="lines"><div class="l1">Spike: tauri auto-update feed</div><div class="l2 mono">agents-remote-control</div></div></div>
+          <div class="arch-item"><div class="lines"><div class="l1">Old release-notes draft</div><div class="l2 mono">homebrew-tap</div></div></div>
+
+          <div class="gap"></div>
+          <div class="row host-h"><span class="hdot" style="background:var(--host-b)"></span><span>macbook-local</span></div>
+          <div class="row proj"><span class="chev"><svg class="i-chev"><use href="#chev-r"/></svg></span><div class="body"><svg class="i-folder"><use href="#folder"/></svg><span class="name">talentpay-api</span><span class="count mono">8</span></div></div>
+        </div>
+      </div>
+      <p class="variant-notes">Session titles <b>13px</b>, host headers <b>13px</b>, timestamps <b>11px</b>, archived sub-lines <b>10px</b>. Sessions indented <b>pl-10</b> (40px) + 8px nav gutter = 48px before the icon.</p>
+    </div>
+
+    <!-- ======== PROPOSED ======== -->
+    <div class="variant reco">
+      <div class="variant-head"><h3>Proposed</h3><span class="w">304px default</span><span class="pill">Recommended</span></div>
+      <div class="sb proposed" style="width:304px">
+        <div class="sb-header">
+          <div class="wordmark"><span class="dot live"></span>Agents Hub <span class="live-pill">2 live</span></div>
+          <div class="hdr-actions"><span><svg width="14" height="14"><use href="#search"/></svg></span><span><svg width="14" height="14"><use href="#refresh"/></svg></span><span><svg width="14" height="14"><use href="#gear"/></svg></span></div>
+        </div>
+        <div class="sb-nav">
+          <div class="row feed"><svg width="15" height="15"><use href="#inbox"/></svg>All sessions</div>
+
+          <div class="row host-h"><span class="hdot" style="background:var(--host-a)"></span><span>hetzner-dev</span></div>
+          <div class="row proj active"><span class="chev"><svg class="i-chev"><use href="#chev-d"/></svg></span><div class="body"><svg class="i-folder"><use href="#folder"/></svg><span class="name">agents-remote-control</span><span class="rdot running" style="padding:0"><span class="rdot" style="width:6px;height:6px;border-radius:99px;background:var(--emerald)"></span></span><span class="count mono">14</span></div></div>
+          <div class="sess-group">
+            <div class="row sess active measure"><span class="ruler" style="width:12px"><b>33px</b></span><span class="icon"><svg class="i-msg"><use href="#msg"/></svg></span><span class="t">Wider chat messages — density pass</span><span class="running"><span class="rdot"></span>running</span></div>
+            <div class="row sess"><span class="icon"><svg class="i-msg"><use href="#msg"/></svg></span><span class="t">Fix plan drawer resize handle</span><span class="time mono">2h</span></div>
+            <div class="row sess"><span class="icon"><svg class="i-msg"><use href="#msg"/></svg></span><span class="t">Investigate 403 on token refresh</span><span class="time mono">1d</span></div>
+            <div class="row muted-row" style="--pl-misc:12px">all 14 chats…</div>
+          </div>
+          <div class="row proj"><span class="chev"><svg class="i-chev"><use href="#chev-r"/></svg></span><div class="body"><svg class="i-folder"><use href="#folder"/></svg><span class="name">homebrew-tap</span><span class="count mono">3</span></div></div>
+          <div class="row muted-row"><svg class="i-chev"><use href="#chev-d"/></svg>4 more</div>
+          <div class="arch-h"><svg class="i-chev"><use href="#chev-d"/></svg><svg class="i-arch"><use href="#archive"/></svg>Archived<span class="arch-count mono" style="margin-left:auto">2</span></div>
+          <div class="arch-item measure"><span class="ruler" style="width:24px"><b>24px</b></span><div class="lines"><div class="l1">Spike: tauri auto-update feed</div><div class="l2 mono">agents-remote-control</div></div></div>
+          <div class="arch-item"><div class="lines"><div class="l1">Old release-notes draft</div><div class="l2 mono">homebrew-tap</div></div></div>
+
+          <div class="gap"></div>
+          <div class="row host-h"><span class="hdot" style="background:var(--host-b)"></span><span>macbook-local</span></div>
+          <div class="row proj"><span class="chev"><svg class="i-chev"><use href="#chev-r"/></svg></span><div class="body"><svg class="i-folder"><use href="#folder"/></svg><span class="name">talentpay-api</span><span class="count mono">8</span></div></div>
+        </div>
+      </div>
+      <p class="variant-notes">Everything one step up: sessions <b>14px</b>, projects <b>15px</b>, timestamps <b>12px</b>. Indent guide line under the folder column replaces padding — text starts at <b>~33px</b> instead of ~60px, so titles gain ≈27px of room even before the wider default.</p>
+    </div>
+
+    <!-- ======== COMPACT VARIANT ======== -->
+    <div class="variant">
+      <div class="variant-head"><h3>Compact variant</h3><span class="w">304px default</span><span class="pill">alternative</span></div>
+      <div class="sb compact" style="width:304px">
+        <div class="sb-header">
+          <div class="wordmark"><span class="dot live"></span>Agents Hub <span class="live-pill">2 live</span></div>
+          <div class="hdr-actions"><span><svg width="14" height="14"><use href="#search"/></svg></span><span><svg width="14" height="14"><use href="#refresh"/></svg></span><span><svg width="14" height="14"><use href="#gear"/></svg></span></div>
+        </div>
+        <div class="sb-nav">
+          <div class="row feed"><svg width="15" height="15"><use href="#inbox"/></svg>All sessions</div>
+
+          <div class="row host-h"><span class="hdot" style="background:var(--host-a)"></span><span>hetzner-dev</span></div>
+          <div class="row proj active"><span class="chev"><svg class="i-chev"><use href="#chev-d"/></svg></span><div class="body"><svg class="i-folder"><use href="#folder"/></svg><span class="name">agents-remote-control</span><span class="rdot running" style="padding:0"><span class="rdot" style="width:6px;height:6px;border-radius:99px;background:var(--emerald)"></span></span><span class="count mono">14</span></div></div>
+          <div class="sess-group">
+            <div class="row sess active measure"><span class="ruler" style="width:10px"><b>31px</b></span><span class="t">Wider chat messages — density pass</span><span class="running"><span class="rdot"></span>running</span></div>
+            <div class="row sess"><span class="t">Fix plan drawer resize handle</span><span class="time mono">2h</span></div>
+            <div class="row sess"><span class="t">Investigate 403 on token refresh</span><span class="time mono">1d</span></div>
+            <div class="row muted-row" style="--pl-misc:10px">all 14 chats…</div>
+          </div>
+          <div class="row proj"><span class="chev"><svg class="i-chev"><use href="#chev-r"/></svg></span><div class="body"><svg class="i-folder"><use href="#folder"/></svg><span class="name">homebrew-tap</span><span class="count mono">3</span></div></div>
+          <div class="row muted-row"><svg class="i-chev"><use href="#chev-d"/></svg>4 more</div>
+          <div class="arch-h"><svg class="i-chev"><use href="#chev-d"/></svg><svg class="i-arch"><use href="#archive"/></svg>Archived<span class="arch-count mono" style="margin-left:auto">2</span></div>
+          <div class="arch-item measure"><span class="ruler" style="width:24px"><b>24px</b></span><div class="lines"><div class="l1">Spike: tauri auto-update feed</div><div class="l2 mono">agents-remote-control</div></div></div>
+          <div class="arch-item"><div class="lines"><div class="l1">Old release-notes draft</div><div class="l2 mono">homebrew-tap</div></div></div>
+
+          <div class="gap"></div>
+          <div class="row host-h"><span class="hdot" style="background:var(--host-b)"></span><span>macbook-local</span></div>
+          <div class="row proj"><span class="chev"><svg class="i-chev"><use href="#chev-r"/></svg></span><div class="body"><svg class="i-folder"><use href="#folder"/></svg><span class="name">talentpay-api</span><span class="count mono">8</span></div></div>
+        </div>
+      </div>
+      <p class="variant-notes">Same type scale, VS Code-tree style: <b>no per-chat icon</b> (the guide line already says "child of project"), rows 4px shorter. Densest option — best if you keep many projects expanded; slightly less scannable per row.</p>
+    </div>
+  </div>
+
+  <h2>Exact changes (Current → Proposed)</h2>
+  <table>
+    <caption>Line references are Sidebar.tsx at HEAD. The compact variant additionally removes the MessageSquare icon and tightens row padding to py-1.</caption>
+    <thead><tr><th>Element</th><th>Font size</th><th>Left indent</th><th>Where</th></tr></thead>
+    <tbody>
+      <tr><td>Project name</td><td class="mono"><span class="old">text-sm</span> → <span class="new">text-[15px]</span></td><td class="mono">unchanged</td><td class="mono">ProjectRow :221</td></tr>
+      <tr><td>Session title</td><td class="mono"><span class="old">text-[13px]</span> → <span class="new">text-sm</span></td><td class="mono"><span class="old">pl-10</span> → <span class="new">guide + pl-3</span></td><td class="mono">SessionLink :130, wrapper :266</td></tr>
+      <tr><td>Host section header</td><td class="mono"><span class="old">text-[13px]</span> → <span class="new">text-sm</span></td><td class="mono">unchanged</td><td class="mono">HostSection :504</td></tr>
+      <tr><td>"All sessions" nav</td><td class="mono"><span class="old">text-sm</span> → <span class="new">text-[15px]</span></td><td class="mono">unchanged</td><td class="mono">Sidebar :680</td></tr>
+      <tr><td>no chats / all N chats / N more / Show less</td><td class="mono"><span class="old">text-[13px]</span> → <span class="new">text-sm</span></td><td class="mono"><span class="old">pl-10 / pl-5</span> → <span class="new">pl-3 / pl-2</span></td><td class="mono">:277 :282 :543 :552 :558</td></tr>
+      <tr><td>Timestamps, counts, badges, sign-in</td><td class="mono"><span class="old">text-[11px]</span> → <span class="new">text-[12px]</span></td><td class="mono">—</td><td class="mono">:84 :95 :139 :145 :233 :364</td></tr>
+      <tr><td>Archived header &amp; rows</td><td class="mono"><span class="old">text-[12px]</span> → <span class="new">text-[13px]</span></td><td class="mono"><span class="old">pl-5 / pl-10</span> → <span class="new">pl-2 / pl-6</span></td><td class="mono">:358 :370–:381</td></tr>
+      <tr><td>Archived project sub-line</td><td class="mono"><span class="old">text-[10px]</span> → <span class="new">text-[11px]</span></td><td class="mono">—</td><td class="mono">:385</td></tr>
+      <tr><td>Icons</td><td class="mono">11→12, 12→13, 13→14</td><td class="mono">—</td><td class="mono">throughout</td></tr>
+      <tr><td>Default sidebar width</td><td class="mono">—</td><td class="mono"><span class="old">288</span> → <span class="new">304</span> (stored widths kept)</td><td class="mono">storage.ts :17</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note"><b style="color:var(--brass-300)">Recommendation:</b> ship <b>Proposed</b>. It fixes both complaints (type scale, dead left margin) while keeping the per-chat icon that helps distinguish sessions from "all N chats…"-style rows. The compact variant is a follow-up candidate if density becomes the priority.</div>
+</main>
+</body>
+</html>

@@ -60,15 +60,25 @@ export function MessageItem({
         <div className="flex max-w-[75%] flex-col items-end gap-1.5 self-end">
           {images.length > 0 && (
             <div className="flex flex-wrap justify-end gap-1.5">
-              {images.map((image) => (
-                <AuthedImage
-                  key={image.path}
-                  baseUrl={imageSource!.baseUrl}
-                  hostId={imageSource!.hostId}
-                  path={image.path}
-                  name={image.name}
-                />
-              ))}
+              {images.map((image, index) =>
+                image.path ? (
+                  <AuthedImage
+                    key={image.path}
+                    baseUrl={imageSource!.baseUrl}
+                    hostId={imageSource!.hostId}
+                    path={image.path}
+                    name={image.name}
+                  />
+                ) : image.data?.startsWith('data:image/') ? (
+                  // Messages sent from CloudCLI's own UI inline the image.
+                  <img
+                    key={index}
+                    src={image.data}
+                    alt={image.name ?? 'attachment'}
+                    className="max-h-48 max-w-64 rounded-lg border border-ink-800 object-contain"
+                  />
+                ) : null,
+              )}
             </div>
           )}
           {text && (
@@ -80,14 +90,14 @@ export function MessageItem({
       )
     }
     return (
-      <div className="max-w-[46rem]">
+      <div className="min-w-0">
         <Markdown>{text}</Markdown>
       </div>
     )
   }
   if (message.kind === 'thinking') {
     return (
-      <details className="max-w-[46rem] text-xs text-ink-500">
+      <details className="min-w-0 text-xs text-ink-500">
         <summary className="cursor-pointer select-none italic">thinking…</summary>
         <div className="mt-1 whitespace-pre-wrap break-words border-l border-ink-800 pl-3 italic">
           {contentToText(message.content)}

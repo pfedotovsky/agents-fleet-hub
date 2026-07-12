@@ -33,6 +33,7 @@ import {
   AuthError,
   HostUnreachableError,
   getModels,
+  getProviderAuthStatus,
   getSessionMessages,
   readFile,
   saveFile,
@@ -59,7 +60,7 @@ import { notify, requestNotifyPermission } from '../lib/notify'
 import { hostColor } from '../lib/format'
 import { useComposerAutocomplete } from '../hooks/useComposerAutocomplete'
 import type { CompletionItem } from '../hooks/useComposerAutocomplete'
-import { MessageItem, RENDERED_KINDS, ProviderBadge, contentToText } from './Messages'
+import { MessageItem, PROVIDER_META, RENDERED_KINDS, ProviderBadge, contentToText } from './Messages'
 import { PlanPanel } from './PlanPanel'
 import { seedImageCache } from './AuthedImage'
 
@@ -89,11 +90,19 @@ interface PendingImage {
 
 // Plan mode is intentionally absent: it's an independent toggle in the
 // composer (Shift+Tab), not a permission mode — see the planMode state.
-const PERMISSION_MODES: { value: PermissionMode; label: string }[] = [
-  { value: 'default', label: 'Ask for permissions' },
-  { value: 'acceptEdits', label: 'Accept edits' },
-  { value: 'bypassPermissions', label: 'Bypass permissions' },
+// Codex has no interactive approvals; the server remaps the same values onto
+// its sandbox instead (default → workspace-write + ask for untrusted,
+// acceptEdits → workspace-write + never ask, bypass → danger-full-access),
+// hence the second label set.
+const PERMISSION_MODES: { value: PermissionMode; label: string; codexLabel: string }[] = [
+  { value: 'default', label: 'Ask for permissions', codexLabel: 'Sandboxed · ask untrusted' },
+  { value: 'acceptEdits', label: 'Accept edits', codexLabel: 'Sandboxed · never ask' },
+  { value: 'bypassPermissions', label: 'Bypass permissions', codexLabel: 'Full access' },
 ]
+
+function formatTokens(count: number): string {
+  return count >= 1000 ? `${(count / 1000).toFixed(count >= 10_000 ? 0 : 1)}k` : String(count)
+}
 
 /**
  * ExitPlanMode arrives as a regular permission_request (the server marks it
@@ -414,6 +423,10 @@ interface Props {
 
 export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
   const sessionId = target.session.id
+  const provider = target.session.provider
+  // Codex runs sandboxed with no interactive approvals or plan mode, so the
+  // claude-specific composer affordances are hidden/remapped for it.
+  const isCodex = provider === 'codex'
   const [messages, setMessages] = useState<NormalizedMessage[]>([])
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -442,8 +455,14 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
   const imageCounter = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
-  const [model, setModel] = useState<string>(() => loadModelChoice(target.hostId)?.model ?? '')
-  const [effort, setEffort] = useState<string>(() => loadModelChoice(target.hostId)?.effort ?? '')
+  /** Codex context usage from the turn-end token_budget status frame. */
+  const [tokenBudget, setTokenBudget] = useState<{ used: number; total: number } | null>(null)
+  const [model, setModel] = useState<string>(
+    () => loadModelChoice(target.hostId, provider)?.model ?? '',
+  )
+  const [effort, setEffort] = useState<string>(
+    () => loadModelChoice(target.hostId, provider)?.effort ?? '',
+  )
 
   const [loadedOlder, setLoadedOlder] = useState(false)
 
@@ -461,6 +480,14 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
   loadedOlderRef.current = loadedOlder
   const upsertTimer = useRef<number | undefined>(undefined)
   const notifiedPermissionIds = useRef(new Set<string>())
+  // High-water seq acknowledged by the latest chat_subscribed while a run is
+  // processing. Subscribing mid-run with lastSeq 0 (every mount) makes the
+  // server replay the run's whole event log — including permission_request
+  // frames that were already resolved. The ack's pendingPermissions is the
+  // authoritative pending set, so replayed requests (seq <= this) must be
+  // dropped, not resurrected as cards. Seqs restart at 0 for each run, hence
+  // the resets on complete/send and on idle acks.
+  const ackedRunSeq = useRef(0)
 
   // Size the textarea to fit a draft restored on mount.
   useEffect(() => {
@@ -504,7 +531,18 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
 
   const appendMessage = useCallback(
     (message: NormalizedMessage) => {
-      if (message.id && seenIds.current.has(message.id)) return
+      if (message.id && seenIds.current.has(message.id)) {
+        // Codex can re-emit a tool_use under the same id once the item
+        // finishes, now carrying output/exitCode — update the row in place
+        // so it doesn't stay stuck as "running".
+        if (message.kind === 'tool_use') {
+          setMessages((prev) =>
+            prev.map((existing) => (existing.id === message.id ? { ...existing, ...message } : existing)),
+          )
+          scrollToBottom(true)
+        }
+        return
+      }
       if (message.id) seenIds.current.add(message.id)
       setMessages((prev) => {
         // Live tool results arrive as separate frames — attach them to their tool_use.
@@ -603,13 +641,13 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
       switch (event.kind) {
         case 'chat_subscribed':
           setProcessing(Boolean(event.isProcessing))
-          if (event.pendingPermissions?.length) {
-            setPermissions((prev) => {
-              const known = new Set(prev.map((p) => p.requestId))
-              const fresh = event.pendingPermissions!.filter((p) => p?.requestId && !known.has(p.requestId))
-              return [...prev, ...fresh]
-            })
-          }
+          ackedRunSeq.current =
+            event.isProcessing && typeof event.lastSeq === 'number' ? event.lastSeq : 0
+          // The ack's pendingPermissions is the authoritative full set for this
+          // session, so replace local state. The server emits no frame when a
+          // request is resolved from another client (e.g. CloudCLI's own UI) —
+          // merging would leave those cards stuck here forever.
+          setPermissions((event.pendingPermissions ?? []).filter((p) => p?.requestId))
           return
         case 'complete':
           if (processingRef.current) {
@@ -622,11 +660,15 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
           }
           setProcessing(false)
           setPermissions([])
+          ackedRunSeq.current = 0
           // True-up from persisted history once the transcript flushes: replaces
           // live-stream ids with canonical ones (unless older pages are loaded).
           window.setTimeout(() => void mergeNewest(!loadedOlderRef.current), 800)
           return
         case 'permission_request':
+          // Replayed frame from before the last ack — already resolved, or
+          // (if still pending) already delivered via the ack's set above.
+          if (typeof event.seq === 'number' && event.seq <= ackedRunSeq.current) return
           if (event.requestId) {
             const request: PermissionRequest = {
               requestId: event.requestId,
@@ -681,6 +723,14 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
           }
           return
         case 'status':
+          if (
+            event.text === 'token_budget' &&
+            typeof event.tokenBudget?.used === 'number' &&
+            typeof event.tokenBudget.total === 'number'
+          ) {
+            setTokenBudget({ used: event.tokenBudget.used, total: event.tokenBudget.total })
+          }
+          return
         case 'loading_progress':
           return
         case 'action_required':
@@ -699,6 +749,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
   useEffect(() => {
     seenIds.current = new Set()
     lastSeq.current = 0
+    ackedRunSeq.current = 0
     pinnedRef.current = true
     notifiedPermissionIds.current = new Set()
     setMessages([])
@@ -707,6 +758,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
     setFatalError(null)
     setProcessing(false)
     setLoadedOlder(false)
+    setTokenBudget(null)
     setLoading(true)
 
     let cancelled = false
@@ -757,27 +809,58 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
   }, [fetchPage, handleEvent, scrollToBottom, sessionId, target.baseUrl, target.hostId])
 
   // Fallback poll: covers a downed socket or missed upsert broadcasts. Cheap —
-  // one page fetch, and mergeNewest no-ops when nothing is new.
+  // one page fetch, and mergeNewest no-ops when nothing is new. The periodic
+  // resubscribe reconciles permission cards against the server's pending set
+  // and re-attaches the live stream (the server routes each run's stream to
+  // its latest subscriber, so another client's subscribe silently steals it —
+  // along with the `complete` that would clear our cards). Idempotent: replay
+  // only covers seq > lastSeq, so nothing duplicates.
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!processingRef.current && document.visibilityState === 'visible') {
-        void mergeNewest(false)
-      }
+      if (document.visibilityState !== 'visible') return
+      socketRef.current?.subscribe(sessionId, lastSeq.current)
+      if (!processingRef.current) void mergeNewest(false)
     }, 15_000)
     return () => clearInterval(interval)
-  }, [mergeNewest])
+  }, [mergeNewest, sessionId])
 
-  // Model catalog for this session's provider (Cursor has none).
+  // Codex preflight on a fresh chat: without it, a missing codex install or
+  // login on the host would only surface as an error after the first send.
   useEffect(() => {
-    if (target.session.provider === 'cursor') return
+    if (!isCodex || loading || messagesRef.current.length > 0) return
     const token = getToken(target.hostId)
     if (!token) return
     let cancelled = false
-    void getModels(target.baseUrl, token, target.session.provider, (t) => saveToken(target.hostId, t))
+    void getProviderAuthStatus(target.baseUrl, token, provider, (t) => saveToken(target.hostId, t))
+      .then((status) => {
+        if (cancelled) return
+        if (status.installed === false) {
+          setBanner('The Codex CLI is not installed on this host.')
+        } else if (status.authenticated === false) {
+          setBanner('Codex is not signed in on this host — run `codex login` there first.')
+        }
+      })
+      .catch(() => {
+        /* preflight is best-effort; a send would surface the real error */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isCodex, loading, provider, target.baseUrl, target.hostId])
+
+  // Model catalog for this session's provider (Cursor has none).
+  useEffect(() => {
+    if (provider === 'cursor') return
+    const token = getToken(target.hostId)
+    if (!token) return
+    let cancelled = false
+    void getModels(target.baseUrl, token, provider, (t) => saveToken(target.hostId, t))
       .then((catalog) => {
         if (cancelled) return
         setModelOptions(catalog.options)
-        setModel((current) => current || loadModelChoice(target.hostId)?.model || catalog.default)
+        setModel(
+          (current) => current || loadModelChoice(target.hostId, provider)?.model || catalog.default,
+        )
       })
       .catch(() => {
         /* model picker just stays empty if unavailable */
@@ -785,7 +868,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
     return () => {
       cancelled = true
     }
-  }, [target.baseUrl, target.hostId, target.session.provider])
+  }, [provider, target.baseUrl, target.hostId])
 
   const activeModel = useMemo(
     () => modelOptions.find((option) => option.value === model),
@@ -797,12 +880,12 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
     const nextEfforts = modelOptions.find((option) => option.value === value)?.effort
     const nextEffort = nextEfforts?.values.some((e) => e.value === effort) ? effort : ''
     setEffort(nextEffort)
-    saveModelChoice(target.hostId, { model: value, effort: nextEffort || undefined })
+    saveModelChoice(target.hostId, provider, { model: value, effort: nextEffort || undefined })
   }
 
   function changeEffort(value: string) {
     setEffort(value)
-    saveModelChoice(target.hostId, { model, effort: value || undefined })
+    saveModelChoice(target.hostId, provider, { model, effort: value || undefined })
   }
 
   async function loadOlder() {
@@ -926,12 +1009,14 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
     )
     const options: Parameters<ChatSocket['sendChat']>[2] = {}
     // The plan toggle wins over the select while it's on; the select's choice
-    // is untouched and applies again once the toggle goes off.
-    if (planMode) options.permissionMode = 'plan'
+    // is untouched and applies again once the toggle goes off. Codex never
+    // sends 'plan' (the server would silently treat it as default).
+    if (planMode && !isCodex) options.permissionMode = 'plan'
     else if (permissionMode !== 'default') options.permissionMode = permissionMode
     if (model) options.model = model
     if (effort) options.effort = effort
-    if (allowedTools.length > 0) {
+    // Codex ignores toolsSettings entirely — its gating is the sandbox mode.
+    if (allowedTools.length > 0 && !isCodex) {
       options.toolsSettings = { allowedTools, disallowedTools: [], skipPermissions: false }
     }
     if (readyImages.length > 0) {
@@ -959,6 +1044,9 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
       images: readyImages.map((chip) => ({ path: chip.path, name: chip.name })),
     })
     setProcessing(true)
+    // The new run's seqs start over at 1 — a stale high-water mark from the
+    // previous run would swallow its live permission prompts.
+    ackedRunSeq.current = 0
     setInput('')
     setPendingImages([])
     autocomplete.close()
@@ -968,7 +1056,10 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
   }
 
   function respondPermission(requestId: string, allow: boolean, rememberEntry?: string) {
-    socketRef.current?.respondPermission(requestId, allow, rememberEntry)
+    if (!socketRef.current?.respondPermission(requestId, allow, rememberEntry)) {
+      setBanner('Not connected to the host — the response was not delivered, try again.')
+      return
+    }
     if (allow && rememberEntry) {
       setAllowedTools(addAllowedTool(target.hostId, target.projectPath, rememberEntry))
       if (target.session.provider === 'claude') void persistGrantToHost(rememberEntry)
@@ -983,8 +1074,9 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
    * (Dismiss) denies with a message so the agent knows to proceed on its own.
    */
   function respondQuestion(requestId: string, answers: Record<string, string> | null) {
+    let delivered: boolean | undefined
     if (answers === null) {
-      socketRef.current?.respondPermission(
+      delivered = socketRef.current?.respondPermission(
         requestId,
         false,
         undefined,
@@ -994,15 +1086,20 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
       const request = permissions.find((p) => p.requestId === requestId)
       const base =
         request?.input && typeof request.input === 'object' ? (request.input as object) : {}
-      socketRef.current?.respondPermission(requestId, true, undefined, undefined, {
+      delivered = socketRef.current?.respondPermission(requestId, true, undefined, undefined, {
         ...base,
         answers,
       })
+    }
+    if (!delivered) {
+      setBanner('Not connected to the host — the answer was not delivered, try again.')
+      return
     }
     setPermissions((prev) => prev.filter((p) => p.requestId !== requestId))
   }
 
   function togglePlanMode() {
+    if (isCodex) return
     const next = !planMode
     setPlanMode(next)
     savePlanMode(target.hostId, next)
@@ -1016,9 +1113,15 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
    */
   function respondPlan(requestId: string, decision: PlanDecision) {
     if (decision === 'revise') {
-      socketRef.current?.respondPermission(requestId, false, undefined, 'User asked to revise the plan')
+      if (!socketRef.current?.respondPermission(requestId, false, undefined, 'User asked to revise the plan')) {
+        setBanner('Not connected to the host — the decision was not delivered, try again.')
+        return
+      }
     } else {
-      socketRef.current?.respondPermission(requestId, true)
+      if (!socketRef.current?.respondPermission(requestId, true)) {
+        setBanner('Not connected to the host — the decision was not delivered, try again.')
+        return
+      }
       setPlanMode(false)
       savePlanMode(target.hostId, false)
       if (decision === 'acceptEdits') {
@@ -1116,6 +1219,14 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
             {target.session.summary || 'New session'}
           </h2>
         </div>
+        {tokenBudget && (
+          <span
+            title="Codex context window usage for this session"
+            className="shrink-0 rounded-full border border-ink-800 bg-ink-900 px-2 py-0.5 font-mono text-[11px] text-ink-500"
+          >
+            {formatTokens(tokenBudget.used)} / {formatTokens(tokenBudget.total)}
+          </span>
+        )}
         <ProviderBadge provider={target.session.provider} />
         {onTogglePanel && (
           <div className="flex shrink-0 items-center gap-0.5">
@@ -1158,7 +1269,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
           const el = scrollRef.current
           if (el) pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60
         }}
-        className="flex-1 overflow-y-auto px-6 py-4"
+        className="flex-1 overflow-y-auto px-4 py-4"
       >
         {loading ? (
           <div className="flex h-full items-center justify-center text-ink-500">
@@ -1176,7 +1287,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
             )}
           </div>
         ) : (
-          <div ref={contentRef} className="mx-auto flex max-w-[54rem] flex-col gap-3">
+          <div ref={contentRef} className="mx-auto flex max-w-[80rem] flex-col gap-3">
             {hasMore && (
               <button
                 type="button"
@@ -1235,8 +1346,8 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
         )}
       </div>
 
-      <footer className="shrink-0 border-t border-ink-800 px-6 py-3">
-        <div className="relative mx-auto max-w-[54rem]">
+      <footer className="shrink-0 border-t border-ink-800 px-4 py-3">
+        <div className="relative mx-auto max-w-[80rem]">
           {autocomplete.open && (
             <CompletionMenu
               items={autocomplete.items}
@@ -1362,7 +1473,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
               rows={1}
               placeholder={
                 socketState === 'open'
-                  ? `Message ${target.session.provider} in ${target.projectName}…`
+                  ? `Message ${PROVIDER_META[provider]?.label ?? provider} in ${target.projectName}…`
                   : 'Connecting to host…'
               }
               disabled={!canChat || socketState !== 'open'}
@@ -1391,19 +1502,21 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
             </div>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-ink-600">
-            <button
-              type="button"
-              onClick={togglePlanMode}
-              aria-pressed={planMode}
-              title="Plan mode — the agent researches and proposes a plan before making changes (Shift+Tab)"
-              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
-                planMode
-                  ? 'border-indigo-500/60 bg-indigo-500/15 text-indigo-300'
-                  : 'border-ink-800 text-ink-500 hover:border-ink-700 hover:text-ink-300'
-              }`}
-            >
-              <ClipboardList size={11} /> Plan
-            </button>
+            {!isCodex && (
+              <button
+                type="button"
+                onClick={togglePlanMode}
+                aria-pressed={planMode}
+                title="Plan mode — the agent researches and proposes a plan before making changes (Shift+Tab)"
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                  planMode
+                    ? 'border-indigo-500/60 bg-indigo-500/15 text-indigo-300'
+                    : 'border-ink-800 text-ink-500 hover:border-ink-700 hover:text-ink-300'
+                }`}
+              >
+                <ClipboardList size={11} /> Plan
+              </button>
+            )}
             <select
               value={permissionMode}
               onChange={(event) => {
@@ -1416,7 +1529,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
             >
               {PERMISSION_MODES.map((mode) => (
                 <option key={mode.value} value={mode.value}>
-                  {mode.label}
+                  {isCodex ? mode.codexLabel : mode.label}
                 </option>
               ))}
             </select>
@@ -1449,7 +1562,8 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
               </select>
             )}
             <span className="ml-auto hidden sm:inline">
-              Enter to send · Shift+Enter for a new line · Shift+Tab to toggle Plan
+              Enter to send · Shift+Enter for a new line
+              {!isCodex && ' · Shift+Tab to toggle Plan'}
             </span>
           </div>
         </div>

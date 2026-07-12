@@ -26,10 +26,12 @@ import {
   SIDEBAR_MAX_WIDTH,
   SIDEBAR_MIN_WIDTH,
   getToken,
+  loadLastProvider,
   loadSidebarWidth,
   saveSidebarWidth,
   saveToken,
 } from '../lib/storage'
+import { PROVIDER_META } from './Messages'
 
 const COLLAPSED_COUNT = 7
 /** How many chats to show under an expanded project before deferring to the project pane. */
@@ -81,9 +83,9 @@ function HostStatusHint({ runtime, onSignIn }: { runtime: HostRuntime; onSignIn:
           type="button"
           onClick={() => onSignIn(runtime.config.id)}
           title={`Sign in to ${runtime.config.name}`}
-          className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[11px] font-medium text-amber-400 hover:bg-ink-800"
+          className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[12px] font-medium text-amber-400 hover:bg-ink-800"
         >
-          <KeyRound size={11} /> sign in
+          <KeyRound size={12} /> sign in
         </button>
       )
     case 'needs-setup':
@@ -92,9 +94,9 @@ function HostStatusHint({ runtime, onSignIn }: { runtime: HostRuntime; onSignIn:
           type="button"
           onClick={() => onSignIn(runtime.config.id)}
           title={`Create the first account on ${runtime.config.name}`}
-          className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[11px] font-medium text-sky-400 hover:bg-ink-800"
+          className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[12px] font-medium text-sky-400 hover:bg-ink-800"
         >
-          <UserPlus size={11} /> set up
+          <UserPlus size={12} /> set up
         </button>
       )
     default:
@@ -127,22 +129,22 @@ function SessionLink({
         type="button"
         onClick={onOpen}
         title={title}
-        className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-10 pr-1 text-[13px] ${
+        className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-3 pr-1 text-sm ${
           active ? 'text-ink-100' : 'text-ink-500 hover:text-ink-300'
         }`}
       >
-        <MessageSquare size={11} className="shrink-0 text-ink-600" />
+        <MessageSquare size={12} className="shrink-0 text-ink-600" />
         <span className="min-w-0 flex-1 truncate text-left">{title}</span>
         {running ? (
           <span
             title={runningIds ? 'Agent is running' : 'Active in the last 2 minutes'}
-            className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-emerald-400"
+            className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-emerald-400"
           >
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
             {runningIds ? 'running' : 'active'}
           </span>
         ) : (
-          <span className="tnum shrink-0 font-mono text-[11px] text-ink-600">
+          <span className="tnum shrink-0 font-mono text-[12px] text-ink-600">
             {relativeTime(session.lastActivity)}
           </span>
         )}
@@ -153,7 +155,7 @@ function SessionLink({
         title="Archive (restorable)"
         className="shrink-0 rounded p-1 text-ink-600 opacity-0 transition-opacity hover:bg-ink-700 hover:text-ink-200 group-hover/session:opacity-100"
       >
-        <Archive size={11} />
+        <Archive size={12} />
       </button>
     </div>
   )
@@ -167,6 +169,7 @@ function ProjectRow({
   expanded,
   creating,
   canCreate,
+  newSessionTitle,
   runningIds,
   onToggleExpand,
   onSelect,
@@ -182,6 +185,7 @@ function ProjectRow({
   expanded: boolean
   creating: boolean
   canCreate: boolean
+  newSessionTitle: string
   runningIds: ReadonlySet<string> | undefined
   onToggleExpand: () => void
   onSelect: () => void
@@ -212,17 +216,17 @@ function ProjectRow({
           title={expanded ? 'Hide chats' : 'Show chats'}
           className="shrink-0 rounded p-0.5 pl-1.5 text-ink-600 hover:text-ink-300"
         >
-          <Chevron size={12} />
+          <Chevron size={13} />
         </button>
         <button
           type="button"
           onClick={onSelect}
           title={project.fullPath}
-          className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-1 text-sm ${
+          className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-1 text-[15px] ${
             active ? 'text-ink-100' : 'text-ink-400'
           }`}
         >
-          <Folder size={13} className="shrink-0 text-ink-600" />
+          <Folder size={14} className="shrink-0 text-ink-600" />
           <span className="min-w-0 flex-1 truncate text-left">{project.displayName}</span>
           {hasActivity && (
             <span
@@ -230,7 +234,7 @@ function ProjectRow({
               className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400"
             />
           )}
-          <span className="tnum shrink-0 font-mono text-[11px] text-ink-600">
+          <span className="tnum shrink-0 font-mono text-[12px] text-ink-600">
             {project.sessionMeta.total}
           </span>
         </button>
@@ -239,15 +243,15 @@ function ProjectRow({
             type="button"
             onClick={onNewSession}
             disabled={creating}
-            title="New session"
+            title={newSessionTitle}
             className={`shrink-0 rounded p-1 text-ink-600 transition-opacity hover:bg-ink-700 hover:text-ink-200 ${
               creating ? '' : 'opacity-0 group-hover:opacity-100'
             }`}
           >
             {creating ? (
-              <LoaderCircle size={12} className="animate-spin text-ink-400" />
+              <LoaderCircle size={13} className="animate-spin text-ink-400" />
             ) : (
-              <Plus size={12} />
+              <Plus size={13} />
             )}
           </button>
         )}
@@ -259,11 +263,11 @@ function ProjectRow({
             project.isStarred ? 'text-amber-400' : 'text-ink-600 opacity-0 group-hover:opacity-100'
           }`}
         >
-          <Star size={12} fill={project.isStarred ? 'currentColor' : 'none'} />
+          <Star size={13} fill={project.isStarred ? 'currentColor' : 'none'} />
         </button>
       </div>
       {expanded && (
-        <div className="mb-0.5">
+        <div className="mb-0.5 ml-[13px] border-l border-ink-800/90">
           {sessions.map((session) => (
             <SessionLink
               key={session.id}
@@ -274,12 +278,12 @@ function ProjectRow({
               onArchive={() => onArchiveSession(session.id)}
             />
           ))}
-          {sessions.length === 0 && <p className="py-1 pl-10 text-[13px] text-ink-600">no chats yet</p>}
+          {sessions.length === 0 && <p className="py-1 pl-3 text-sm text-ink-600">no chats yet</p>}
           {project.sessionMeta.total > sessions.length && (
             <button
               type="button"
               onClick={onSelect}
-              className="flex w-full items-center rounded-md py-1.5 pl-10 text-[13px] text-ink-500 hover:bg-ink-900 hover:text-ink-300"
+              className="flex w-full items-center rounded-md py-1.5 pl-3 text-sm text-ink-500 hover:bg-ink-900 hover:text-ink-300"
             >
               all {project.sessionMeta.total} chats…
             </button>
@@ -355,34 +359,34 @@ function ArchivedSection({
       <button
         type="button"
         onClick={toggle}
-        className="flex w-full items-center gap-1.5 rounded-md py-1 pl-5 pr-2 text-[12px] text-ink-600 hover:bg-ink-900 hover:text-ink-400"
+        className="flex w-full items-center gap-1.5 rounded-md py-1 pl-2 pr-2 text-[13px] text-ink-600 hover:bg-ink-900 hover:text-ink-400"
       >
-        <Chevron size={11} className="shrink-0" />
-        <Archive size={11} className="shrink-0" />
+        <Chevron size={12} className="shrink-0" />
+        <Archive size={12} className="shrink-0" />
         Archived
         {open && items !== null && (
-          <span className="tnum ml-auto font-mono text-[11px]">{items.length}</span>
+          <span className="tnum ml-auto font-mono text-[12px]">{items.length}</span>
         )}
       </button>
       {open && (
         <div className="mb-1">
           {loading && (
-            <p className="flex items-center gap-2 py-1 pl-10 text-[12px] text-ink-600">
-              <LoaderCircle size={11} className="animate-spin" /> loading…
+            <p className="flex items-center gap-2 py-1 pl-6 text-[13px] text-ink-600">
+              <LoaderCircle size={12} className="animate-spin" /> loading…
             </p>
           )}
-          {error && <p className="py-1 pl-10 pr-2 text-[12px] text-rose-400">{error}</p>}
+          {error && <p className="py-1 pl-6 pr-2 text-[13px] text-rose-400">{error}</p>}
           {!loading && items?.length === 0 && (
-            <p className="py-1 pl-10 text-[12px] text-ink-600">nothing archived</p>
+            <p className="py-1 pl-6 text-[13px] text-ink-600">nothing archived</p>
           )}
           {items?.map((item) => (
             <div
               key={item.sessionId}
-              className="group/arch flex min-w-0 items-center gap-2 rounded-md py-1 pl-10 pr-1 text-[12px] text-ink-500 hover:bg-ink-900"
+              className="group/arch flex min-w-0 items-center gap-2 rounded-md py-1 pl-6 pr-1 text-[13px] text-ink-500 hover:bg-ink-900"
             >
               <div className="min-w-0 flex-1" title={item.sessionTitle}>
                 <div className="truncate">{item.sessionTitle}</div>
-                <div className="truncate font-mono text-[10px] text-ink-600">
+                <div className="truncate font-mono text-[11px] text-ink-600">
                   {item.projectDisplayName}
                 </div>
               </div>
@@ -394,14 +398,14 @@ function ArchivedSection({
                     type="button"
                     onClick={() => void run(item.sessionId, () => onDeleteForever(item.sessionId))}
                     title="Deletes the transcript from the host's disk"
-                    className="rounded bg-rose-950/60 px-1.5 py-0.5 text-[11px] font-medium text-rose-400 hover:bg-rose-900/60"
+                    className="rounded bg-rose-950/60 px-1.5 py-0.5 text-[12px] font-medium text-rose-400 hover:bg-rose-900/60"
                   >
                     delete forever?
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmId(null)}
-                    className="rounded px-1 py-0.5 text-[11px] text-ink-500 hover:text-ink-300"
+                    className="rounded px-1 py-0.5 text-[12px] text-ink-500 hover:text-ink-300"
                   >
                     cancel
                   </button>
@@ -414,7 +418,7 @@ function ArchivedSection({
                     title="Restore"
                     className="rounded p-1 text-ink-500 hover:bg-ink-700 hover:text-ink-200"
                   >
-                    <ArchiveRestore size={11} />
+                    <ArchiveRestore size={12} />
                   </button>
                   <button
                     type="button"
@@ -422,7 +426,7 @@ function ArchivedSection({
                     title="Delete permanently"
                     className="rounded p-1 text-ink-600 hover:bg-ink-700 hover:text-rose-400"
                   >
-                    <Trash2 size={11} />
+                    <Trash2 size={12} />
                   </button>
                 </span>
               )}
@@ -468,6 +472,11 @@ function HostSection({
   const [openOverrides, setOpenOverrides] = useState<Record<string, boolean>>({})
   const color = hostColor(hostIndex)
   const hostId = runtime.config.id
+  // The quick-create "+" follows the provider last picked in the project pane.
+  const quickProvider = loadLastProvider(hostId) ?? 'claude'
+  const newSessionTitle = `New ${
+    PROVIDER_META[quickProvider as keyof typeof PROVIDER_META]?.label ?? quickProvider
+  } session`
 
   // Projects with a currently-active session outrank everything — the user is
   // navigating to running agents far more often than to pinned archives.
@@ -501,7 +510,7 @@ function HostSection({
   return (
     <div className="mb-1">
       <div
-        className={`flex items-center gap-2 px-2 py-1.5 text-[13px] font-medium ${
+        className={`flex items-center gap-2 px-2 py-1.5 text-sm font-medium ${
           runtime.status === 'online' ? 'text-ink-300' : 'text-ink-500'
         }`}
       >
@@ -524,6 +533,7 @@ function HostSection({
             expanded={isOpen}
             creating={creatingKey === `${hostId}:${project.projectId}`}
             canCreate={runtime.status === 'online'}
+            newSessionTitle={newSessionTitle}
             runningIds={runtime.runningSessionIds}
             onToggleExpand={() =>
               setOpenOverrides((prev) => ({ ...prev, [project.projectId]: !isOpen }))
@@ -540,22 +550,22 @@ function HostSection({
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="flex w-full items-center gap-1 rounded-md py-1.5 pl-5 text-[13px] text-ink-500 hover:bg-ink-900 hover:text-ink-300"
+          className="flex w-full items-center gap-1 rounded-md py-1.5 pl-2 text-sm text-ink-500 hover:bg-ink-900 hover:text-ink-300"
         >
-          <ChevronDown size={12} /> {hidden} more
+          <ChevronDown size={13} /> {hidden} more
         </button>
       )}
       {expanded && sorted.length > alwaysVisible && (
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="flex w-full items-center gap-1 rounded-md py-1.5 pl-5 text-[13px] text-ink-500 hover:bg-ink-900 hover:text-ink-300"
+          className="flex w-full items-center gap-1 rounded-md py-1.5 pl-2 text-sm text-ink-500 hover:bg-ink-900 hover:text-ink-300"
         >
-          <ChevronDown size={12} className="rotate-180" /> Show less
+          <ChevronDown size={13} className="rotate-180" /> Show less
         </button>
       )}
       {runtime.status === 'online' && runtime.projects.length === 0 && (
-        <p className="py-1 pl-5 text-[13px] text-ink-600">no projects</p>
+        <p className="py-1 pl-2 text-sm text-ink-600">no projects</p>
       )}
       {runtime.status === 'online' && (
         <ArchivedSection
@@ -677,11 +687,11 @@ export function Sidebar({
         <button
           type="button"
           onClick={onSelectFeed}
-          className={`mb-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+          className={`mb-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[15px] transition-colors ${
             view.kind === 'feed' ? 'bg-ink-800 text-ink-100' : 'text-ink-400 hover:bg-ink-900'
           }`}
         >
-          <Inbox size={14} className="shrink-0" />
+          <Inbox size={15} className="shrink-0" />
           All sessions
         </button>
 

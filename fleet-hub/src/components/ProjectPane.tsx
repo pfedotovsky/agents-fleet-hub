@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { ChevronDown, FolderTree, GitBranch, LoaderCircle, Plus } from 'lucide-react'
 import type { FleetSession, HostRuntime, Project, Provider, SessionSummary } from '../types'
 import { createSession, getProjectSessions } from '../lib/api'
-import { getToken, saveToken } from '../lib/storage'
+import { getToken, loadLastProvider, saveLastProvider, saveToken } from '../lib/storage'
 import { hostColor } from '../lib/format'
 import { SessionRow } from './SessionRow'
 
@@ -31,7 +31,10 @@ export function ProjectPane({
   const [hasMore, setHasMore] = useState(project.sessionMeta.hasMore)
   const [loadingMore, setLoadingMore] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [provider, setProvider] = useState<Provider>('claude')
+  const [provider, setProvider] = useState<Provider>(() => {
+    const last = loadLastProvider(runtime.config.id)
+    return PROVIDERS.includes(last as Provider) ? (last as Provider) : 'claude'
+  })
   const [error, setError] = useState<string | null>(null)
 
   const color = hostColor(hostColorIdx)
@@ -98,6 +101,7 @@ export function ProjectPane({
         project.fullPath,
         (refreshed) => saveToken(runtime.config.id, refreshed),
       )
+      saveLastProvider(runtime.config.id, provider)
       onOpenSession(
         toTarget({
           id: created.sessionId,

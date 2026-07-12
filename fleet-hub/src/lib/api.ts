@@ -262,6 +262,28 @@ export async function getModels(
   return { options: body.data.models.OPTIONS ?? [], default: body.data.models.DEFAULT ?? 'default' }
 }
 
+/** Install/login state of a provider's CLI on the host (e.g. codex). */
+export interface ProviderAuthStatus {
+  installed?: boolean
+  authenticated?: boolean
+  email?: string
+  method?: string
+  error?: string
+}
+export async function getProviderAuthStatus(
+  baseUrl: string,
+  token: string,
+  provider: Provider,
+  onTokenRefresh: (token: string) => void,
+): Promise<ProviderAuthStatus> {
+  const body = (await fetchJson(baseUrl, `/api/providers/${provider}/auth/status`, {
+    token,
+    onTokenRefresh,
+    timeoutMs: 10000,
+  })) as { data?: ProviderAuthStatus } & ProviderAuthStatus
+  return body.data ?? body
+}
+
 /** Toggles a project's starred flag; returns the new state. */
 export async function toggleProjectStar(
   baseUrl: string,

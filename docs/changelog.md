@@ -7,6 +7,99 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-07-12
 
 ### Added
+- **Codex provider support** — Codex sessions can now be started and driven
+  correctly from the hub (verified live against localhost CloudCLI 1.36.1,
+  incl. rendering real Codex transcripts and creating a session):
+  - Model/effort choice is now stored per `hostId:provider` (was per host —
+    a stored Claude model id would have been sent to Codex runs). Legacy
+    bare-hostId entries still apply to Claude. (`lib/storage.ts`,
+    `ChatPane.tsx`)
+  - Codex chats hide the Plan pill / Shift+Tab toggle (CloudCLI silently maps
+    `permissionMode:'plan'` to default for codex), relabel the permission
+    modes to their sandbox meanings (Sandboxed · ask untrusted / Sandboxed ·
+    never ask / Full access — same stored values), and skip `toolsSettings`
+    in `chat.send` (ignored by the codex runner). (`ChatPane.tsx`)
+  - Codex tool calls render properly: live `Bash` frames carry results inline
+    (`output`/`exitCode` on the tool_use — no `tool_result` frame; the same
+    id can be re-emitted on completion, which `appendMessage` now upserts in
+    place instead of dropping); history replay tools `exec_command`/`exec`/
+    `write_stdin` render as terminal rows; `FileChanges`, `TodoList`,
+    `WebSearch` mapped to the existing renderers. Two data-shape quirks
+    verified against real transcripts: codex history serializes `toolInput`
+    as a **JSON string** (now parsed; previously even codex `Edit` diffs
+    rendered empty) and `toolResult.content` can be an **array of
+    `{type,text}` parts** (previously crashed `ResultBlock.trim()`).
+    (`ToolCall.tsx`, `types.ts`, `ChatPane.tsx`)
+  - `$`-prefixed Codex skills complete in the composer (` $` at message
+    start, like `/`); the `.claude/commands` catalog is fetched only for
+    claude sessions. (`useComposerAutocomplete.ts`)
+  - New sessions default to the provider last picked on that host
+    (`fleethub.v1.lastProvider`): ProjectPane's picker starts there and the
+    sidebar quick-create "+" follows it (tooltip shows the provider).
+    (`ProjectPane.tsx`, `App.tsx`, `Sidebar.tsx`)
+  - Empty Codex chats preflight `GET /api/providers/codex/auth/status` and
+    banner a missing install / login instead of failing on first send;
+    Codex `token_budget` status frames render as a context-usage chip in the
+    chat header. (`ChatPane.tsx`, `lib/api.ts`)
+
+### Fixed
+- **Zombie plan/question cards resurrected by mid-run replay**: subscribing
+  to a *running* session with `lastSeq: 0` (every ChatPane mount — refresh,
+  or navigating back into the chat) makes CloudCLI replay the run's whole
+  event log, including `permission_request` frames that were **already
+  resolved**; the hub re-added each one as a live card, so an approved plan
+  came back as "Plan ready for review" and an answered question as
+  unanswered (clicking them again no-ops — the server resolver is gone).
+  The `chat_subscribed` ack arrives before the replay and carries the run's
+  current `lastSeq`, so ChatPane now records it (`ackedRunSeq`) and drops
+  replayed `permission_request` frames at `seq <= ` that mark — genuinely
+  pending ones still arrive via the ack's authoritative `pendingPermissions`.
+  Seq numbers restart at 0 for each run (`chat-run-registry.startRun`), so
+  the mark resets on `complete`, on send, on mount, and on idle acks —
+  otherwise it would swallow the next run's live prompts. Root-caused and
+  verified live against localhost CloudCLI 1.36.1. (`ChatPane.tsx`)
+- **Stale permission/question cards after answering elsewhere**: CloudCLI
+  emits no frame when a pending permission is resolved by another client
+  (`permission_cancelled` fires only on timeout/abort), and each run's live
+  stream goes to *one* socket — another client's `chat.subscribe` silently
+  steals it, including the `complete` that used to clear the hub's cards. The
+  hub now treats `chat_subscribed.pendingPermissions` as the authoritative
+  full set (replace, never merge) and re-sends `chat.subscribe` on the
+  existing 15 s fallback poll (idempotent — replay is `seq > lastSeq`), so
+  cards answered from CloudCLI's own UI clear within ~15 s and the live
+  stream is re-attached. Verified live end-to-end against localhost CloudCLI.
+  (`ChatPane.tsx`)
+- **Lost permission answers on a dead socket**: `respondQuestion` /
+  `respondPermission` / `respondPlan` ignored `ChatSocket.respondPermission`'s
+  return value and removed the card optimistically — an answer sent while the
+  WS was reconnecting (or a zombie) was silently dropped and the agent waited
+  forever. They now keep the card and show a "not delivered, try again" banner
+  when the send fails. (`ChatPane.tsx`)
+- **App-crashing image attachments**: messages sent from CloudCLI's own UI
+  carry images inline as `{data: 'data:image/…;base64,…'}` with no `path`;
+  `AuthedImage` crashed on `path.split(…)` and, with no error boundary, blanked
+  the whole app for any session containing one. `NormalizedMessage.images` now
+  allows both shapes and `MessageItem` renders inline `data:` images directly.
+  (`types.ts`, `Messages.tsx`)
+
+### Changed
+- **Sidebar readability**: all sidebar type bumped one step (session titles
+  13→14px, project names 14→15px, host headers 13→14px, timestamps/badges
+  11→12px, archived rows 12→13px with 11px sub-lines) with icons scaled to
+  match; the deep `pl-10` (40px) session/archived indent replaced by a
+  vertical indent-guide line under the folder column (`ml-[13px] border-l`)
+  with `pl-3`/`pl-6`, so titles get ~27px more room; default sidebar width
+  288→304 (stored widths unaffected). Variants compared in
+  `docs/sidebar-readability-proposal.html`. (`Sidebar.tsx`,
+  `lib/storage.ts`)
+- **Wider chat messages** (backlog item 3): removed the inner `max-w-[46rem]`
+  cap on assistant markdown and thinking blocks (now `min-w-0`), raised the
+  chat column and composer from `max-w-[54rem]` to `max-w-[80rem]`, and
+  shrank the `px-6` gutters to `px-4`, so text, tool cards, and diffs use
+  nearly the full pane like CloudCLI's web UI. (`ChatPane.tsx`,
+  `Messages.tsx`)
+
+### Added
 - Version bumped to 0.1.3 (`package.json`, `tauri.conf.json`, `Cargo.toml`),
   tagged `v0.1.3` (plan mode toggle + plan drawer).
 - **Plan mode toggle + plan drawer**: plan mode is no longer one of the
