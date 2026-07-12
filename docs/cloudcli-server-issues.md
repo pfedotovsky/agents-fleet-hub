@@ -187,6 +187,16 @@ No client-side workaround is possible: the hub can only relay what the status
 endpoint reports, and suppressing the banner would also hide genuinely
 logged-out hosts.
 
+**Fork status (`[fork-fix #13]`, server-v0.1.2):** the `codex login status`
+fallback lives in the fork, and 0.1.2 hardened it after the banner still fired
+on a logged-in service host: the check now resolves the binary via
+`resolveCodexCliPath()` (matching the send path — a bare `codex` missed a
+`CODEX_CLI_PATH`-only install under launchd's minimal PATH), honors
+`CODEX_HOME` when reading `auth.json`, treats a "logged in" line in
+stdout/stderr as authenticated even on a non-zero exit, uses a 15 s
+keychain-friendly timeout, and logs the real `exit/signal/binary/output` when
+it still can't confirm. Restart the service after upgrading.
+
 ## ⚪ Annoyances — cheap to live with
 
 - **8.** Session `messageCount` is hardcoded to `0` in list responses.

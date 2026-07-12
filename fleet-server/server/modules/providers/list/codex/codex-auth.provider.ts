@@ -10,7 +10,7 @@ import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
 import { resolveCodexCliPath } from '@/shared/codex-cli-path.js';
 
 /**
- * [fork-fix #15] Resolve the SAME binary and home dir the send path uses.
+ * [fork-fix #13] Resolve the SAME binary and home dir the send path uses.
  * `queryCodex` spawns the binary from `resolveCodexCliPath()` (CODEX_CLI_PATH
  * then PATH) and reads auth from `$CODEX_HOME`. The auth check used to spawn a
  * bare `codex` (PATH only) and read a hardcoded `~/.codex/auth.json`, so when
@@ -110,7 +110,7 @@ export class CodexProviderAuth implements IProviderAuth {
   /**
    * [fork-fix #13] Keychain-backed logins are only visible through the CLI.
    *
-   * [fork-fix #15] Don't trust the exit code alone. Some environments
+   * [fork-fix #13] Don't trust the exit code alone. Some environments
    * (launchd-spawned service, first keychain unlock) have `codex login status`
    * print "Logged in using ChatGPT" while still exiting non-zero, which used to
    * surface a false "run `codex login`" banner even though sends work. Treat a

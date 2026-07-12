@@ -12,18 +12,37 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   provider-labelled context chip. Upgrade with `brew upgrade --cask agents-hub`.
 - **fleet-server 0.1.2** — tag `server-v0.1.2`; the Claude token-budget fix
   (per-turn, 200k default) and the Codex auth-status false-negative fix
-  (`[fork-fix #15]`). Upgrade with `brew upgrade fleet-server` and restart the
+  (`[fork-fix #13]`). Upgrade with `brew upgrade fleet-server` and restart the
   service (`brew services restart fleet-server`).
 - Both tap files were bumped and verified (`brew fetch` ✔︎): cask `agents-hub`
   0.1.6, formula `fleet-server` 0.1.2.
 
 ### Added
+- **Passwordless localhost + auto-added local fleet-server (`[fork-fix #16]`,
+  uncommitted).** Two halves:
+  - *Server:* `POST /api/auth/local-token` mints a normal 7-day JWT for
+    **loopback clients only** (checked against the TCP peer address, not the
+    Host header), auto-provisioning a `local` user with a non-bcrypt sentinel
+    hash on first use. `GET /api/auth/status` gains `localAuthBypass` so
+    clients know to mint instead of prompting. `register` can now *upgrade*
+    the sentinel account to a real username+password (enabling remote login
+    later), and `login` rejects sentinel accounts cleanly. Opt out with
+    `FLEET_LOCALHOST_NO_AUTH=false`. No middleware was loosened — every
+    protected route still requires a valid JWT.
+  - *Hub:* on launch, discovery auto-adds a local **fleet-server** (port 3011)
+    as a host with no clicks — CloudCLI on 3001 stays a manual suggestion.
+    `pollHost` auto-mints a token when a host advertises `localAuthBypass`, so
+    a same-machine fleet-server goes online with no login modal. Auto-added
+    URLs are remembered (`fleethub.v1.autoAdded`), so deleting the host in
+    Settings sticks across reloads.
+  - Requires a fleet-server release newer than 0.1.2 on the host for the
+    passwordless part; auto-add works against any version.
 - **`docs/releasing.md`** — the release runbook (version bumps, `v*`/`server-v*`
   tags, CI, Homebrew-tap bump via the GitHub contents API, `brew` verification,
   and the signing/restart gotchas). Referenced from `AGENTS.md`.
 
 ### Fixed
-- **False "Codex is not signed in" banner (`[fork-fix #15]`).** The Codex
+- **False "Codex is not signed in" banner (`[fork-fix #13]`).** The Codex
   auth-status check (`codex-auth.provider.ts`) diverged from the send path: it
   spawned a bare `codex` (PATH only, ignoring `CODEX_CLI_PATH`), read a
   hardcoded `~/.codex/auth.json` (ignoring `CODEX_HOME`), and trusted only the
