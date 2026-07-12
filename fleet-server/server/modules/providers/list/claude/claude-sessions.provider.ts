@@ -1,11 +1,10 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import readline from 'node:readline';
 
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
-import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { createNormalizedMessage, generateMessageId, readJsonlLines, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { sessionsDb } from '@/modules/database/index.js';
 
 const PROVIDER = 'claude';
@@ -39,13 +38,7 @@ async function parseAgentTools(filePath: string): Promise<AnyRecord[]> {
   const tools: AnyRecord[] = [];
 
   try {
-    const fileStream = fs.createReadStream(filePath);
-    const rl = readline.createInterface({
-      input: fileStream,
-      crlfDelay: Infinity,
-    });
-
-    for await (const line of rl) {
+    for await (const line of readJsonlLines(filePath)) {
       if (!line.trim()) {
         continue;
       }
@@ -123,13 +116,7 @@ async function getSessionMessages(
     const messages: AnyRecord[] = [];
     const agentToolsCache = new Map<string, AnyRecord[]>();
 
-    const fileStream = fs.createReadStream(jsonLPath);
-    const rl = readline.createInterface({
-      input: fileStream,
-      crlfDelay: Infinity,
-    });
-
-    for await (const line of rl) {
+    for await (const line of readJsonlLines(jsonLPath)) {
       if (!line.trim()) {
         continue;
       }

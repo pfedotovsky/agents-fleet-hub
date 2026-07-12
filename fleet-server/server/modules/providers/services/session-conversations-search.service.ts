@@ -1,11 +1,11 @@
 import fsSync, { promises as fs } from 'node:fs';
 import path from 'node:path';
-import readline from 'node:readline';
 
 import { spawn } from 'cross-spawn';
 import { resolveRipgrepPath } from '@/shared/ripgrep-path.js';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { readJsonlLines } from '@/shared/utils.js';
 
 type AnyRecord = Record<string, any>;
 type SearchableProvider = 'claude' | 'codex';
@@ -823,10 +823,7 @@ async function parseClaudeSessionMatches(
     let currentSessionId: string | null = null;
 
     try {
-      const fileStream = fsSync.createReadStream(session.jsonl_path);
-      const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-
-      for await (const line of rl) {
+      for await (const line of readJsonlLines(session.jsonl_path)) {
         if (runtime.totalMatches >= runtime.limit || runtime.isAborted()) {
           break;
         }
@@ -956,10 +953,7 @@ async function parseCodexSessionMatches(
   const seenMessageFingerprints = new Set<string>();
 
   try {
-    const fileStream = fsSync.createReadStream(session.jsonl_path);
-    const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-
-    for await (const line of rl) {
+    for await (const line of readJsonlLines(session.jsonl_path)) {
       if (runtime.totalMatches >= runtime.limit || runtime.isAborted()) {
         break;
       }

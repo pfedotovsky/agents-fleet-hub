@@ -1189,11 +1189,54 @@ export async function readFileTimestamps(
 // ---------------------------
 //----------------- SESSION SYNCHRONIZER JSONL PARSING HELPERS ------------
 /**
+ * [fork-fix #1] Streams a JSONL file line by line, splitting ONLY on '\n'
+ * (with trailing '\r' stripped).
+ *
+ * Upstream read transcripts with node:readline, which also splits lines on
+ * U+2028/U+2029. Those characters are legal *unescaped* inside JSON strings
+ * and Claude Code writes them raw into transcripts (typically via pasted
+ * text), so readline truncated such lines mid-string and JSON.parse threw —
+ * and because the whole read loop sat in one try/catch, a single such
+ * character orphaned the entire session (siteboon/claudecodeui#1002).
+ */
+export async function* readJsonlLines(filePath: string): AsyncGenerator<string> {
+  const fileStream = fs.createReadStream(filePath, { encoding: 'utf8' });
+  let buffered = '';
+
+  try {
+    for await (const chunk of fileStream) {
+      buffered += chunk;
+
+      let newlineIndex = buffered.indexOf('\n');
+      while (newlineIndex !== -1) {
+        let line = buffered.slice(0, newlineIndex);
+        if (line.endsWith('\r')) {
+          line = line.slice(0, -1);
+        }
+        buffered = buffered.slice(newlineIndex + 1);
+        yield line;
+        newlineIndex = buffered.indexOf('\n');
+      }
+    }
+
+    const tail = buffered.endsWith('\r') ? buffered.slice(0, -1) : buffered;
+    if (tail) {
+      yield tail;
+    }
+  } finally {
+    fileStream.destroy();
+  }
+}
+
+/**
  * Builds a first-seen key/value lookup map from a JSONL file.
  *
  * Use this for provider index files where session id -> display name metadata
  * is stored line-by-line. The first value for each key wins, preserving the
  * earliest known label while avoiding repeated map overwrites.
+ *
+ * [fork-fix #1] Malformed lines are skipped individually; only I/O failures
+ * abort the read.
  */
 export async function buildLookupMap(
   filePath: string,
@@ -1203,16 +1246,18 @@ export async function buildLookupMap(
   const lookup = new Map<string, string>();
 
   try {
-    const fileStream = fs.createReadStream(filePath);
-    const lineReader = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-
-    for await (const line of lineReader) {
+    for await (const line of readJsonlLines(filePath)) {
       const trimmed = line.trim();
       if (!trimmed) {
         continue;
       }
 
-      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      } catch {
+        continue; // skip the malformed line, not the whole file
+      }
       const key = parsed[keyField];
       const value = parsed[valueField];
 
@@ -1233,31 +1278,34 @@ export async function buildLookupMap(
  * The caller supplies an `extractor` that validates provider-specific row
  * shapes. This helper centralizes line-by-line parsing and lets indexers stop
  * scanning as soon as one valid row is found.
+ *
+ * [fork-fix #1] Malformed lines are skipped individually; only I/O failures
+ * abort the read.
  */
 export async function extractFirstValidJsonlData<T>(
   filePath: string,
   extractor: (parsedJson: unknown) => T | null | undefined
 ): Promise<T | null> {
   try {
-    const fileStream = fs.createReadStream(filePath);
-    const lineReader = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
-
-    for await (const line of lineReader) {
+    for await (const line of readJsonlLines(filePath)) {
       const trimmed = line.trim();
       if (!trimmed) {
         continue;
       }
 
-      const parsed = JSON.parse(trimmed);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        continue; // skip the malformed line, not the whole file
+      }
       const extracted = extractor(parsed);
       if (extracted) {
-        lineReader.close();
-        fileStream.close();
         return extracted;
       }
     }
   } catch {
-    // Ignore malformed or missing artifacts so full scans keep progressing.
+    // Ignore missing/unreadable artifacts so full scans keep progressing.
   }
 
   return null;

@@ -1,11 +1,10 @@
 import fsSync from 'node:fs';
-import readline from 'node:readline';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import { toImageAttachments } from '@/shared/image-attachments.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
-import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { createNormalizedMessage, generateMessageId, readJsonlLines, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 
 const PROVIDER = 'codex';
 
@@ -108,13 +107,7 @@ async function getCodexSessionMessages(
 
     const messages: AnyRecord[] = [];
     let tokenUsage: AnyRecord | null = null;
-    const fileStream = fsSync.createReadStream(sessionFilePath);
-    const rl = readline.createInterface({
-      input: fileStream,
-      crlfDelay: Infinity,
-    });
-
-    for await (const line of rl) {
+    for await (const line of readJsonlLines(sessionFilePath)) {
       if (!line.trim()) {
         continue;
       }
