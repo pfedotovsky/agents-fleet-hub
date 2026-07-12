@@ -46,16 +46,28 @@ jobs:
         run: npm ci
         working-directory: fleet-hub
 
-      - uses: tauri-apps/tauri-action@v0
+      # Tauri treats an APPLE_CERTIFICATE that is set-but-empty as "please sign",
+      # so only export the signing vars when the secrets actually have values.
+      - name: Configure Apple signing
+        if: matrix.platform == 'macos-latest'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS signing/notarization — inert until these secrets are configured
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for var in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            val="${!var}"
+            if [ -n "$val" ]; then
+              { echo "${var}<<__SECRET_EOF__"; echo "$val"; echo "__SECRET_EOF__"; } >> "$GITHUB_ENV"
+            fi
+          done
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: fleet-hub
           tagName: ${{ github.ref_name }}
