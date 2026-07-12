@@ -6,6 +6,17 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-12
 
+### Released
+- **Agents Hub 0.1.5 (desktop)** — tag `v0.1.5`; the Tauri release built the
+  universal macOS dmg + Linux AppImage/deb/rpm, and the
+  `pfedotovsky/homebrew-tap` cask was bumped `0.1.3 → 0.1.5` (it had lagged a
+  release) with the new dmg sha256, verified via `brew fetch --cask`. Ships
+  the localhost server auto-discovery. Upgrade with
+  `brew upgrade --cask agents-hub`. **fleet-server was not re-released** —
+  nothing since `server-v0.1.1` touches the compiled binary (the
+  `install.sh --service` work lives in the script fetched from `main`), so
+  the tap formula stays at 0.1.1.
+
 ### Added
 - **One-click setup steps #1 and #2.**
   (1) `fleet-server/scripts/install.sh --service` installs *and* starts a
