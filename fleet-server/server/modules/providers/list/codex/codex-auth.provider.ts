@@ -47,6 +47,14 @@ export class CodexProviderAuth implements IProviderAuth {
 
   /**
    * Reads Codex auth.json and checks OAuth tokens or an API key fallback.
+   *
+   * [fork-fix #13] Codex CLI >= 0.144 stores credentials in the OS keychain
+   * by default and never writes auth.json, so a missing/tokenless file no
+   * longer means "not logged in". Reading the keychain item directly would
+   * trigger a macOS GUI permission dialog (the item's ACL matches OpenAI's
+   * code signature), so fall back to `codex login status` (exit 0 = logged
+   * in), which any codex binary can answer silently
+   * (siteboon/claudecodeui#1008).
    */
   private async checkCredentials(): Promise<CodexCredentialsStatus> {
     try {
@@ -69,16 +77,40 @@ export class CodexProviderAuth implements IProviderAuth {
         return { authenticated: true, email: 'API Key Auth', method: 'api_key' };
       }
 
-      return { authenticated: false, email: null, method: null, error: 'No valid tokens found' };
+      return this.checkCredentialsViaCli('No valid tokens found');
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
-      return {
-        authenticated: false,
-        email: null,
-        method: null,
-        error: code === 'ENOENT' ? 'Codex not configured' : error instanceof Error ? error.message : 'Failed to read Codex auth',
-      };
+      return this.checkCredentialsViaCli(
+        code === 'ENOENT' ? 'Codex not configured' : error instanceof Error ? error.message : 'Failed to read Codex auth'
+      );
     }
+  }
+
+  /**
+   * [fork-fix #13] Keychain-backed logins are only visible through the CLI.
+   */
+  private checkCredentialsViaCli(fallbackError: string): CodexCredentialsStatus {
+    try {
+      const result = spawn.sync('codex', ['login', 'status'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 5000,
+        encoding: 'utf8',
+      });
+
+      if (result.status === 0) {
+        const output = `${result.stdout ?? ''}`.trim();
+        const emailMatch = output.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+        return {
+          authenticated: true,
+          email: emailMatch ? emailMatch[0] : 'Authenticated',
+          method: 'cli_status',
+        };
+      }
+    } catch {
+      // codex binary missing or timed out — report the original error below.
+    }
+
+    return { authenticated: false, email: null, method: null, error: fallbackError };
   }
 
   /**
