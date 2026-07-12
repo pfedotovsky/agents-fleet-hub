@@ -296,65 +296,46 @@ function readNumber(value) {
 }
 
 /**
- * Extracts token usage from SDK messages.
- * Prefers per-step `message.usage` (Claude message payload), then falls back
- * to result-level usage/modelUsage for compatibility across SDK versions.
+ * Extracts per-turn context-window usage from an SDK assistant message.
+ * Only the per-step `message.usage` snapshot is used; the terminal `result`
+ * message's cumulative `usage`/`modelUsage` are ignored so the reported value
+ * stays bounded by the context window rather than growing across the session.
  * @param {Object} sdkMessage - SDK stream message
- * @returns {Object|null} Token budget object or null
+ * @returns {Object|null} Token budget object, or null for non-assistant messages
  */
 function extractTokenBudget(sdkMessage) {
   if (!sdkMessage || typeof sdkMessage !== 'object') {
     return null;
   }
 
-  const messageUsage = sdkMessage.message?.usage || sdkMessage.usage;
-  if (messageUsage && typeof messageUsage === 'object') {
-    const directInputTokens = readNumber(messageUsage.input_tokens ?? messageUsage.inputTokens);
-    const cacheCreationTokens = readNumber(messageUsage.cache_creation_input_tokens ?? messageUsage.cacheCreationInputTokens ?? messageUsage.cacheCreationTokens);
-    const cacheReadTokens = readNumber(messageUsage.cache_read_input_tokens ?? messageUsage.cacheReadInputTokens ?? messageUsage.cacheReadTokens);
-    const cacheTokens = cacheCreationTokens + cacheReadTokens;
-    const inputTokens = directInputTokens + cacheTokens;
-    const outputTokens = readNumber(messageUsage.output_tokens ?? messageUsage.outputTokens);
-    const totalUsed = inputTokens + outputTokens;
-    const contextWindow = parseInt(process.env.CONTEXT_WINDOW, 10) || 160000;
-
-    return {
-      used: totalUsed,
-      total: contextWindow,
-      inputTokens,
-      outputTokens,
-      cacheReadTokens,
-      cacheCreationTokens,
-      cacheTokens,
-      breakdown: {
-        input: inputTokens,
-        output: outputTokens,
-      },
-    };
-  }
-
-  if (!sdkMessage.modelUsage || typeof sdkMessage.modelUsage !== 'object') {
+  // Use only the per-turn assistant `message.usage` snapshot. The `result`
+  // message carries a `usage` field that is CUMULATIVE across the whole session
+  // (and `modelUsage` exposes cumulative*Tokens), which would blow past the
+  // context window — so we deliberately ignore both. The per-turn payload
+  // (input + cache_read + cache_creation + output) reflects the current context
+  // occupancy and stays bounded by the window.
+  const messageUsage = sdkMessage.message?.usage;
+  if (!messageUsage || typeof messageUsage !== 'object') {
     return null;
   }
 
-  // Fallback for older SDK messages with only modelUsage
-  const modelKey = Object.keys(sdkMessage.modelUsage)[0];
-  const modelData = sdkMessage.modelUsage[modelKey];
-
-  if (!modelData || typeof modelData !== 'object') {
-    return null;
-  }
-
-  const inputTokens = readNumber(modelData.cumulativeInputTokens ?? modelData.inputTokens);
-  const outputTokens = readNumber(modelData.cumulativeOutputTokens ?? modelData.outputTokens);
+  const directInputTokens = readNumber(messageUsage.input_tokens ?? messageUsage.inputTokens);
+  const cacheCreationTokens = readNumber(messageUsage.cache_creation_input_tokens ?? messageUsage.cacheCreationInputTokens ?? messageUsage.cacheCreationTokens);
+  const cacheReadTokens = readNumber(messageUsage.cache_read_input_tokens ?? messageUsage.cacheReadInputTokens ?? messageUsage.cacheReadTokens);
+  const cacheTokens = cacheCreationTokens + cacheReadTokens;
+  const inputTokens = directInputTokens + cacheTokens;
+  const outputTokens = readNumber(messageUsage.output_tokens ?? messageUsage.outputTokens);
   const totalUsed = inputTokens + outputTokens;
-  const contextWindow = parseInt(process.env.CONTEXT_WINDOW, 10) || 160000;
+  const contextWindow = parseInt(process.env.CONTEXT_WINDOW, 10) || 200000;
 
   return {
     used: totalUsed,
     total: contextWindow,
     inputTokens,
     outputTokens,
+    cacheReadTokens,
+    cacheCreationTokens,
+    cacheTokens,
     breakdown: {
       input: inputTokens,
       output: outputTokens,

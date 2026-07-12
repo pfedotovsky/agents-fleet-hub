@@ -28,10 +28,12 @@ import type {
   PermissionMode,
   PermissionRequest,
   PlanDecision,
+  Provider,
 } from '../types'
 import {
   AuthError,
   HostUnreachableError,
+  createSession,
   getModels,
   getProviderAuthStatus,
   getSessionMessages,
@@ -51,6 +53,7 @@ import {
   loadPermissions,
   loadPlanMode,
   saveDraft,
+  saveLastProvider,
   saveModelChoice,
   savePermissionMode,
   savePlanMode,
@@ -419,11 +422,20 @@ interface Props {
   panel?: ChatPanelKind | null
   /** Toggles the side panel; absent when the project is no longer available. */
   onTogglePanel?: (panel: ChatPanelKind) => void
+  /** Fired when a draft chat creates its real session on first send. */
+  onSessionCreated?: (sessionId: string) => void
 }
 
-export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
-  const sessionId = target.session.id
-  const provider = target.session.provider
+/** Providers offered by the new-chat composer toggle (draft sessions only). */
+const COMPOSER_PROVIDERS: Provider[] = ['claude', 'codex']
+
+export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreated }: Props) {
+  // A draft chat opens with an empty id and no provider chosen yet; the real
+  // session is created on the first send with the provider picked in the
+  // composer. Both are state so that transition happens without a remount.
+  const [sessionId, setSessionId] = useState(target.session.id)
+  const [provider, setProvider] = useState<Provider>(target.session.provider)
+  const isDraft = sessionId === ''
   // Codex runs sandboxed with no interactive approvals or plan mode, so the
   // claude-specific composer affordances are hidden/remapped for it.
   const isCodex = provider === 'codex'
@@ -455,8 +467,17 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
   const imageCounter = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
-  /** Codex context usage from the turn-end token_budget status frame. */
+  /** Context-window usage from the turn-end token_budget status frame (both providers). */
   const [tokenBudget, setTokenBudget] = useState<{ used: number; total: number } | null>(null)
+  /**
+   * The first message typed into a draft chat, held until the freshly-created
+   * session's socket re-subscribes so it can be flushed over the wire.
+   */
+  const [pendingFirst, setPendingFirst] = useState<{
+    text: string
+    options: Parameters<ChatSocket['sendChat']>[2]
+    images: { path: string; name: string }[]
+  } | null>(null)
   const [model, setModel] = useState<string>(
     () => loadModelChoice(target.hostId, provider)?.model ?? '',
   )
@@ -472,6 +493,9 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
   const seenIds = useRef(new Set<string>())
   const lastSeq = useRef(0)
   const localCounter = useRef(0)
+  /** Tracks the prior session id so the draft→real transition can skip the
+   * destructive history reset (a fresh session has nothing to load). */
+  const prevSessionIdRef = useRef(target.session.id)
   const messagesRef = useRef<NormalizedMessage[]>([])
   messagesRef.current = messages
   const processingRef = useRef(false)
@@ -747,46 +771,57 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
 
   // History load + socket lifecycle, once per session target.
   useEffect(() => {
-    seenIds.current = new Set()
-    lastSeq.current = 0
-    ackedRunSeq.current = 0
-    pinnedRef.current = true
-    notifiedPermissionIds.current = new Set()
-    setMessages([])
-    setPermissions([])
-    setBanner(null)
-    setFatalError(null)
-    setProcessing(false)
-    setLoadedOlder(false)
-    setTokenBudget(null)
-    setLoading(true)
+    // First send of a draft turns '' into a real id: the session is brand new,
+    // so skip the reset + history fetch (there is nothing to load) and keep the
+    // optimistic bubble the pending-first-message effect is about to append.
+    const draftPromotion = prevSessionIdRef.current === '' && sessionId !== ''
+    prevSessionIdRef.current = sessionId
 
     let cancelled = false
-    void (async () => {
-      try {
-        const page = await fetchPage(0)
-        if (cancelled) return
-        for (const message of page.messages) {
-          if (message.id) seenIds.current.add(message.id)
-        }
-        setMessages(page.messages)
-        setHasMore(page.hasMore)
-      } catch (err) {
-        if (cancelled) return
-        if (err instanceof AuthError) {
-          setFatalError('The hub token for this host expired — sign in again from the sidebar.')
-        } else if (err instanceof HostUnreachableError) {
-          setFatalError('Host is offline — the transcript cannot be loaded right now.')
-        } else {
-          setFatalError(err instanceof Error ? err.message : 'Failed to load the transcript')
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-          scrollToBottom(false)
-        }
+    if (!draftPromotion) {
+      seenIds.current = new Set()
+      lastSeq.current = 0
+      ackedRunSeq.current = 0
+      pinnedRef.current = true
+      notifiedPermissionIds.current = new Set()
+      setMessages([])
+      setPermissions([])
+      setBanner(null)
+      setFatalError(null)
+      setProcessing(false)
+      setLoadedOlder(false)
+      setTokenBudget(null)
+      // A draft has no transcript to fetch — don't sit in a loading state.
+      setLoading(sessionId !== '')
+
+      if (sessionId !== '') {
+        void (async () => {
+          try {
+            const page = await fetchPage(0)
+            if (cancelled) return
+            for (const message of page.messages) {
+              if (message.id) seenIds.current.add(message.id)
+            }
+            setMessages(page.messages)
+            setHasMore(page.hasMore)
+          } catch (err) {
+            if (cancelled) return
+            if (err instanceof AuthError) {
+              setFatalError('The hub token for this host expired — sign in again from the sidebar.')
+            } else if (err instanceof HostUnreachableError) {
+              setFatalError('Host is offline — the transcript cannot be loaded right now.')
+            } else {
+              setFatalError(err instanceof Error ? err.message : 'Failed to load the transcript')
+            }
+          } finally {
+            if (!cancelled) {
+              setLoading(false)
+              scrollToBottom(false)
+            }
+          }
+        })()
       }
-    })()
+    }
 
     const socket = new ChatSocket(
       target.baseUrl,
@@ -794,7 +829,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
       handleEvent,
       (state) => {
         setSocketState(state)
-        if (state === 'open') socket.subscribe(sessionId, lastSeq.current)
+        if (state === 'open' && sessionId) socket.subscribe(sessionId, lastSeq.current)
       },
     )
     socketRef.current = socket
@@ -816,6 +851,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
   // along with the `complete` that would clear our cards). Idempotent: replay
   // only covers seq > lastSeq, so nothing duplicates.
   useEffect(() => {
+    if (sessionId === '') return
     const interval = setInterval(() => {
       if (document.visibilityState !== 'visible') return
       socketRef.current?.subscribe(sessionId, lastSeq.current)
@@ -823,6 +859,35 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
     }, 15_000)
     return () => clearInterval(interval)
   }, [mergeNewest, sessionId])
+
+  // Flush the draft's first message once its new session's socket is open and
+  // subscribed. Runs after the lifecycle effect reconnected on the id change.
+  useEffect(() => {
+    if (!pendingFirst || sessionId === '' || socketState !== 'open') return
+    const socket = socketRef.current
+    if (!socket) return
+    if (!socket.sendChat(sessionId, pendingFirst.text, pendingFirst.options)) {
+      setBanner('Not connected to the host — reconnecting…')
+      return
+    }
+    setBanner(null)
+    localCounter.current += 1
+    appendMessage({
+      id: `local_${localCounter.current}`,
+      sessionId,
+      timestamp: new Date().toISOString(),
+      provider,
+      kind: 'text',
+      role: 'user',
+      content: pendingFirst.text,
+      images: pendingFirst.images,
+    })
+    setProcessing(true)
+    // A fresh run's seqs start at 1 — clear any stale high-water mark.
+    ackedRunSeq.current = 0
+    scrollToBottom(false)
+    setPendingFirst(null)
+  }, [pendingFirst, sessionId, socketState, appendMessage, provider, scrollToBottom])
 
   // Codex preflight on a fresh chat: without it, a missing codex install or
   // login on the host would only surface as an error after the first send.
@@ -1026,6 +1091,52 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
         mimeType: chip.mimeType,
       }))
     }
+
+    // Draft chat: create the real session with the chosen provider, then defer
+    // the send to the pending-first-message effect once its socket subscribes.
+    if (sessionId === '') {
+      const token = getToken(target.hostId)
+      if (!token) {
+        setBanner('Not signed in to this host in the hub')
+        return
+      }
+      setBanner(null)
+      requestNotifyPermission()
+      // Block a second submit while the session is being created; the draft→real
+      // transition deliberately skips the lifecycle reset, so this stays set
+      // until the pending-first-message effect flushes the message.
+      setProcessing(true)
+      setInput('')
+      setPendingImages([])
+      autocomplete.close()
+      saveDraft(target.hostId, sessionId, '')
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+      void (async () => {
+        try {
+          const created = await createSession(
+            target.baseUrl,
+            token,
+            provider,
+            target.projectPath,
+            (refreshed) => saveToken(target.hostId, refreshed),
+          )
+          saveLastProvider(target.hostId, provider)
+          onSessionCreated?.(created.sessionId)
+          setPendingFirst({
+            text,
+            options,
+            images: readyImages.map((chip) => ({ path: chip.path, name: chip.name })),
+          })
+          setSessionId(created.sessionId)
+        } catch (err) {
+          setProcessing(false)
+          setInput(text)
+          setBanner(err instanceof Error ? err.message : 'Failed to create a session')
+        }
+      })()
+      return
+    }
+
     if (!socket.sendChat(sessionId, text, options)) {
       setBanner('Not connected to the host — reconnecting…')
       return
@@ -1037,7 +1148,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
       id: `local_${localCounter.current}`,
       sessionId,
       timestamp: new Date().toISOString(),
-      provider: target.session.provider,
+      provider,
       kind: 'text',
       role: 'user',
       content: text,
@@ -1062,7 +1173,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
     }
     if (allow && rememberEntry) {
       setAllowedTools(addAllowedTool(target.hostId, target.projectPath, rememberEntry))
-      if (target.session.provider === 'claude') void persistGrantToHost(rememberEntry)
+      if (provider === 'claude') void persistGrantToHost(rememberEntry)
     }
     setPermissions((prev) => prev.filter((p) => p.requestId !== requestId))
   }
@@ -1182,7 +1293,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
 
   const color = hostColor(target.hostColorIdx)
   const visible = useMemo(() => messages.filter((m) => RENDERED_KINDS.has(m.kind)), [messages])
-  const canChat = target.session.provider !== 'cursor' || !fatalError
+  const canChat = provider !== 'cursor' || !fatalError
 
   const planRequest = permissions.find(isPlanRequest)
   const planRequestId = planRequest?.requestId
@@ -1221,13 +1332,13 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
         </div>
         {tokenBudget && (
           <span
-            title="Codex context window usage for this session"
+            title={`${PROVIDER_META[provider]?.label ?? provider} context window usage for this session`}
             className="shrink-0 rounded-full border border-ink-800 bg-ink-900 px-2 py-0.5 font-mono text-[11px] text-ink-500"
           >
             {formatTokens(tokenBudget.used)} / {formatTokens(tokenBudget.total)}
           </span>
         )}
-        <ProviderBadge provider={target.session.provider} />
+        <ProviderBadge provider={provider} />
         {onTogglePanel && (
           <div className="flex shrink-0 items-center gap-0.5">
             <button
@@ -1279,7 +1390,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
           <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
             <TriangleAlert size={20} className="text-amber-400" />
             <p className="text-sm text-ink-400">{fatalError}</p>
-            {target.session.provider === 'cursor' && (
+            {provider === 'cursor' && (
               <p className="text-xs text-ink-600">
                 Cursor sessions created from the Cursor IDE have no readable store — this is a known
                 CloudCLI limitation.
@@ -1502,6 +1613,29 @@ export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
             </div>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-ink-600">
+            {isDraft && (
+              <div className="inline-flex items-center rounded-md border border-ink-800 bg-ink-900 p-0.5">
+                {COMPOSER_PROVIDERS.map((p) => {
+                  const meta = PROVIDER_META[p]
+                  const active = provider === p
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setProvider(p)}
+                      aria-pressed={active}
+                      title={`Start this chat with ${meta.label}`}
+                      className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] transition-colors ${
+                        active ? 'bg-ink-700 text-ink-100' : 'text-ink-500 hover:text-ink-300'
+                      }`}
+                    >
+                      <meta.Icon size={11} style={{ color: meta.color }} />
+                      {meta.label}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
             {!isCodex && (
               <button
                 type="button"

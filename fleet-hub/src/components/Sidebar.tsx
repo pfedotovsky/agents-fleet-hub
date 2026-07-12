@@ -119,6 +119,7 @@ function SessionLink({
 }) {
   const title = session.summary || 'Untitled session'
   const running = sessionLive(runningIds, session.id, session.lastActivity)
+  const providerMeta = PROVIDER_META[session.provider] ?? { label: session.provider, color: '#71717a', Icon: MessageSquare }
   return (
     <div
       className={`group/session flex w-full min-w-0 items-center rounded-md pr-1 transition-colors ${
@@ -133,7 +134,9 @@ function SessionLink({
           active ? 'text-ink-100' : 'text-ink-500 hover:text-ink-300'
         }`}
       >
-        <MessageSquare size={12} className="shrink-0 text-ink-600" />
+        <span className="inline-flex shrink-0" title={providerMeta.label}>
+          <providerMeta.Icon size={12} style={{ color: providerMeta.color }} />
+        </span>
         <span className="min-w-0 flex-1 truncate text-left">{title}</span>
         {running ? (
           <span

@@ -42,10 +42,12 @@ via CloudCLI's `X-Refreshed-Token` header while the page is open.
   (chevron) to show its recent chats inline; click one to open it. Star
   toggles persist on the host (`toggle-star` API); "recently opened in the
   hub" is tracked in localStorage. "All sessions" is a merged recent-activity
-  feed across hosts. Hovering a project row reveals a **+** that starts a new
-  `claude` session in one click and opens the chat directly.
-- **Project view**: the project's sessions (paged), "New session" with a
-  provider picker (claude / codex / opencode), and a **Files** button.
+  feed across hosts. Each chat in the tree is tagged with its provider icon
+  (Claude / Codex / …). Hovering a project row reveals a **+** that opens a new
+  chat directly — the provider (Claude / Codex) is chosen with a toggle in the
+  composer, and the session is created on the first send.
+- **Project view**: the project's sessions (paged), "New session" (opens a
+  draft chat; provider is picked in the composer), and a **Files** button.
 - **Chat**: full transcript (history over REST, paged) + live agent chat over
   the host's `/ws` WebSocket — send messages, watch streaming replies and tool
   calls, approve/deny permission requests inline — with an **Always allow**

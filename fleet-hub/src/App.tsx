@@ -1,15 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Server, X } from 'lucide-react'
 import type { FleetSession, Provider, SessionSummary } from './types'
-import { createSession } from './lib/api'
 import type { ChatPanelKind } from './lib/storage'
 import {
   CHAT_PANEL_MIN_WIDTH,
-  getToken,
   loadChatPanel,
   loadLastProvider,
   saveChatPanel,
-  saveToken,
 } from './lib/storage'
 import { useFleet } from './hooks/useFleet'
 import { Sidebar } from './components/Sidebar'
@@ -36,7 +33,9 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [loginHostId, setLoginHostId] = useState<string | null>(null)
   const [view, setView] = useState<View>({ kind: 'feed' })
-  const [creatingKey, setCreatingKey] = useState<string | null>(null)
+  // Session creation is now deferred to the first send, so the sidebar spinner
+  // key stays null — kept for the Sidebar prop contract.
+  const [creatingKey] = useState<string | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
   // Cursor-style utility panel docked to the right of a chat.
   const [chatPanel, setChatPanel] = useState<ChatPanelKind | null>(() => loadChatPanel().kind)
@@ -126,52 +125,39 @@ export default function App() {
     })
   }
 
-  /** One-click "new session" from the sidebar: create on the host, jump straight into the chat. */
-  const newSession = async (hostId: string, projectId: string) => {
+  /**
+   * "New session" from the sidebar: open a draft chat immediately. The real
+   * session is created on the first send, with the provider chosen in the
+   * composer toggle (seeded from the last-picked provider).
+   */
+  const newSession = (hostId: string, projectId: string) => {
     const { hostIndex, runtime, project } = findProject(hostId, projectId)
     if (!runtime || !project) return
-    const key = `${hostId}:${projectId}`
-    setCreatingKey(key)
-    setCreateError(null)
-    try {
-      const token = getToken(hostId)
-      if (!token) throw new Error(`Not signed in to ${runtime.config.name}`)
-      // Quick-create follows the provider last picked in the project pane.
-      const last = loadLastProvider(hostId)
-      const provider: Provider =
-        last === 'claude' || last === 'codex' || last === 'opencode' ? last : 'claude'
-      const created = await createSession(
-        runtime.config.baseUrl,
-        token,
+    const last = loadLastProvider(hostId)
+    const provider: Provider =
+      last === 'claude' || last === 'codex' || last === 'opencode' ? last : 'claude'
+    openChat({
+      // A stable, per-project draft key so React never remounts the pane when
+      // the first send swaps the empty id for the real one.
+      key: `${hostId}::draft:${projectId}`,
+      hostId,
+      hostName: runtime.config.name,
+      hostColorIdx: hostIndex,
+      baseUrl: runtime.config.baseUrl,
+      projectName: project.displayName,
+      projectPath: project.fullPath,
+      projectId: project.projectId,
+      session: {
+        id: '',
         provider,
-        project.fullPath,
-        (refreshed) => saveToken(hostId, refreshed),
-      )
-      openChat({
-        key: `${hostId}:${created.sessionId}`,
-        hostId,
-        hostName: runtime.config.name,
-        hostColorIdx: hostIndex,
-        baseUrl: runtime.config.baseUrl,
-        projectName: project.displayName,
-        projectPath: project.fullPath,
-        projectId: project.projectId,
-        session: {
-          id: created.sessionId,
-          provider: created.provider,
-          summary: '',
-          messageCount: 0,
-          lastActivity: new Date().toISOString(),
-        },
-        href: `${runtime.config.baseUrl}/session/${created.sessionId}`,
-        stale: false,
-        justUpdated: false,
-      })
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Failed to create a session')
-    } finally {
-      setCreatingKey(null)
-    }
+        summary: '',
+        messageCount: 0,
+        lastActivity: new Date().toISOString(),
+      },
+      href: '',
+      stale: runtime.status !== 'online',
+      justUpdated: false,
+    })
   }
 
   function findProject(hostId: string, projectId: string) {
@@ -215,6 +201,7 @@ export default function App() {
             onBack={() => setView(view.from)}
             panel={panelAvailable ? chatPanel : null}
             onTogglePanel={panelAvailable ? toggleChatPanel : undefined}
+            onSessionCreated={() => fleet.refresh()}
           />
           {panelAvailable && chatPanel && runtime && project && (
             <div className="relative flex shrink-0" style={{ width: chatPanelWidth }}>

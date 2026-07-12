@@ -4,6 +4,55 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-07-13
+
+### Released
+- **Agents Hub 0.1.6 (desktop)** — tag `v0.1.6`; ships the provider icons in the
+  sidebar, the composer Claude/Codex toggle (draft sessions), and the bounded
+  provider-labelled context chip. Upgrade with `brew upgrade --cask agents-hub`.
+- **fleet-server 0.1.2** — tag `server-v0.1.2`; the Claude token-budget fix
+  (per-turn, 200k default) and the Codex auth-status false-negative fix
+  (`[fork-fix #15]`). Upgrade with `brew upgrade fleet-server` and restart the
+  service (`brew services restart fleet-server`).
+
+### Fixed
+- **False "Codex is not signed in" banner (`[fork-fix #15]`).** The Codex
+  auth-status check (`codex-auth.provider.ts`) diverged from the send path: it
+  spawned a bare `codex` (PATH only, ignoring `CODEX_CLI_PATH`), read a
+  hardcoded `~/.codex/auth.json` (ignoring `CODEX_HOME`), and trusted only the
+  `codex login status` exit code. With keychain-backed ChatGPT logins there is
+  no `auth.json`, so a service-environment quirk (unresolvable binary, custom
+  home, or a non-zero exit that still prints "Logged in") made the endpoint
+  report `authenticated: false` even though chats send fine. It now resolves the
+  binary via `resolveCodexCliPath()`, honors `CODEX_HOME`, treats a "logged in"
+  line in stdout/stderr as authenticated regardless of exit code, uses a longer
+  keychain-friendly timeout, and logs the real status/error when it still can't
+  confirm. Restart the fleet-server on the host for this to take effect.
+
+### Changed
+- **Easier Claude/Codex switching in the hub.**
+  - The sidebar chat tree now prefixes each chat with its **provider icon**
+    (`PROVIDER_META`), so Claude vs Codex sessions are distinguishable at a
+    glance (`Sidebar.tsx`).
+  - **New chats are drafts.** The sidebar `+` and ProjectPane "New session" now
+    open a chat with an empty session id instead of creating one up front. The
+    composer shows a **Claude/Codex toggle**; the real session is created on the
+    first send with the chosen provider, and the message is flushed once the new
+    session's socket re-subscribes. `ChatPane` holds `sessionId`/`provider` as
+    state and skips the destructive history reset across the draft→real
+    transition so the pane never remounts. The redundant provider `<select>` was
+    removed from `ProjectPane`.
+
+### Fixed
+- **Runaway "Codex" token counter on Claude sessions.** The Claude
+  `extractTokenBudget` (`fleet-server/server/claude-sdk.js`) fell back to the
+  terminal `result` message's **cumulative** `usage`, so the context chip grew
+  unbounded (e.g. `556k / 160k`). It now uses only the per-turn assistant
+  `message.usage`, keeping the value bounded by the window. The default context
+  window rose `160k → 200k` (streaming + REST `token-usage`) to match real
+  Claude windows, and the chip tooltip is now provider-aware ("Claude" vs
+  "Codex") instead of hardcoded to Codex.
+
 ## 2026-07-12
 
 ### Released

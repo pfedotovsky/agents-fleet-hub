@@ -150,7 +150,7 @@ export interface ChatEvent extends NormalizedMessage {
   input?: unknown
   reason?: string
   success?: boolean
-  /** Codex emits a `status` frame with text 'token_budget' after each turn. */
+  /** Claude and Codex both emit a `status` frame with text 'token_budget' per turn. */
   text?: string
   tokenBudget?: { used?: number; total?: number; inputTokens?: number; outputTokens?: number }
   aborted?: boolean

@@ -1,12 +1,10 @@
 import { useMemo, useState } from 'react'
 import { ChevronDown, FolderTree, GitBranch, LoaderCircle, Plus } from 'lucide-react'
 import type { FleetSession, HostRuntime, Project, Provider, SessionSummary } from '../types'
-import { createSession, getProjectSessions } from '../lib/api'
-import { getToken, loadLastProvider, saveLastProvider, saveToken } from '../lib/storage'
+import { getProjectSessions } from '../lib/api'
+import { getToken, loadLastProvider, saveToken } from '../lib/storage'
 import { hostColor } from '../lib/format'
 import { SessionRow } from './SessionRow'
-
-const PROVIDERS: Provider[] = ['claude', 'codex', 'opencode']
 
 interface Props {
   runtime: HostRuntime
@@ -30,11 +28,6 @@ export function ProjectPane({
   const [extraSessions, setExtraSessions] = useState<SessionSummary[]>([])
   const [hasMore, setHasMore] = useState(project.sessionMeta.hasMore)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [creating, setCreating] = useState(false)
-  const [provider, setProvider] = useState<Provider>(() => {
-    const last = loadLastProvider(runtime.config.id)
-    return PROVIDERS.includes(last as Provider) ? (last as Provider) : 'claude'
-  })
   const [error, setError] = useState<string | null>(null)
 
   const color = hostColor(hostColorIdx)
@@ -88,34 +81,36 @@ export function ProjectPane({
     }
   }
 
-  async function startNewSession() {
-    setCreating(true)
-    setError(null)
-    try {
-      const token = getToken(runtime.config.id)
-      if (!token) throw new Error('Not signed in to this host')
-      const created = await createSession(
-        runtime.config.baseUrl,
-        token,
+  /**
+   * Opens a draft chat. The real session is created on the first send, with the
+   * provider chosen in the composer toggle (seeded from the last-picked one).
+   */
+  function startNewSession() {
+    const last = loadLastProvider(runtime.config.id)
+    const provider: Provider =
+      last === 'claude' || last === 'codex' || last === 'opencode' ? last : 'claude'
+    onOpenSession({
+      // Stable per-project draft key so the pane doesn't remount on first send.
+      key: `${runtime.config.id}::draft:${project.projectId}`,
+      hostId: runtime.config.id,
+      hostName: runtime.config.name,
+      hostColorIdx,
+      baseUrl: runtime.config.baseUrl,
+      projectName: project.displayName,
+      projectPath: project.fullPath,
+      projectId: project.projectId,
+      session: {
+        id: '',
         provider,
-        project.fullPath,
-        (refreshed) => saveToken(runtime.config.id, refreshed),
-      )
-      saveLastProvider(runtime.config.id, provider)
-      onOpenSession(
-        toTarget({
-          id: created.sessionId,
-          provider: created.provider,
-          summary: '',
-          messageCount: 0,
-          lastActivity: new Date().toISOString(),
-        }),
-      )
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create a session')
-    } finally {
-      setCreating(false)
-    }
+        summary: '',
+        messageCount: 0,
+        lastActivity: new Date().toISOString(),
+      },
+      href: '',
+      stale: runtime.status !== 'online',
+      justUpdated: false,
+      running: undefined,
+    })
   }
 
   return (
@@ -154,24 +149,13 @@ export function ProjectPane({
             >
               <GitBranch size={13} /> Git
             </button>
-            <select
-              value={provider}
-              onChange={(event) => setProvider(event.target.value as Provider)}
-              className="rounded-md border border-ink-800 bg-ink-900 px-2 py-1.5 text-xs text-ink-300 outline-none"
-            >
-              {PROVIDERS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
             <button
               type="button"
-              onClick={() => void startNewSession()}
-              disabled={creating || runtime.status !== 'online'}
+              onClick={startNewSession}
+              disabled={runtime.status !== 'online'}
               className="inline-flex items-center gap-1.5 rounded-md bg-brass-400 px-3 py-1.5 text-xs font-medium text-ink-950 transition-colors hover:bg-brass-300 disabled:opacity-50"
             >
-              {creating ? <LoaderCircle size={13} className="animate-spin" /> : <Plus size={13} />}
+              <Plus size={13} />
               New session
             </button>
           </div>
