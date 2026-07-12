@@ -1,14 +1,40 @@
 #!/bin/sh
 # fleet-server installer: fetches the latest GitHub release binary for this
-# platform and installs it to /usr/local/bin (or $FLEET_SERVER_INSTALL_DIR).
+# platform, installs it to /usr/local/bin (or $FLEET_SERVER_INSTALL_DIR), and
+# optionally installs+starts a persistent service.
 #
 #   curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh
+#   ... | sh -s -- --service        # also install & start a launchd/systemd unit
+#
+# Options:
+#   --service        install and start a persistent service (launchd on macOS,
+#                    systemd user unit + linger on Linux), then verify /health
+#   --port <n>       service port (default 3011)
+#   --host <addr>    bind address; auto-detected as :: on IPv6-only hosts
 #
 # Optional host dependency: ripgrep (`rg`) enables session search.
 set -eu
 
 REPO="${FLEET_SERVER_REPO:-pfedotovsky/agents-fleet-hub}"
 INSTALL_DIR="${FLEET_SERVER_INSTALL_DIR:-/usr/local/bin}"
+SERVICE=0
+SERVER_PORT="${SERVER_PORT:-3011}"
+SERVER_HOST="${FLEET_SERVER_HOST:-}"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --service) SERVICE=1 ;;
+    --port) SERVER_PORT="$2"; shift ;;
+    --port=*) SERVER_PORT="${1#*=}" ;;
+    --host) SERVER_HOST="$2"; shift ;;
+    --host=*) SERVER_HOST="${1#*=}" ;;
+    -h|--help)
+      sed -n '2,17p' "$0" 2>/dev/null || echo "See script header for usage."
+      exit 0 ;;
+    *) echo "Unknown option: $1" >&2; exit 1 ;;
+  esac
+  shift
+done
 
 os=$(uname -s)
 arch=$(uname -m)
@@ -61,12 +87,158 @@ else
   sudo install -m 755 "$tmpdir/fleet-server" "$INSTALL_DIR/fleet-server"
 fi
 
+BIN="$INSTALL_DIR/fleet-server"
 echo ""
-"$INSTALL_DIR/fleet-server" version
+"$BIN" version
 echo ""
-echo "fleet-server installed. Start it with:"
-echo "  fleet-server                # port 3011, data in ~/.fleet-server"
-echo "  HOST=:: fleet-server        # IPv6-only hosts"
+
+# ── IPv6-only detection ──────────────────────────────────────────────
+# If the host has no non-loopback IPv4 address, bind :: so the server is
+# reachable at all (mirrors the HOST=:: workaround CloudCLI needs on such VMs).
+detect_host() {
+  if [ -n "$SERVER_HOST" ]; then
+    printf '%s' "$SERVER_HOST"
+    return
+  fi
+  ipv4=""
+  if command -v ip >/dev/null 2>&1; then
+    ipv4=$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | head -1)
+  elif command -v ifconfig >/dev/null 2>&1; then
+    ipv4=$(ifconfig 2>/dev/null | awk '/inet /{print $2}' | grep -v '^127\.' | head -1)
+  fi
+  if [ -z "$ipv4" ]; then
+    printf '::'
+  else
+    printf '0.0.0.0'
+  fi
+}
+
+verify_health() {
+  probe_host="127.0.0.1"
+  n=0
+  while [ "$n" -lt 15 ]; do
+    if curl -fsS "http://${probe_host}:${SERVER_PORT}/health" >/dev/null 2>&1; then
+      echo "Health check OK: http://${probe_host}:${SERVER_PORT}/health"
+      return 0
+    fi
+    n=$((n + 1))
+    sleep 1
+  done
+  echo "WARNING: server did not answer /health on :${SERVER_PORT} within 15s — check the logs." >&2
+  return 1
+}
+
+install_launchd() {
+  label="io.github.pfedotovsky.fleet-server"
+  plist="$HOME/Library/LaunchAgents/${label}.plist"
+  logdir="$HOME/.fleet-server"
+  mkdir -p "$HOME/Library/LaunchAgents" "$logdir"
+
+  host_entry=""
+  if [ "$SERVER_HOST_RESOLVED" != "0.0.0.0" ]; then
+    host_entry="    <key>HOST</key>
+    <string>${SERVER_HOST_RESOLVED}</string>
+"
+  fi
+
+  cat > "$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${label}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${BIN}</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>SERVER_PORT</key>
+    <string>${SERVER_PORT}</string>
+${host_entry}  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>${logdir}/fleet-server.log</string>
+  <key>StandardErrorPath</key>
+  <string>${logdir}/fleet-server.log</string>
+</dict>
+</plist>
+EOF
+
+  launchctl unload "$plist" >/dev/null 2>&1 || true
+  launchctl load -w "$plist"
+  echo "Installed launchd agent: ${plist}"
+  echo "Logs: ${logdir}/fleet-server.log"
+}
+
+install_systemd() {
+  if ! command -v systemctl >/dev/null 2>&1; then
+    echo "systemd not found. Start manually: ${BIN}" >&2
+    echo "  (or add the unit in fleet-server/packaging/ by hand)" >&2
+    return 1
+  fi
+  unitdir="$HOME/.config/systemd/user"
+  unit="$unitdir/fleet-server.service"
+  mkdir -p "$unitdir"
+
+  host_line=""
+  if [ "$SERVER_HOST_RESOLVED" != "0.0.0.0" ]; then
+    host_line="Environment=HOST=${SERVER_HOST_RESOLVED}
+"
+  fi
+
+  cat > "$unit" <<EOF
+[Unit]
+Description=fleet-server — agent host server for Agents Hub
+After=network.target
+
+[Service]
+ExecStart=${BIN}
+Restart=on-failure
+RestartSec=3
+Environment=SERVER_PORT=${SERVER_PORT}
+${host_line}
+[Install]
+WantedBy=default.target
+EOF
+
+  systemctl --user daemon-reload
+  systemctl --user enable --now fleet-server
+  # Keep the service running after logout (best-effort; needs privileges).
+  loginctl enable-linger "$(id -un)" >/dev/null 2>&1 || \
+    echo "Note: run 'sudo loginctl enable-linger $(id -un)' to keep the server running after logout."
+  echo "Installed systemd user unit: ${unit}"
+  echo "Logs: journalctl --user -u fleet-server -f"
+}
+
+if [ "$SERVICE" -eq 1 ]; then
+  SERVER_HOST_RESOLVED=$(detect_host)
+  echo "Setting up service on port ${SERVER_PORT} (HOST=${SERVER_HOST_RESOLVED})..."
+  if [ "$platform" = "darwin" ]; then
+    install_launchd
+  else
+    install_systemd
+  fi
+  echo ""
+  verify_health || true
+  echo ""
+  echo "fleet-server is running as a service."
+  echo "Add http://<this-host>:${SERVER_PORT} in Agents Hub (localhost for this machine)."
+else
+  echo "fleet-server installed. Start it with:"
+  echo "  fleet-server                # port ${SERVER_PORT}, data in ~/.fleet-server"
+  echo "  HOST=:: fleet-server        # IPv6-only hosts"
+  echo ""
+  echo "Or install a persistent service by re-running with --service:"
+  echo "  curl -fsSL https://raw.githubusercontent.com/${REPO}/main/fleet-server/scripts/install.sh | sh -s -- --service"
+fi
+
 echo ""
 echo "Optional: install ripgrep to enable session search (brew install ripgrep / apt install ripgrep)."
-echo "To run as a service, see fleet-server/packaging/ in the repository."

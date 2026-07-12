@@ -15,11 +15,23 @@ Section 7 additional terms — see [`LICENSE`](LICENSE), [`NOTICE`](NOTICE),
 
 ## Install (one command per host, no Node.js/npm)
 
+Install **and start a persistent service** in one command — `--service`
+generates and loads a launchd agent (macOS) or systemd user unit (Linux),
+auto-detects IPv6-only hosts (`HOST=::`), and verifies `/health`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh -s -- --service
+```
+
+Plain install (no service — run it yourself):
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh
 ```
 
-or via Homebrew (formula in `packaging/fleet-server.rb`, published through
+`install.sh` flags: `--service`, `--port <n>` (default 3011), `--host <addr>`.
+
+Or via Homebrew (formula in `packaging/fleet-server.rb`, published through
 `pfedotovsky/homebrew-tap`):
 
 ```bash
@@ -27,8 +39,8 @@ brew install pfedotovsky/tap/fleet-server
 brew services start fleet-server
 ```
 
-Then start it and add `http://<host>:3011` as a host in Agents Hub — the
-first connect walks you through account creation.
+Then add `http://<host>:3011` as a host in Agents Hub — the first connect
+walks you through account creation.
 
 ```bash
 fleet-server                 # port 3011, data in ~/.fleet-server
@@ -40,8 +52,9 @@ Optional host dependency: [`ripgrep`](https://github.com/BurntSushi/ripgrep)
 (`rg`) enables cross-session search; without it the server runs fine and the
 search endpoint degrades gracefully.
 
-Service units for autostart are in [`packaging/`](packaging/) (systemd user
-unit, launchd plist).
+The service units `install.sh --service` writes are also available as static
+files in [`packaging/`](packaging/) (systemd user unit, launchd plist) if you
+prefer to install them by hand.
 
 ## Environment variables
 
