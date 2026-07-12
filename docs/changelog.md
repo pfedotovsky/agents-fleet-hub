@@ -14,6 +14,8 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   loopback-only `POST /api/auth/local-token` + `localAuthBypass` status flag
   (`[fork-fix #16]`). Upgrade with `brew upgrade fleet-server` and restart the
   service (`brew services restart fleet-server`).
+- Both tap files were bumped and verified (`brew fetch` ✔︎): cask `agents-hub`
+  0.1.7, formula `fleet-server` 0.1.3.
 - **Agents Hub 0.1.6 (desktop)** — tag `v0.1.6`; ships the provider icons in the
   sidebar, the composer Claude/Codex toggle (draft sessions), and the bounded
   provider-labelled context chip. Upgrade with `brew upgrade --cask agents-hub`.
