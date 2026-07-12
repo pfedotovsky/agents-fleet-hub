@@ -6,6 +6,19 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-12
 
+### Fixed
+- **fleet-server 0.1.1 — Claude turns failed under `brew services`**
+  ("Claude Code native binary not found at claude"). launchd starts the
+  service with a bare PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), hiding
+  `claude` (~/.local/bin), `codex`, and `rg` (homebrew prefix) even though
+  they work from any shell. `load-env.js` now appends the well-known
+  install dirs (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`,
+  `~/.bun/bin`, `~/.npm-global/bin`) to PATH when present (POSIX only;
+  `*_CLI_PATH` overrides unaffected). Verified with a compiled binary
+  booted under `env -i` with the launchd PATH: full Claude turn streams,
+  codex resolves. Released as `server-v0.1.1`, tap formula bumped,
+  localhost service upgraded and re-verified without any `.env` workaround.
+
 ### Added
 - **fleet-server 0.1.0 released** — tag `server-v0.1.0` published the first
   binaries via `server-release.yml` (workflow green: typecheck + `bun test`
