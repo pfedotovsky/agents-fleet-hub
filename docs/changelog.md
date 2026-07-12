@@ -6,6 +6,22 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-12
 
+### Added
+- **One-click setup steps #1 and #2.**
+  (1) `fleet-server/scripts/install.sh --service` installs *and* starts a
+  persistent unit (launchd agent on macOS / systemd user unit + linger on
+  Linux) pointed at the just-installed binary, with IPv6-only `HOST=::`
+  auto-detection and a `/health` check — host setup is now a single command
+  ending in a running server (`--port`/`--host` flags too). Verified
+  end-to-end on macOS.
+  (2) The hub **auto-discovers a localhost server**: `discoverLocalHosts()`
+  probes `:3011` (fleet-server) and `:3001` (CloudCLI) via public `/health`,
+  distinguishes them by the `installMode` field, and the Settings panel shows
+  a "Found on this machine" card with one-click Add. Verified live (empty
+  profile → both servers listed with correct kind+version → Add). Remaining
+  one-click items in `docs/backlog.md`: desktop-app signing, agent-CLI
+  bootstrap/auth banner, host self-update check, remote reachability helper.
+
 ### Changed
 - **Root README setup rewritten end-to-end** — a full 3-step flow (agent CLIs
   + fleet-server on each host → hub desktop app/dev server → connect),

@@ -84,36 +84,31 @@ that host appear immediately.
 
 ## Toward one-click
 
-Setup is short but not yet one gesture. The remaining friction, roughly
-highest-leverage first (tracked in [`docs/backlog.md`](docs/backlog.md)):
+Already done: **`install.sh --service`** installs and starts a persistent
+launchd/systemd unit in one command, and the **hub auto-discovers a localhost
+fleet-server/CloudCLI** and offers a one-click "Add". Remaining friction,
+roughly highest-leverage first (tracked in [`docs/backlog.md`](docs/backlog.md)):
 
-1. **Auto-start on install.** `brew install` doesn't start the service, and
-   the `curl | sh` path leaves you to wire up launchd/systemd. Fold a
-   `--service` flag into `install.sh` that installs and starts the unit, so
-   host setup is a single command that ends with a running server.
-2. **Hub auto-discovers localhost.** fleet-server writes
-   `~/.fleet-server/local-server.json` (pid/host/port). The hub could read it
-   (or just probe `:3011`/`:3001`) and offer "Add localhost" with one click
-   instead of typing a URL.
-3. **Signed & notarized desktop app.** If the cask ships an unsigned build,
+1. **Signed & notarized desktop app.** If the cask ships an unsigned build,
    macOS Gatekeeper adds a scary right-click-open step. Notarization makes the
    hub install truly one-click. (Windows/Linux signing likewise.)
-4. **Agent-CLI bootstrap + clear auth state.** The host still needs `claude` /
+2. **Agent-CLI bootstrap + clear auth state.** The host still needs `claude` /
    `codex` installed and logged in. Login is interactive per provider, but the
    installer could detect what's missing and print exact next steps, and the
    hub already surfaces "not signed in" (issues #13/#15) — make that a
    first-class, actionable banner rather than a silent empty chat.
-5. **Keep hosts current.** Self-update was stripped from the fork; today it's
+3. **Keep hosts current.** Self-update was stripped from the fork; today it's
    a manual `brew upgrade fleet-server`. A tiny "update available" check
    (compare `/health` version to the latest release) or an opt-in periodic
    upgrade would keep a fleet from drifting.
-6. **Remote reachability helper.** The hardest part for remote VMs is the
+4. **Remote reachability helper.** The hardest part for remote VMs is the
    network (bind address, firewall, TLS). A documented one-liner tunnel, or a
    hub-side "paste this on the VM" snippet, would remove the last manual step.
 
 The current north star: **one command per host** (install + start + a nudge to
-log the agent CLIs in) and **one install for the hub** (signed app), with the
-hub discovering localhost automatically and making remote-host add a paste.
+log the agent CLIs in) and **one install for the hub** (signed app). The
+localhost path is already effectively one-click; remote hosts still need the
+network sorted out by hand.
 
 ## Security
 
