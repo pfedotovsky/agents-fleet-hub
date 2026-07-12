@@ -40,3 +40,26 @@ loadEnvFile(path.join(getFleetServerHome(), '.env'));
 if (!process.env.DATABASE_PATH) {
   process.env.DATABASE_PATH = getDefaultDatabasePath();
 }
+
+// Service managers start fleet-server with a minimal PATH (launchd:
+// /usr/bin:/bin:/usr/sbin:/sbin — brew services' plist sets none), so the
+// agent binaries the server spawns (claude in ~/.local/bin, codex/rg in the
+// package-manager prefix) are invisible even though they work fine from the
+// user's shell. Append the well-known install dirs; explicit *_CLI_PATH env
+// vars and the user's existing PATH entries always take precedence.
+if (process.platform !== 'win32') {
+  const extraPathDirs = [
+    path.join(os.homedir(), '.local', 'bin'), // claude native installer
+    '/opt/homebrew/bin', // homebrew on Apple Silicon
+    '/usr/local/bin', // homebrew on Intel, common manual installs
+    path.join(os.homedir(), '.bun', 'bin'),
+    path.join(os.homedir(), '.npm-global', 'bin'),
+  ];
+  const pathParts = (process.env.PATH || '').split(path.delimiter).filter(Boolean);
+  for (const dir of extraPathDirs) {
+    if (!pathParts.includes(dir) && fs.existsSync(dir)) {
+      pathParts.push(dir);
+    }
+  }
+  process.env.PATH = pathParts.join(path.delimiter);
+}
