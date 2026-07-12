@@ -5,7 +5,9 @@ import {
   HostUnreachableError,
   archiveSession as apiArchiveSession,
   deleteSessionPermanently as apiDeleteSessionPermanently,
+  discoverLocalHosts,
   getAuthStatus,
+  getLocalToken,
   getProjects,
   getRunningSessions,
   login,
@@ -65,40 +67,54 @@ export function useFleet() {
       // Hibernating hosts eat the full fetch timeout — don't stack requests.
       if (inFlight.current.has(config.id)) return
       inFlight.current.add(config.id)
+
+      // Fetch the host's projects with a bearer token and record the result.
+      const pollWithToken = async (token: string) => {
+        const saveRefreshed = (refreshed: string) => storage.saveToken(config.id, refreshed)
+        const [projects, runningSessionIds] = await Promise.all([
+          getProjects(config.baseUrl, token, saveRefreshed),
+          // Best-effort: hosts on older CloudCLI don't have this endpoint.
+          getRunningSessions(config.baseUrl, token, saveRefreshed)
+            .then((ids) => new Set(ids) as ReadonlySet<string>)
+            .catch(() => undefined),
+        ])
+        patchRuntime(config, { status: 'online', projects, runningSessionIds })
+      }
+
       try {
-        const token = storage.getToken(config.id)
-        if (token) {
-          try {
-            const saveRefreshed = (refreshed: string) => storage.saveToken(config.id, refreshed)
-            const [projects, runningSessionIds] = await Promise.all([
-              getProjects(config.baseUrl, token, saveRefreshed),
-              // Best-effort: hosts on older CloudCLI don't have this endpoint.
-              getRunningSessions(config.baseUrl, token, saveRefreshed)
-                .then((ids) => new Set(ids) as ReadonlySet<string>)
-                .catch(() => undefined),
-            ])
-            patchRuntime(config, { status: 'online', projects, runningSessionIds })
-          } catch (err) {
-            if (err instanceof AuthError) {
-              storage.deleteToken(config.id)
-              patchRuntime(config, { status: 'needs-auth' })
-            } else if (err instanceof HostUnreachableError) {
-              patchRuntime(config, { status: 'offline' })
-            } else {
-              patchRuntime(config, {
-                status: 'offline',
-                lastError: err instanceof Error ? err.message : String(err),
-              })
-            }
-          }
-        } else {
-          try {
-            const authStatus = await getAuthStatus(config.baseUrl)
+        let token = storage.getToken(config.id)
+        if (!token) {
+          // No token yet: ask the host how to authenticate. A same-machine
+          // fleet-server lets us mint one with no password.
+          const authStatus = await getAuthStatus(config.baseUrl)
+          if (authStatus.localAuthBypass) {
+            token = await getLocalToken(config.baseUrl)
+            storage.saveToken(config.id, token)
+          } else {
             patchRuntime(config, { status: authStatus.needsSetup ? 'needs-setup' : 'needs-auth' })
-          } catch {
-            patchRuntime(config, { status: 'offline' })
+            return
           }
         }
+        try {
+          await pollWithToken(token)
+        } catch (err) {
+          if (err instanceof AuthError) {
+            // Token rejected: drop it so the next poll re-mints (loopback) or
+            // prompts for login (remote).
+            storage.deleteToken(config.id)
+            patchRuntime(config, { status: 'needs-auth' })
+          } else if (err instanceof HostUnreachableError) {
+            patchRuntime(config, { status: 'offline' })
+          } else {
+            patchRuntime(config, {
+              status: 'offline',
+              lastError: err instanceof Error ? err.message : String(err),
+            })
+          }
+        }
+      } catch {
+        // getAuthStatus / getLocalToken failed — treat the host as unreachable.
+        patchRuntime(config, { status: 'offline' })
       } finally {
         inFlight.current.delete(config.id)
       }
@@ -158,6 +174,28 @@ export function useFleet() {
       return next
     })
   }, [])
+
+  // Auto-add the local fleet-server on launch so the same-machine host shows up
+  // with no manual step. Only fleet-server (3011), never stock CloudCLI. Skips
+  // URLs we've auto-added before, so removing the host in Settings sticks.
+  useEffect(() => {
+    let cancelled = false
+    discoverLocalHosts(hostsRef.current.map((host) => host.baseUrl))
+      .then((found) => {
+        if (cancelled) return
+        const already = new Set(storage.loadAutoAdded())
+        for (const host of found) {
+          if (host.kind !== 'fleet-server') continue
+          if (already.has(host.baseUrl)) continue
+          storage.addAutoAdded(host.baseUrl)
+          addHost({ name: 'localhost', baseUrl: host.baseUrl })
+        }
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [addHost])
 
   const removeHost = useCallback((hostId: string) => {
     storage.deleteToken(hostId)

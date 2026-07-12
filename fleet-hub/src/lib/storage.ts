@@ -12,6 +12,7 @@ const SIDEBAR_WIDTH_KEY = 'fleethub.v1.sidebarWidth'
 const DRAFTS_KEY = 'fleethub.v1.drafts'
 const CHAT_PANEL_KEY = 'fleethub.v1.chatPanel'
 const LAST_PROVIDER_KEY = 'fleethub.v1.lastProvider'
+const AUTO_ADDED_KEY = 'fleethub.v1.autoAdded'
 
 export const SIDEBAR_MIN_WIDTH = 200
 export const SIDEBAR_MAX_WIDTH = 480
@@ -38,6 +39,22 @@ export function loadHosts(): HostConfig[] {
 
 export function saveHosts(hosts: HostConfig[]): void {
   localStorage.setItem(HOSTS_KEY, JSON.stringify(hosts))
+}
+
+/**
+ * Base URLs the app auto-added on launch (the local fleet-server). Recorded so
+ * that removing the host in Settings sticks — we never re-add a URL that's
+ * already here, even after the user deletes it.
+ */
+export function loadAutoAdded(): string[] {
+  return readJson<string[]>(AUTO_ADDED_KEY, [])
+}
+
+export function addAutoAdded(baseUrl: string): void {
+  const all = loadAutoAdded()
+  if (!all.includes(baseUrl)) {
+    localStorage.setItem(AUTO_ADDED_KEY, JSON.stringify([...all, baseUrl]))
+  }
 }
 
 function loadTokens(): Record<string, string> {

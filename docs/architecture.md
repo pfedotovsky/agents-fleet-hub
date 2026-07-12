@@ -30,7 +30,7 @@ Browser (Agents Hub SPA)
 | `hooks/useFleet.ts` | The heart of the app: host configs + prefs from storage, 12 s polling loop per host, host status machine, merged cross-host session feed, star toggle, login. |
 | `lib/api.ts` | All REST calls. `fetchJson` adds timeout (AbortController), Bearer header, captures `X-Refreshed-Token`, maps 401/403 → `AuthError`, network failure → `HostUnreachableError`. |
 | `lib/chatSocket.ts` | `ChatSocket` class — one reconnecting WS per chat (fixed 3 s retry until `close()`), typed senders: `chat.send` / `chat.subscribe` / `chat.abort` / `chat.permission-response` (with optional `rememberEntry`). |
-| `lib/storage.ts` | localStorage wrapper, keys `fleethub.v1.{hosts,tokens,prefs,recentProjects,models,permissions,permissionModes,planMode,sidebarWidth,drafts,chatPanel}`. "Always allow" grants are keyed `hostId:projectPath`, permission mode per hostId, unsent chat drafts `hostId:sessionId`. |
+| `lib/storage.ts` | localStorage wrapper, keys `fleethub.v1.{hosts,tokens,prefs,recentProjects,models,permissions,permissionModes,planMode,sidebarWidth,drafts,chatPanel,autoAdded}`. "Always allow" grants are keyed `hostId:projectPath`, permission mode per hostId, unsent chat drafts `hostId:sessionId`. |
 | `lib/format.ts` | Relative-time and path helpers. |
 | `types.ts` | Shared types: `HostConfig/HostRuntime/HostStatus`, `Project`, `SessionSummary`, `FleetSession`, `ChatEvent`, `PermissionMode`, model catalog. |
 | `components/Sidebar.tsx` | Hosts → projects → chats tree: starred first, then recency; long tails behind "N more"; per-project disclosure lists recent sessions inline (embedded poll data, capped at 6; "all N chats…" opens the project pane), each chat prefixed with its provider icon (Claude/Codex/…) from `PROVIDER_META`; the active chat's project auto-expands; status dots. Hover "+" per project row opens a **draft** chat directly (handler in `App.tsx`) — the session is created on first send with the provider chosen in the composer toggle (seeded from the last-picked provider). |
@@ -52,7 +52,13 @@ Browser (Agents Hub SPA)
   at startup, plus on window focus and manual refresh.
 - With a token: `GET /api/projects?sessionsLimit=5` → status `online` +
   projects. `AuthError` → drop token, `needs-auth`. Unreachable → `offline`.
-- Without a token: `GET /api/auth/status` → `needs-setup` or `needs-auth`.
+- Without a token: `GET /api/auth/status` → if it reports `localAuthBypass`
+  (same-machine fleet-server), mint a token via `POST /api/auth/local-token`
+  and poll as online; otherwise `needs-setup` or `needs-auth`.
+- On launch, `useFleet` runs discovery once and auto-adds a local
+  **fleet-server** (port 3011) as a host — CloudCLI (3001) stays a manual
+  suggestion in Settings. Auto-added URLs are remembered
+  (`fleethub.v1.autoAdded`) so removing the host sticks.
 - In-flight guard per host: hibernating remote VMs eat the full fetch timeout,
   so polls must not stack.
 - When a host goes offline its last-known projects are kept so sessions stay
@@ -164,6 +170,13 @@ Browser (Agents Hub SPA)
 
 - Login: `POST /api/auth/login {username,password}` → JWT. Only the JWT is
   stored (localStorage, per host); passwords never leave component state.
+- Passwordless localhost (fleet-server only, `[fork-fix #16]`): when
+  `GET /api/auth/status` reports `localAuthBypass` (server checks the TCP
+  peer address is loopback; opt out with `FLEET_LOCALHOST_NO_AUTH=false`),
+  the hub mints a normal JWT via `POST /api/auth/local-token` — no login
+  modal. The server auto-provisions a `local` user with a sentinel (non-
+  bcrypt) hash; `register` can later upgrade it to a real username+password
+  for remote access, and `login` rejects sentinel accounts with 401.
 - First-time setup: CloudCLI is single-user; while a host has no account,
   `GET /api/auth/status` reports `needsSetup` and the login modal switches to
   create-account mode → `POST /api/auth/register {username,password}` → JWT

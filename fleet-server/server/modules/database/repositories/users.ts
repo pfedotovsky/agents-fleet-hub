@@ -99,6 +99,29 @@ export const userDb = {
       .get() as UserPublicRow | undefined;
   },
 
+  /**
+   * [fork-fix #16] Like getFirstUser but includes the password hash, so callers
+   * can tell a real (bcrypt) account from an auto-provisioned loopback one.
+   */
+  getFirstUserWithHash(): UserRow | undefined {
+    const db = getConnection();
+    return db
+      .prepare('SELECT * FROM users WHERE is_active = 1 LIMIT 1')
+      .get() as UserRow | undefined;
+  },
+
+  /**
+   * [fork-fix #16] Attaches real credentials to an existing user. Used to turn
+   * the auto-provisioned loopback account into a password-protected one so a
+   * remote client can log in.
+   */
+  updateCredentials(userId: number, username: string, passwordHash: string): void {
+    const db = getConnection();
+    db.prepare(
+      'UPDATE users SET username = ?, password_hash = ? WHERE id = ?'
+    ).run(username, passwordHash, userId);
+  },
+
   /** Stores the user's preferred git name and email. */
   updateGitConfig(
     userId: number,

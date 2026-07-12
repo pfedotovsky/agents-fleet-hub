@@ -79,8 +79,27 @@ async function fetchJson(baseUrl: string, path: string, opts: RequestOptions = {
   return res.json()
 }
 
-export async function getAuthStatus(baseUrl: string): Promise<{ needsSetup: boolean }> {
-  return (await fetchJson(baseUrl, '/api/auth/status')) as { needsSetup: boolean }
+export async function getAuthStatus(
+  baseUrl: string,
+): Promise<{ needsSetup: boolean; localAuthBypass?: boolean }> {
+  return (await fetchJson(baseUrl, '/api/auth/status')) as {
+    needsSetup: boolean
+    localAuthBypass?: boolean
+  }
+}
+
+/**
+ * Mints a JWT for a same-machine (loopback) fleet-server without a password.
+ * The server only honors this for loopback clients; the returned token behaves
+ * exactly like a login token (7-day expiry, sliding refresh).
+ */
+export async function getLocalToken(baseUrl: string): Promise<string> {
+  const body = (await fetchJson(baseUrl, '/api/auth/local-token', {
+    method: 'POST',
+    timeoutMs: 10000,
+  })) as { token?: string }
+  if (!body.token) throw new Error('Local-token response did not include a token')
+  return body.token
 }
 
 export interface DiscoveredHost {

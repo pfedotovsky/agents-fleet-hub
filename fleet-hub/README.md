@@ -27,8 +27,13 @@ bumping the version in `src-tauri/tauri.conf.json` and pushing a `v*` tag
 (CI attaches bundles to the GitHub Release), then updating `version`/`sha256`
 in the tap's `Casks/agents-hub.rb`.
 
-Open settings (gear in the sidebar) → add each host: a name, its base URL
-(e.g. `http://my-vm.example.net:3001` or `http://localhost:3001`),
+A fleet-server running on the same machine (port 3011) is **added
+automatically on launch and needs no sign-in** — the hub mints a token via
+the server's loopback-only `POST /api/auth/local-token` (fleet-server newer
+than 0.1.2). Removing it in settings sticks; it won't be re-added.
+
+For every other host, open settings (gear in the sidebar) → add a name, its
+base URL (e.g. `http://my-vm.example.net:3001` or `http://localhost:3001`),
 and optionally a username to prefill the login form. Sign in once per host —
 on a freshly installed CloudCLI the hub offers first-time setup instead
 (creates the host's single account via `POST /api/auth/register`). Only the

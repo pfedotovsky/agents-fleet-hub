@@ -7,6 +7,13 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-07-13
 
 ### Released
+- **Agents Hub 0.1.7 (desktop)** — tag `v0.1.7`; auto-adds a same-machine
+  fleet-server on launch and connects with no login (`[fork-fix #16]`, see
+  Added). Upgrade with `brew upgrade --cask agents-hub`.
+- **fleet-server 0.1.3** — tag `server-v0.1.3`; passwordless localhost via the
+  loopback-only `POST /api/auth/local-token` + `localAuthBypass` status flag
+  (`[fork-fix #16]`). Upgrade with `brew upgrade fleet-server` and restart the
+  service (`brew services restart fleet-server`).
 - **Agents Hub 0.1.6 (desktop)** — tag `v0.1.6`; ships the provider icons in the
   sidebar, the composer Claude/Codex toggle (draft sessions), and the bounded
   provider-labelled context chip. Upgrade with `brew upgrade --cask agents-hub`.
@@ -18,8 +25,8 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   0.1.6, formula `fleet-server` 0.1.2.
 
 ### Added
-- **Passwordless localhost + auto-added local fleet-server (`[fork-fix #16]`,
-  uncommitted).** Two halves:
+- **Passwordless localhost + auto-added local fleet-server (`[fork-fix #16]`).**
+  Two halves:
   - *Server:* `POST /api/auth/local-token` mints a normal 7-day JWT for
     **loopback clients only** (checked against the TCP peer address, not the
     Host header), auto-provisioning a `local` user with a non-bcrypt sentinel
