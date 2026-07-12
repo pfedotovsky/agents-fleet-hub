@@ -3,10 +3,14 @@ import type { FleetSession, HostConfig, HostRuntime, HostStatus, Prefs, Project 
 import {
   AuthError,
   HostUnreachableError,
+  archiveSession as apiArchiveSession,
+  deleteSessionPermanently as apiDeleteSessionPermanently,
   getAuthStatus,
   getProjects,
+  getRunningSessions,
   login,
   register,
+  restoreSession as apiRestoreSession,
   toggleProjectStar,
 } from '../lib/api'
 import * as storage from '../lib/storage'
@@ -18,6 +22,7 @@ const MAX_FEED_LENGTH = 120
 interface RuntimePatch {
   status: HostStatus
   projects?: Project[]
+  runningSessionIds?: ReadonlySet<string>
   lastError?: string
 }
 
@@ -46,6 +51,8 @@ export function useFleet() {
           // Keep the last-known projects when a host goes offline so its
           // sessions stay visible (dimmed as stale) instead of vanishing.
           projects: patch.projects ?? existing?.projects ?? [],
+          // Running state is ephemeral — never carry it across a failed poll.
+          runningSessionIds: patch.runningSessionIds,
           lastError: patch.lastError,
           lastSuccessAt: patch.projects ? Date.now() : existing?.lastSuccessAt,
         },
@@ -62,10 +69,15 @@ export function useFleet() {
         const token = storage.getToken(config.id)
         if (token) {
           try {
-            const projects = await getProjects(config.baseUrl, token, (refreshed) =>
-              storage.saveToken(config.id, refreshed),
-            )
-            patchRuntime(config, { status: 'online', projects })
+            const saveRefreshed = (refreshed: string) => storage.saveToken(config.id, refreshed)
+            const [projects, runningSessionIds] = await Promise.all([
+              getProjects(config.baseUrl, token, saveRefreshed),
+              // Best-effort: hosts on older CloudCLI don't have this endpoint.
+              getRunningSessions(config.baseUrl, token, saveRefreshed)
+                .then((ids) => new Set(ids) as ReadonlySet<string>)
+                .catch(() => undefined),
+            ])
+            patchRuntime(config, { status: 'online', projects, runningSessionIds })
           } catch (err) {
             if (err instanceof AuthError) {
               storage.deleteToken(config.id)
@@ -201,6 +213,71 @@ export function useFleet() {
     }
   }, [runtimes])
 
+  /** Optimistically drops the session from active lists, then archives on the host. */
+  const archiveSession = useCallback(
+    async (hostId: string, sessionId: string): Promise<boolean> => {
+      const config = hostsRef.current.find((host) => host.id === hostId)
+      const token = storage.getToken(hostId)
+      if (!config || !token) return false
+      setRuntimes((prev) => {
+        const existing = prev[hostId]
+        if (!existing) return prev
+        return {
+          ...prev,
+          [hostId]: {
+            ...existing,
+            projects: existing.projects.map((project) =>
+              project.sessions.some((session) => session.id === sessionId)
+                ? {
+                    ...project,
+                    sessions: project.sessions.filter((session) => session.id !== sessionId),
+                    sessionMeta: {
+                      ...project.sessionMeta,
+                      total: Math.max(0, project.sessionMeta.total - 1),
+                    },
+                  }
+                : project,
+            ),
+          },
+        }
+      })
+      try {
+        await apiArchiveSession(config.baseUrl, token, sessionId, (t) => storage.saveToken(hostId, t))
+        return true
+      } catch {
+        // Reconcile — the poll restores the session if the archive didn't land.
+        void pollHost(config)
+        return false
+      }
+    },
+    [pollHost],
+  )
+
+  /** Restores an archived session and re-polls so it reappears in the sidebar. */
+  const restoreSession = useCallback(
+    async (hostId: string, sessionId: string): Promise<void> => {
+      const config = hostsRef.current.find((host) => host.id === hostId)
+      const token = storage.getToken(hostId)
+      if (!config || !token) throw new Error('Not signed in')
+      await apiRestoreSession(config.baseUrl, token, sessionId, (t) => storage.saveToken(hostId, t))
+      void pollHost(config)
+    },
+    [pollHost],
+  )
+
+  /** Permanently deletes a session (DB row + transcript on the host's disk). */
+  const deleteSessionForever = useCallback(
+    async (hostId: string, sessionId: string): Promise<void> => {
+      const config = hostsRef.current.find((host) => host.id === hostId)
+      const token = storage.getToken(hostId)
+      if (!config || !token) throw new Error('Not signed in')
+      await apiDeleteSessionPermanently(config.baseUrl, token, sessionId, (t) =>
+        storage.saveToken(hostId, t),
+      )
+    },
+    [],
+  )
+
   const clearTokens = useCallback(() => {
     storage.clearTokens()
     refresh()
@@ -238,6 +315,9 @@ export function useFleet() {
               href: `${runtime.config.baseUrl}/session/${session.id}`,
               stale: runtime.status !== 'online',
               justUpdated: previous !== undefined && previous !== session.lastActivity,
+              running: runtime.runningSessionIds
+                ? runtime.runningSessionIds.has(session.id)
+                : undefined,
             }
           }),
         ),
@@ -262,5 +342,8 @@ export function useFleet() {
     refresh,
     toggleStar,
     markProjectOpened,
+    archiveSession,
+    restoreSession,
+    deleteSessionForever,
   }
 }

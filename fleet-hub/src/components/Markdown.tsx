@@ -51,7 +51,7 @@ function CodeBlock({ className, children }: ComponentPropsWithoutRef<'code'>) {
           margin: 0,
           padding: language !== 'text' ? '1.75rem 1rem 1rem' : '1rem',
           background: '#18181b',
-          fontSize: '12.5px',
+          fontSize: '13.5px',
         }}
         codeTagProps={{ style: { fontFamily: 'var(--font-mono)' } }}
       >
@@ -77,10 +77,10 @@ const COMPONENTS = {
   ),
   h1: (props: ComponentPropsWithoutRef<'h1'>) => <h1 {...props} className="mb-2 mt-3 text-lg font-semibold" />,
   h2: (props: ComponentPropsWithoutRef<'h2'>) => <h2 {...props} className="mb-2 mt-3 text-base font-semibold" />,
-  h3: (props: ComponentPropsWithoutRef<'h3'>) => <h3 {...props} className="mb-1 mt-2 text-sm font-semibold" />,
+  h3: (props: ComponentPropsWithoutRef<'h3'>) => <h3 {...props} className="mb-1 mt-2 text-[15px] font-semibold" />,
   table: (props: ComponentPropsWithoutRef<'table'>) => (
     <div className="my-2 overflow-x-auto">
-      <table {...props} className="min-w-full border-collapse text-xs" />
+      <table {...props} className="min-w-full border-collapse text-[13px]" />
     </div>
   ),
   th: (props: ComponentPropsWithoutRef<'th'>) => (
@@ -93,7 +93,7 @@ const COMPONENTS = {
 
 export const Markdown = memo(function Markdown({ children }: { children: string }) {
   return (
-    <div className="text-sm leading-relaxed text-ink-200 [&>p]:my-2 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0">
+    <div className="text-[15px] leading-7 text-ink-200 [&>p]:my-2 [&>p:first-child]:mt-0 [&>p:last-child]:mb-0">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>
         {children}
       </ReactMarkdown>

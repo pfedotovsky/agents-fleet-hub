@@ -5,9 +5,14 @@ import {
   Check,
   ChevronUp,
   CircleStop,
+  ClipboardList,
   ExternalLink,
+  File,
+  ImagePlus,
   LoaderCircle,
   ShieldQuestion,
+  Sparkles,
+  SquareSlash,
   TriangleAlert,
   X,
 } from 'lucide-react'
@@ -26,24 +31,53 @@ import {
   getSessionMessages,
   readFile,
   saveFile,
+  uploadImages,
 } from '../lib/api'
 import { ChatSocket } from '../lib/chatSocket'
 import type { SocketState } from '../lib/chatSocket'
 import {
   addAllowedTool,
   getToken,
+  loadDraft,
   loadModelChoice,
   loadPermissionMode,
   loadPermissions,
+  saveDraft,
   saveModelChoice,
   savePermissionMode,
   saveToken,
 } from '../lib/storage'
 import { notify, requestNotifyPermission } from '../lib/notify'
 import { hostColor } from '../lib/format'
+import { useComposerAutocomplete } from '../hooks/useComposerAutocomplete'
+import type { CompletionItem } from '../hooks/useComposerAutocomplete'
 import { MessageItem, RENDERED_KINDS, ProviderBadge, contentToText } from './Messages'
+import { Markdown } from './Markdown'
+import { seedImageCache } from './AuthedImage'
 
 const PAGE_SIZE = 100
+
+/** Mirrors the host's upload limits (multer: 5 files × 5MB, image types only). */
+const MAX_IMAGES = 5
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/svg+xml',
+])
+
+/** One composer attachment; uploaded to the host as soon as it's added. */
+interface PendingImage {
+  id: number
+  name: string
+  mimeType: string
+  previewUrl: string
+  status: 'uploading' | 'ready' | 'error'
+  /** Stored-asset path on the host, once uploaded. */
+  path?: string
+}
 
 const PERMISSION_MODES: { value: PermissionMode; label: string }[] = [
   { value: 'default', label: 'Ask for permissions' },
@@ -51,6 +85,65 @@ const PERMISSION_MODES: { value: PermissionMode; label: string }[] = [
   { value: 'plan', label: 'Plan mode' },
   { value: 'bypassPermissions', label: 'Bypass permissions' },
 ]
+
+/**
+ * ExitPlanMode arrives as a regular permission_request (the server marks it
+ * interactive, so it reaches the UI even when other tools are auto-allowed).
+ * It gets the plan-review card instead of the generic allow/deny prompt.
+ */
+function isPlanRequest(request: PermissionRequest): boolean {
+  return request.toolName === 'ExitPlanMode' || request.toolName === 'exit_plan_mode'
+}
+
+export type PlanDecision = 'build' | 'acceptEdits' | 'revise'
+
+function PlanApprovalCard({
+  request,
+  onDecide,
+}: {
+  request: PermissionRequest
+  onDecide: (requestId: string, decision: PlanDecision) => void
+}) {
+  const input = request.input as { plan?: unknown } | null | undefined
+  const plan = typeof input?.plan === 'string' ? input.plan : ''
+  return (
+    <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-3">
+      <div className="mb-2 flex items-center gap-2 text-xs font-medium text-indigo-300">
+        <ClipboardList size={14} />
+        Plan ready for review
+      </div>
+      {plan && (
+        <div className="mb-3 max-h-96 overflow-auto rounded-md border border-ink-800 bg-ink-950/60 p-3 text-[13px]">
+          <Markdown>{plan}</Markdown>
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => onDecide(request.requestId, 'build')}
+          className="inline-flex items-center gap-1 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-indigo-500"
+        >
+          <Check size={12} /> Approve &amp; build
+        </button>
+        <button
+          type="button"
+          onClick={() => onDecide(request.requestId, 'acceptEdits')}
+          title="Approve the plan and auto-accept file edits during the build"
+          className="inline-flex items-center gap-1 rounded-md border border-indigo-500/50 px-3 py-1.5 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-600/10"
+        >
+          <Check size={12} /> Approve, auto-accept edits
+        </button>
+        <button
+          type="button"
+          onClick={() => onDecide(request.requestId, 'revise')}
+          className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:bg-ink-800"
+        >
+          <X size={12} /> Revise
+        </button>
+      </div>
+    </div>
+  )
+}
 
 /**
  * Server permission-rule token for "Always allow": the bare tool name, or a
@@ -76,13 +169,13 @@ function PermissionCard({
 }) {
   const rememberEntry = rememberEntryFor(request)
   return (
-    <div className="mr-6 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
       <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-300">
         <ShieldQuestion size={14} />
         Permission requested: <span className="font-mono">{request.toolName ?? 'tool'}</span>
       </div>
       {request.input !== undefined && (
-        <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-ink-950/60 p-2 font-mono text-[11px] text-ink-400">
+        <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-ink-950/60 p-2 font-mono text-xs text-ink-400">
           {contentToText(request.input)}
         </pre>
       )}
@@ -116,6 +209,51 @@ function PermissionCard({
   )
 }
 
+const COMPLETION_ICONS = { file: File, skill: Sparkles, command: SquareSlash } as const
+const COMPLETION_TAGS = { file: 'file', skill: 'skill', command: 'command' } as const
+
+function CompletionMenu({
+  items,
+  selected,
+  onHover,
+  onPick,
+}: {
+  items: CompletionItem[]
+  selected: number
+  onHover: (index: number) => void
+  onPick: (item: CompletionItem) => void
+}) {
+  return (
+    <div className="absolute inset-x-0 bottom-full z-10 mb-2 max-h-72 overflow-y-auto rounded-xl border border-ink-700 bg-ink-900 py-1 shadow-2xl">
+      {items.map((item, index) => {
+        const Icon = COMPLETION_ICONS[item.kind]
+        return (
+          <button
+            key={`${item.kind}:${item.label}`}
+            type="button"
+            // mousedown + preventDefault keeps focus in the textarea
+            onMouseDown={(event) => {
+              event.preventDefault()
+              onPick(item)
+            }}
+            onMouseEnter={() => onHover(index)}
+            className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] ${
+              index === selected ? 'bg-ink-800 text-ink-100' : 'text-ink-300'
+            }`}
+          >
+            <Icon size={13} className="shrink-0 text-ink-500" />
+            <span className="shrink-0 font-mono">{item.label}</span>
+            {item.detail && <span className="min-w-0 truncate text-xs text-ink-500">{item.detail}</span>}
+            <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wide text-ink-600">
+              {COMPLETION_TAGS[item.kind]}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 interface Props {
   target: FleetSession
   onBack: () => void
@@ -132,13 +270,16 @@ export function ChatPane({ target, onBack }: Props) {
   const [processing, setProcessing] = useState(false)
   const [socketState, setSocketState] = useState<SocketState>('connecting')
   const [permissions, setPermissions] = useState<PermissionRequest[]>([])
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState(() => loadDraft(target.hostId, sessionId))
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(
     () => loadPermissionMode(target.hostId, target.projectPath) ?? 'default',
   )
   const [allowedTools, setAllowedTools] = useState<string[]>(
     () => loadPermissions(target.hostId, target.projectPath).allowedTools ?? [],
   )
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+  const imageCounter = useRef(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
   const [model, setModel] = useState<string>(() => loadModelChoice(target.hostId)?.model ?? '')
   const [effort, setEffort] = useState<string>(() => loadModelChoice(target.hostId)?.effort ?? '')
@@ -159,6 +300,15 @@ export function ChatPane({ target, onBack }: Props) {
   loadedOlderRef.current = loadedOlder
   const upsertTimer = useRef<number | undefined>(undefined)
   const notifiedPermissionIds = useRef(new Set<string>())
+
+  // Size the textarea to fit a draft restored on mount.
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el || !el.value) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   /**
    * Sticky autoscroll: `pinnedRef` tracks whether the user is at (or near) the
@@ -324,12 +474,21 @@ export function ChatPane({ target, onBack }: Props) {
             }
             if (!notifiedPermissionIds.current.has(request.requestId)) {
               notifiedPermissionIds.current.add(request.requestId)
-              notify(
-                'permission',
-                `${target.projectName} — permission needed`,
-                `The agent wants to use ${request.toolName ?? 'a tool'}.`,
-                `perm:${sessionId}`,
-              )
+              if (isPlanRequest(request)) {
+                notify(
+                  'permission',
+                  `${target.projectName} — plan ready`,
+                  'The agent finished planning and is waiting for your review.',
+                  `perm:${sessionId}`,
+                )
+              } else {
+                notify(
+                  'permission',
+                  `${target.projectName} — permission needed`,
+                  `The agent wants to use ${request.toolName ?? 'a tool'}.`,
+                  `perm:${sessionId}`,
+                )
+              }
             }
             setPermissions((prev) =>
               prev.some((p) => p.requestId === request.requestId) ? prev : [...prev, request],
@@ -501,16 +660,115 @@ export function ChatPane({ target, onBack }: Props) {
     }
   }
 
+  /**
+   * Attaches image files: validates against the host's limits, shows chips
+   * immediately with local previews, and uploads in one request. Paths land
+   * on the chips when the upload finishes; send() only takes 'ready' ones.
+   */
+  function attachImages(files: File[]) {
+    const token = getToken(target.hostId)
+    if (!token) return
+    const room = MAX_IMAGES - pendingImages.length
+    const images = files.filter((file) => IMAGE_MIME_TYPES.has(file.type))
+    if (images.length === 0) return
+    const rejectedType = files.length - images.length
+    const oversize = images.filter((file) => file.size > MAX_IMAGE_BYTES)
+    const accepted = images.filter((file) => file.size <= MAX_IMAGE_BYTES).slice(0, Math.max(0, room))
+    const dropped: string[] = []
+    if (rejectedType > 0) dropped.push('unsupported type')
+    if (oversize.length > 0) dropped.push('over 5MB')
+    if (accepted.length < images.length - oversize.length) dropped.push(`max ${MAX_IMAGES} images`)
+    setBanner(dropped.length > 0 ? `Some images were skipped (${dropped.join(', ')}).` : null)
+    if (accepted.length === 0) return
+
+    const chips: PendingImage[] = accepted.map((file) => {
+      imageCounter.current += 1
+      return {
+        id: imageCounter.current,
+        name: file.name,
+        mimeType: file.type,
+        previewUrl: URL.createObjectURL(file),
+        status: 'uploading',
+      }
+    })
+    setPendingImages((prev) => [...prev, ...chips])
+
+    void uploadImages(target.baseUrl, token, accepted, (t) => saveToken(target.hostId, t))
+      .then((stored) => {
+        setPendingImages((prev) =>
+          prev.map((chip) => {
+            const index = chips.findIndex((c) => c.id === chip.id)
+            if (index === -1) return chip
+            const record = stored[index]
+            if (!record) return { ...chip, status: 'error' as const }
+            // The optimistic bubble and future history fetches can now reuse
+            // the local preview instead of re-downloading the asset.
+            seedImageCache(target.baseUrl, record.path, chip.previewUrl)
+            return { ...chip, status: 'ready' as const, path: record.path }
+          }),
+        )
+      })
+      .catch((err) => {
+        setPendingImages((prev) =>
+          prev.map((chip) =>
+            chips.some((c) => c.id === chip.id) ? { ...chip, status: 'error' as const } : chip,
+          ),
+        )
+        setBanner(err instanceof Error ? err.message : 'Image upload failed')
+      })
+  }
+
+  function removeImage(id: number) {
+    setPendingImages((prev) => {
+      const chip = prev.find((c) => c.id === id)
+      // Only revoke previews that never made it into the image cache.
+      if (chip && chip.status !== 'ready') URL.revokeObjectURL(chip.previewUrl)
+      return prev.filter((c) => c.id !== id)
+    })
+  }
+
+  const applyCompletion = useCallback(
+    (next: string, caret: number) => {
+      setInput(next)
+      saveDraft(target.hostId, sessionId, next)
+      const el = textareaRef.current
+      if (el) {
+        el.focus()
+        requestAnimationFrame(() => {
+          el.setSelectionRange(caret, caret)
+          el.style.height = 'auto'
+          el.style.height = `${Math.min(el.scrollHeight, 160)}px`
+        })
+      }
+    },
+    [sessionId, target.hostId],
+  )
+  const autocomplete = useComposerAutocomplete(target, applyCompletion)
+
   function send() {
     const text = input.trim()
     const socket = socketRef.current
     if (!text || processing || !socket) return
+    if (pendingImages.some((chip) => chip.status === 'uploading')) {
+      setBanner('Images are still uploading…')
+      return
+    }
+    const readyImages = pendingImages.filter(
+      (chip): chip is PendingImage & { path: string } => chip.status === 'ready' && !!chip.path,
+    )
     const options: Parameters<ChatSocket['sendChat']>[2] = {}
     if (permissionMode !== 'default') options.permissionMode = permissionMode
     if (model) options.model = model
     if (effort) options.effort = effort
     if (allowedTools.length > 0) {
       options.toolsSettings = { allowedTools, disallowedTools: [], skipPermissions: false }
+    }
+    if (readyImages.length > 0) {
+      options.images = readyImages.map((chip) => ({
+        path: chip.path,
+        name: chip.name,
+        mimeType: chip.mimeType,
+      }))
     }
     if (!socket.sendChat(sessionId, text, options)) {
       setBanner('Not connected to the host — reconnecting…')
@@ -527,9 +785,13 @@ export function ChatPane({ target, onBack }: Props) {
       kind: 'text',
       role: 'user',
       content: text,
+      images: readyImages.map((chip) => ({ path: chip.path, name: chip.name })),
     })
     setProcessing(true)
     setInput('')
+    setPendingImages([])
+    autocomplete.close()
+    saveDraft(target.hostId, sessionId, '')
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     scrollToBottom(false)
   }
@@ -539,6 +801,24 @@ export function ChatPane({ target, onBack }: Props) {
     if (allow && rememberEntry) {
       setAllowedTools(addAllowedTool(target.hostId, target.projectPath, rememberEntry))
       if (target.session.provider === 'claude') void persistGrantToHost(rememberEntry)
+    }
+    setPermissions((prev) => prev.filter((p) => p.requestId !== requestId))
+  }
+
+  /**
+   * Plan review decision. On approval the running query exits plan mode by
+   * itself, but the server rebuilds SDK options from our options on every
+   * chat.send — so the hub must also drop 'plan' locally or the next message
+   * would silently re-enter plan mode.
+   */
+  function respondPlan(requestId: string, decision: PlanDecision) {
+    if (decision === 'revise') {
+      socketRef.current?.respondPermission(requestId, false, undefined, 'User asked to revise the plan')
+    } else {
+      socketRef.current?.respondPermission(requestId, true)
+      const nextMode: PermissionMode = decision === 'acceptEdits' ? 'acceptEdits' : 'default'
+      setPermissionMode(nextMode)
+      savePermissionMode(target.hostId, nextMode)
     }
     setPermissions((prev) => prev.filter((p) => p.requestId !== requestId))
   }
@@ -640,7 +920,7 @@ export function ChatPane({ target, onBack }: Props) {
           const el = scrollRef.current
           if (el) pinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60
         }}
-        className="flex-1 overflow-y-auto px-4 py-4"
+        className="flex-1 overflow-y-auto px-6 py-4"
       >
         {loading ? (
           <div className="flex h-full items-center justify-center text-ink-500">
@@ -658,7 +938,7 @@ export function ChatPane({ target, onBack }: Props) {
             )}
           </div>
         ) : (
-          <div ref={contentRef} className="mx-auto flex max-w-2xl flex-col gap-3">
+          <div ref={contentRef} className="mx-auto flex max-w-[54rem] flex-col gap-3">
             {hasMore && (
               <button
                 type="button"
@@ -676,13 +956,21 @@ export function ChatPane({ target, onBack }: Props) {
               </p>
             )}
             {visible.map((message) => (
-              <MessageItem key={message.id} message={message} />
+              <MessageItem
+                key={message.id}
+                message={message}
+                imageSource={{ baseUrl: target.baseUrl, hostId: target.hostId }}
+              />
             ))}
-            {permissions.map((request) => (
-              <PermissionCard key={request.requestId} request={request} onRespond={respondPermission} />
-            ))}
+            {permissions.map((request) =>
+              isPlanRequest(request) ? (
+                <PlanApprovalCard key={request.requestId} request={request} onDecide={respondPlan} />
+              ) : (
+                <PermissionCard key={request.requestId} request={request} onRespond={respondPermission} />
+              ),
+            )}
             {processing && permissions.length === 0 && (
-              <div className="mr-6 flex items-center gap-2 text-xs text-ink-500">
+              <div className="flex items-center gap-2 text-xs text-ink-500">
                 <LoaderCircle size={12} className="animate-spin" /> working…
               </div>
             )}
@@ -690,29 +978,122 @@ export function ChatPane({ target, onBack }: Props) {
         )}
       </div>
 
-      <footer className="shrink-0 border-t border-ink-800 px-4 py-3">
-        <div className="mx-auto max-w-2xl">
+      <footer className="shrink-0 border-t border-ink-800 px-6 py-3">
+        <div className="relative mx-auto max-w-[54rem]">
+          {autocomplete.open && (
+            <CompletionMenu
+              items={autocomplete.items}
+              selected={autocomplete.selected}
+              onHover={autocomplete.setSelected}
+              onPick={autocomplete.pick}
+            />
+          )}
           {banner && (
             <div className="mb-2 flex items-center gap-2 text-xs text-amber-400">
               <TriangleAlert size={12} /> {banner}
             </div>
           )}
-          <div className="flex items-end gap-2 rounded-xl border border-ink-700 bg-ink-900 p-2 focus-within:border-brass-400/60">
+          <div
+            className="rounded-xl border border-ink-700 bg-ink-900 p-2 focus-within:border-brass-400/60"
+            onDragOver={(event) => {
+              if (event.dataTransfer.types.includes('Files')) event.preventDefault()
+            }}
+            onDrop={(event) => {
+              if (event.dataTransfer.files.length === 0) return
+              event.preventDefault()
+              attachImages(Array.from(event.dataTransfer.files))
+            }}
+          >
+            {pendingImages.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2 px-1">
+                {pendingImages.map((chip) => (
+                  <div
+                    key={chip.id}
+                    title={chip.name}
+                    className={`group/chip relative h-14 w-14 overflow-hidden rounded-md border ${
+                      chip.status === 'error' ? 'border-rose-500/60' : 'border-ink-700'
+                    }`}
+                  >
+                    <img
+                      src={chip.previewUrl}
+                      alt={chip.name}
+                      className={`h-full w-full object-cover ${chip.status === 'ready' ? '' : 'opacity-40'}`}
+                    />
+                    {chip.status === 'uploading' && (
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        <LoaderCircle size={14} className="animate-spin text-ink-300" />
+                      </span>
+                    )}
+                    {chip.status === 'error' && (
+                      <span
+                        title="Upload failed"
+                        className="absolute inset-0 flex items-center justify-center text-rose-400"
+                      >
+                        <TriangleAlert size={14} />
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeImage(chip.id)}
+                      title="Remove"
+                      className="absolute right-0.5 top-0.5 rounded-full bg-ink-950/80 p-0.5 text-ink-400 opacity-0 transition-opacity hover:text-ink-100 group-hover/chip:opacity-100"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-end gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                if (event.target.files) attachImages(Array.from(event.target.files))
+                event.target.value = ''
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!canChat || socketState !== 'open' || pendingImages.length >= MAX_IMAGES}
+              title="Attach images (or paste / drag & drop)"
+              className="shrink-0 rounded-lg p-2 text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200 disabled:opacity-40"
+            >
+              <ImagePlus size={16} />
+            </button>
             <textarea
               ref={textareaRef}
               value={input}
+              onPaste={(event) => {
+                const files = Array.from(event.clipboardData.files)
+                if (files.length > 0) {
+                  event.preventDefault()
+                  attachImages(files)
+                }
+              }}
               onChange={(event) => {
                 setInput(event.target.value)
+                saveDraft(target.hostId, sessionId, event.target.value)
+                autocomplete.update(event.target.value, event.target.selectionStart ?? event.target.value.length)
                 const el = event.target
                 el.style.height = 'auto'
                 el.style.height = `${Math.min(el.scrollHeight, 160)}px`
               }}
               onKeyDown={(event) => {
+                if (autocomplete.onKeyDown(event.key)) {
+                  event.preventDefault()
+                  return
+                }
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault()
                   send()
                 }
               }}
+              onBlur={autocomplete.close}
               rows={1}
               placeholder={
                 socketState === 'open'
@@ -720,7 +1101,7 @@ export function ChatPane({ target, onBack }: Props) {
                   : 'Connecting to host…'
               }
               disabled={!canChat || socketState !== 'open'}
-              className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-ink-100 outline-none placeholder:text-ink-600 disabled:opacity-50"
+              className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] text-ink-100 outline-none placeholder:text-ink-600 disabled:opacity-50"
             />
             {processing ? (
               <button
@@ -742,6 +1123,7 @@ export function ChatPane({ target, onBack }: Props) {
                 <ArrowUp size={16} />
               </button>
             )}
+            </div>
           </div>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-ink-600">
             <select

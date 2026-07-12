@@ -30,13 +30,14 @@ Browser (Agents Hub SPA)
 | `hooks/useFleet.ts` | The heart of the app: host configs + prefs from storage, 12 s polling loop per host, host status machine, merged cross-host session feed, star toggle, login. |
 | `lib/api.ts` | All REST calls. `fetchJson` adds timeout (AbortController), Bearer header, captures `X-Refreshed-Token`, maps 401/403 → `AuthError`, network failure → `HostUnreachableError`. |
 | `lib/chatSocket.ts` | `ChatSocket` class — one reconnecting WS per chat (fixed 3 s retry until `close()`), typed senders: `chat.send` / `chat.subscribe` / `chat.abort` / `chat.permission-response` (with optional `rememberEntry`). |
-| `lib/storage.ts` | localStorage wrapper, keys `fleethub.v1.{hosts,tokens,prefs,recentProjects,models,permissions}`. Permissions (mode + "always allow" grants) are keyed `hostId:projectPath`. |
+| `lib/storage.ts` | localStorage wrapper, keys `fleethub.v1.{hosts,tokens,prefs,recentProjects,models,permissions,permissionModes,sidebarWidth,drafts}`. "Always allow" grants are keyed `hostId:projectPath`, permission mode per hostId, unsent chat drafts `hostId:sessionId`. |
 | `lib/format.ts` | Relative-time and path helpers. |
 | `types.ts` | Shared types: `HostConfig/HostRuntime/HostStatus`, `Project`, `SessionSummary`, `FleetSession`, `ChatEvent`, `PermissionMode`, model catalog. |
 | `components/Sidebar.tsx` | Hosts → projects → chats tree: starred first, then recency; long tails behind "N more"; per-project disclosure lists recent sessions inline (embedded poll data, capped at 6; "all N chats…" opens the project pane); the active chat's project auto-expands; status dots. Hover "+" per project row creates a `claude` session and opens the chat directly (handler in `App.tsx`; errors → toast). |
 | `components/SessionList.tsx` + `SessionRow.tsx` | "All sessions" merged feed rows. |
 | `components/ProjectPane.tsx` | One project: paged session list, "New session" (provider picker), Files button. |
-| `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts (allow / always-allow / deny), model/effort picker, persisted permission mode, abort, `chat.subscribe` seq replay on reconnect. |
+| `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts (allow / always-allow / deny), model/effort picker, persisted permission mode, persisted unsent draft per session, abort, `chat.subscribe` seq replay on reconnect, composer autocomplete dropdown (`CompletionMenu`). |
+| `hooks/useComposerAutocomplete.ts` | `@`-file and `/`-command completion state for the chat composer: trigger detection at the caret, lazy per-target catalogs (file tree / skills+commands), filtering, keyboard navigation. |
 | `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
 | `components/FileBrowser.tsx`, `FileTree.tsx`, `CodeEditor.tsx` | Project file tree + lazy-loaded CodeMirror editor (One Dark); Cmd+S saves via `PUT /file`. |
 | `components/LoginModal.tsx`, `SettingsPanel.tsx`, `OfflineCard.tsx` | Per-host login and first-time setup (register; password never stored), host/prefs management, hibernated-VM card with restart hint. |
@@ -96,6 +97,22 @@ Browser (Agents Hub SPA)
 - Model catalog: `GET /api/providers/:provider/models` →
   `{OPTIONS:[{value,label,effort?}], DEFAULT}`; the chosen model+effort is
   stored per host and sent in `chat.send` options.
+- Composer autocomplete (`useComposerAutocomplete`): typing `@` (after
+  whitespace/start) completes project files from `GET /api/projects/:id/files`
+  flattened to project-relative paths; typing `/` **at the start of the
+  message** completes skills and custom commands. Skills come from
+  `GET /api/providers/:provider/skills?workspacePath=<abs>` →
+  `{success, data:{skills:[{name, description, command, scope, sourcePath}]}}`
+  (SKILL.md files, project + user scope; verified live on 1.36.1); custom
+  commands from `POST /api/commands/list {projectPath}` → `{builtIn, custom}`
+  (`.claude/commands/*.md`, project + user). The response's `builtIn` entries
+  (/help, /models, /cost, …) are CloudCLI-frontend features, not agent
+  commands, so the hub drops them. Selecting inserts `@path ` / `/name ` into
+  the input and the message is sent as **plain chat text** — the Claude Code
+  binary spawned by the SDK expands slash commands, skills, and `@`-mentions
+  itself (same reason CloudCLI's own UI sends picked skills as plain input).
+  Both catalogs are fetched lazily on first trigger and cached until the chat
+  target changes.
 
 ### Auth
 

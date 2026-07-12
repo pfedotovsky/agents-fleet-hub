@@ -4,7 +4,104 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-07-12
+
+### Added
+- P1 feature-parity batch (all verified live against CloudCLI 1.36.1 on
+  localhost:3001):
+  - **True running indicator**: each 12s fleet poll now also fetches
+    `GET /api/providers/sessions/running` (status-only, app-facing ids) and
+    stores `runningSessionIds` on `HostRuntime`. Sidebar/feed/project rows show
+    a "running" badge only for sessions the host reports as processing; the old
+    2-minute `lastActivity` heuristic (`isActive`) remains solely as a fallback
+    for hosts that don't expose the endpoint (`sessionLive` in `lib/format.ts`).
+  - **Session archive / restore / permanent delete**: hover archive action on
+    sidebar session links, feed rows, and project-pane rows (optimistic removal,
+    `DELETE /api/providers/sessions/:id`); per-host "Archived" collapsible at
+    the bottom of each host section lazy-loads `GET .../sessions/archived` with
+    Restore (`POST .../restore` + host re-poll) and a two-step
+    "delete forever?" confirm (`DELETE ?force=true`, removes the transcript
+    from the host's disk). Archiving the open chat navigates back.
+  - **Full-text conversation search (⌘K)**: overlay fanning
+    `GET /api/providers/search/sessions` (an SSE stream, consumed via fetch +
+    ReadableStream since EventSource can't send the Bearer header) out to every
+    online host concurrently; results stream in grouped host → project →
+    session with `<mark>` highlights from the server's match offsets, per-host
+    scan progress, ↑↓/Enter navigation. Also a search icon in the sidebar
+    header. (`lib/search.ts`, `components/SearchOverlay.tsx`)
+  - **Image attachments in chat**: paste, drag-drop, or attach-button on the
+    composer uploads to `POST /api/assets/images` (mirrors host limits: 5
+    files × 5MB, jpeg/png/gif/webp/svg) and shows thumbnail chips; send passes
+    stored-asset descriptors in `chat.send` `options.images`. History and
+    optimistic user bubbles render `message.images` through `AuthedImage`,
+    which blob-fetches `GET /api/assets/images/:filename` with the Bearer
+    header (plain `<img>` can't) and caches object URLs; just-uploaded previews
+    seed that cache so sent images render instantly.
+  - **Git panel**: per-project view next to Files (new `git` View kind) —
+    branch switcher + create-branch, ahead/behind with fetch/pull/push (or
+    publish `--set-upstream` when no upstream), changed files grouped
+    Staged/Changes/Untracked with per-file stage/unstage and commit checkboxes,
+    commit box with AI message generation
+    (`POST /api/git/generate-commit-message`), and a full-height unified-diff
+    viewer (`Diff.tsx` gained a `unified`-text parsing mode alongside its
+    old/new mode). Handles the API quirk of HTTP 200 + `{error}` bodies and
+    shows a friendly not-a-repo state. (`components/GitPanel.tsx`,
+    `lib/api.ts` git section)
+- Plan mode support: `ExitPlanMode` tool calls now render as an
+  "Implementation plan" markdown card (indigo, `input.plan`, success ack
+  hidden), and its permission request — which the server always routes to the
+  UI as interactive — gets a dedicated review card (plan markdown +
+  "Approve & build" / "Approve, auto-accept edits" / "Revise") instead of the
+  generic allow/deny prompt. Approving flips the persisted permission mode to
+  default/acceptEdits (the server rebuilds SDK options from client options on
+  every `chat.send`, so staying on 'plan' would silently re-enter plan mode on
+  the next message); "Revise" denies with "User asked to revise the plan"
+  (`chat.permission-response` now carries an optional `message`). Plan-ready
+  desktop notifications say so instead of "wants to use ExitPlanMode".
+  Verified end-to-end against local CloudCLI 1.36.1.
+  (`ChatPane.tsx`, `ToolCall.tsx`, `lib/chatSocket.ts`)
+- Composer autocomplete: typing `@` in the chat input opens a file picker over
+  the project's file tree (project-relative paths, ranked filename-first), and
+  `/` at the start of the message opens a skills + custom-commands picker
+  (skills from `GET /api/providers/:provider/skills?workspacePath=`, commands
+  from `POST /api/commands/list`; CloudCLI's frontend-only built-ins like
+  /help are excluded). Arrow keys navigate, Tab/Enter insert (`@path ` /
+  `/name `), Escape closes; catalogs load lazily on first trigger and are
+  cached per chat target. Picked commands are sent as plain chat text — the
+  Claude Code binary on the host expands slash commands/skills itself.
+  (`hooks/useComposerAutocomplete.ts`, `ChatPane.tsx`, `lib/api.ts`, `types.ts`)
+
+### Changed
+- Sidebar readability pass to match the chat's new 12px type floor: session
+  links 12px → 13px with `py-1.5` row height, host section headers and
+  tail rows ("N more", "all N chats…", empty states) 12px → 13px,
+  timestamps / session counters / status buttons / live chip 10px → 11px,
+  wordmark 14px → 15px, and muted tail rows lightened one ink step
+  (`ink-600` → `ink-500`). Default sidebar width 256px → 288px (existing
+  saved widths untouched). (`Sidebar.tsx`, `lib/storage.ts`)
+- Chat readability pass (informed by measuring CloudCLI's own UI — 868px
+  column, 14px/24px prose — and Codex/Cursor conventions): the chat column
+  widened from `max-w-2xl` (672px) to `max-w-[54rem]` (864px) with `px-6`
+  pane padding; assistant prose bumped to 15px/28px (`text-[15px] leading-7`)
+  but capped at `max-w-[46rem]` (~90 chars) for reading measure, while tool
+  calls, diffs, Bash output, and permission cards lost their `mr-*` margins
+  and now span the full column. User messages are Codex-style bubbles capped
+  at `max-w-[75%]`. Type floor raised: nothing below 12px — tool row
+  labels/subtitles/results and diff text 11px → `text-xs`, markdown code
+  blocks 12.5px → 13.5px, markdown tables 12px → 13px, chat input 14px →
+  15px. (`ChatPane.tsx`, `Messages.tsx`, `ToolCall.tsx`, `Markdown.tsx`,
+  `Diff.tsx`)
+
 ## 2026-07-11
+
+### Fixed
+- Chat drafts no longer vanish when switching chats: `ChatPane` is keyed
+  per session and unmounts on navigation, so unsent input held in local
+  state was lost. Drafts now persist to localStorage
+  (`fleethub.v1.drafts`, keyed `hostId:sessionId`) via new
+  `loadDraft`/`saveDraft` helpers in `src/lib/storage.ts` — written on
+  every keystroke, cleared on send, and restored (with textarea resize)
+  on mount. As a side effect drafts also survive page reloads.
 
 ### Changed
 - Renamed the product Fleet Hub → **Agents Hub**: sidebar wordmark, browser

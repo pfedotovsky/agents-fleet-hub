@@ -32,6 +32,12 @@ export interface HostRuntime {
   config: HostConfig
   status: HostStatus
   projects: Project[]
+  /**
+   * Session ids currently processing, from GET /sessions/running.
+   * Undefined when the host didn't report (older CloudCLI or fetch error) —
+   * consumers then fall back to the lastActivity heuristic.
+   */
+  runningSessionIds?: ReadonlySet<string>
   lastError?: string
   lastSuccessAt?: number
 }
@@ -49,6 +55,22 @@ export interface FleetSession {
   href: string
   stale: boolean
   justUpdated: boolean
+  /** Host-reported "agent is processing"; undefined = host didn't report (use the heuristic). */
+  running?: boolean
+}
+
+/** One row from GET /api/providers/sessions/archived. */
+export interface ArchivedSession {
+  sessionId: string
+  provider: Provider
+  projectId: string | null
+  projectPath: string | null
+  projectDisplayName: string
+  sessionTitle: string
+  createdAt: string | null
+  updatedAt: string | null
+  lastActivity: string | null
+  isProjectArchived: boolean
 }
 
 export interface Prefs {
@@ -70,6 +92,16 @@ export interface NormalizedMessage {
   toolInput?: unknown
   toolId?: string
   toolResult?: { content: string; isError?: boolean }
+  /** Image attachments on user messages: stored-asset paths in ~/.cloudcli/assets. */
+  images?: { path: string; name?: string }[]
+}
+
+/** One uploaded chat image, as returned by POST /api/assets/images. */
+export interface StoredImage {
+  name: string
+  path: string
+  size: number
+  mimeType: string
 }
 
 export interface MessagesPage {
@@ -116,6 +148,44 @@ export interface ModelOption {
 export interface ModelCatalog {
   options: ModelOption[]
   default: string
+}
+
+/** A `/` composer completion: a skill (SKILL.md) or a custom command (.claude/commands). */
+export interface SlashCommand {
+  /** Includes the leading slash, e.g. `/impeccable`. */
+  name: string
+  description: string
+  kind: 'skill' | 'command'
+  /** 'user' | 'project' (skills only). */
+  scope?: string
+}
+
+/** GET /api/git/status. A file with staged AND unstaged edits appears in both lists. */
+export interface GitStatus {
+  branch: string
+  hasCommits: boolean
+  modified: string[]
+  added: string[]
+  deleted: string[]
+  untracked: string[]
+  staged: string[]
+}
+
+export interface GitBranches {
+  branches: string[]
+  localBranches: string[]
+  remoteBranches: string[]
+}
+
+export interface GitRemoteStatus {
+  hasRemote: boolean
+  hasUpstream: boolean
+  branch: string
+  remoteName: string | null
+  ahead: number
+  behind: number
+  isUpToDate: boolean
+  message?: string
 }
 
 export interface FileNode {

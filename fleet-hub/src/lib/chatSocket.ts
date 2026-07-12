@@ -80,6 +80,9 @@ export class ChatSocket {
       // The server rebuilds SDK options on every chat.send, so persistent
       // "always allow" grants must ride along as toolsSettings each time.
       toolsSettings?: { allowedTools: string[]; disallowedTools: string[]; skipPermissions: boolean }
+      // Stored-asset references from POST /api/assets/images; the server
+      // re-validates that each path lives inside the upload store.
+      images?: { path: string; name?: string; mimeType?: string }[]
     } = {},
   ): boolean {
     return this.sendJson({ type: 'chat.send', sessionId, content, options })
@@ -89,12 +92,18 @@ export class ChatSocket {
     return this.sendJson({ type: 'chat.abort', sessionId })
   }
 
-  respondPermission(requestId: string, allow: boolean, rememberEntry?: string): boolean {
+  respondPermission(
+    requestId: string,
+    allow: boolean,
+    rememberEntry?: string,
+    message?: string,
+  ): boolean {
     return this.sendJson({
       type: 'chat.permission-response',
       requestId,
       allow,
       ...(rememberEntry ? { rememberEntry } : {}),
+      ...(message ? { message } : {}),
     })
   }
 

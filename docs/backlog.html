@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents Hub — UX Backlog</title>
+<style>
+  :root{color-scheme:dark;--bg:#18181b;--panel:#1f1f23;--border:#2e2e33;--text:#e4e4e7;--muted:#a1a1aa;--green:#34d399;--amber:#fbbf24;--rose:#fb7185;--blue:#60a5fa;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,"Segoe UI",Inter,Roboto,sans-serif;padding:40px 20px}
+  main{max-width:1080px;margin:0 auto}
+  h1{font-size:26px;margin:0 0 4px}
+  h2{font-size:19px;margin:40px 0 12px;border-bottom:1px solid var(--border);padding-bottom:6px}
+  p{color:var(--muted)}
+  .meta{font-size:13px;color:var(--muted)}
+  code{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font-size:12.5px;font-family:ui-monospace,"JetBrains Mono",Menlo,monospace}
+  .tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:99px;border:1px solid var(--border);color:var(--muted);margin-left:8px;vertical-align:2px}
+  .tag.ux{color:var(--blue);border-color:#1e3a8a}
+  .tag.api{color:var(--green);border-color:#14532d}
+  .item{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin:14px 0}
+  .item h3{font-size:16px;margin:0 0 8px}
+  .item.p1{border-left:3px solid var(--rose)}
+  .item.p2{border-left:3px solid var(--amber)}
+  .item ul{padding-left:20px;margin:8px 0}
+  .item li{margin:4px 0}
+  .label{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}
+  .now{color:var(--rose)} .want{color:var(--green)}
+  .files{font-size:12.5px;color:var(--muted);margin-top:10px;border-top:1px dashed var(--border);padding-top:8px}
+</style>
+</head>
+<body>
+<main>
+  <h1>Agents Hub — UX Backlog</h1>
+  <p class="meta">Chat-experience gaps found in daily use. Companion to <a href="feature-parity.html" style="color:var(--blue)">feature-parity.html</a> (API-driven parity roadmap). Updated 2026-07-12.</p>
+
+  <h2>Items</h2>
+
+  <div class="item p1">
+    <h3>☐ 1. Answer the model's questions (AskUserQuestion) <span class="tag ux">UX</span><span class="tag api">no new API</span></h3>
+    <div class="label now">Now</div>
+    <p>When the agent asks a question via <code>AskUserQuestion</code>, it arrives as a plain <code>permission_request</code> and the hub shows only the generic Allow / Deny prompt — there is no way to actually pick an answer, so the agent gets blocked or answers itself.</p>
+    <div class="label want">Want</div>
+    <ul>
+      <li>Detect <code>toolName === 'AskUserQuestion'</code> the same way <code>isPlanRequest()</code> special-cases <code>ExitPlanMode</code>.</li>
+      <li>Render a question card: question text, header chip, one button per option (plus multi-select support), and a free-text "Other" input.</li>
+      <li>Return the selected answers through the permission response (<code>updatedInput</code> / structured answer payload — verify the exact shape against a live host before building).</li>
+      <li>Multiple questions in one request → stepper or stacked groups.</li>
+    </ul>
+    <div class="files">Touches: <code>ChatPane.tsx</code> (new <code>QuestionCard</code> next to <code>PlanApprovalCard</code>), <code>chatSocket.ts</code> (respond payload), <code>types.ts</code></div>
+  </div>
+
+  <div class="item p1">
+    <h3>☐ 2. Plan mode as a separate toggle (Shift+Tab) + plan side panel <span class="tag ux">UX</span></h3>
+    <div class="label now">Now</div>
+    <p>"Plan mode" is just one option inside the permissions <code>&lt;select&gt;</code> (<code>PERMISSION_MODES</code>), so it competes with Ask/Accept edits/Bypass and resets awkwardly after plan approval. The finished plan renders inline in the chat stream and scrolls away.</p>
+    <div class="label want">Want</div>
+    <ul>
+      <li>Remove <code>plan</code> from the permission-mode select; make it an independent boolean toggle in the composer (visible pill/switch, e.g. "Plan").</li>
+      <li><strong>Shift+Tab</strong> in the composer cycles the toggle (matches Claude Code CLI muscle memory); permission mode stays whatever it was.</li>
+      <li>Render the plan in a <strong>side panel</strong> (right-hand drawer, like Cursor Agents on Windows): sticky while the chat continues, with Approve / Approve+accept-edits / Revise actions in the panel header. The inline card shrinks to a one-line "Plan ready — open panel" chip.</li>
+      <li>Keep the existing behavior where approval drops plan mode locally (see comment at <code>respondPlan</code>), now expressed as toggling the switch off.</li>
+    </ul>
+    <div class="files">Touches: <code>ChatPane.tsx</code> (<code>PERMISSION_MODES</code>, <code>PlanApprovalCard</code>, composer keybinding), new <code>PlanPanel.tsx</code>, <code>App.tsx</code> (layout slot for the drawer)</div>
+  </div>
+
+  <div class="item p1">
+    <h3>☐ 3. Much wider message text — CloudCLI-style density <span class="tag ux">UX</span></h3>
+    <div class="label now">Now</div>
+    <p>Readable width is capped twice: the chat column is <code>max-w-[54rem]</code> (<code>ChatPane.tsx</code>) and assistant text is further capped at <code>max-w-[46rem]</code> (<code>Messages.tsx</code>), plus <code>px-6</code> gutters. On a wide monitor most of the pane is empty; CloudCLI's web UI lets text use nearly the full pane.</p>
+    <div class="label want">Want</div>
+    <ul>
+      <li>Drop the inner <code>max-w-[46rem]</code> caps on assistant messages / tool cards — let them fill the column.</li>
+      <li>Raise the column cap substantially (e.g. <code>max-w-[80rem]</code>) or remove it and keep only small gutters; shrink <code>px-6</code> → <code>px-3/px-4</code> like CloudCLI.</li>
+      <li>Apply the same width to the composer (<code>max-w-[54rem]</code> in the footer) so input and messages align.</li>
+      <li>Options to evaluate: a width preference (comfortable / wide / full), or width that scales with the pane via <code>clamp()</code>. Long-form prose readability is the counter-argument — test with real transcripts before settling.</li>
+      <li>Code blocks and diffs benefit most — they currently wrap/scroll inside the narrow cap.</li>
+    </ul>
+    <div class="files">Touches: <code>ChatPane.tsx</code> (lines ~941, ~982), <code>Messages.tsx</code> (lines 60, 83, 90), <code>ToolCall.tsx</code>, <code>Diff.tsx</code></div>
+  </div>
+
+  <h2>Backlog conventions</h2>
+  <p>New chat-UX items land here; API-parity items (search, git panel, terminal, …) stay in <a href="feature-parity.html" style="color:var(--blue)">feature-parity.html</a>. Check a box by replacing ☐ with ☑ and adding the commit hash.</p>
+</main>
+</body>
+</html>

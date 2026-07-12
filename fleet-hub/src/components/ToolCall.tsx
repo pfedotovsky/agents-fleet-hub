@@ -3,6 +3,7 @@ import {
   Check,
   ChevronRight,
   CircleDot,
+  ClipboardList,
   Copy,
   FileText,
   ListTodo,
@@ -15,8 +16,9 @@ import {
 import type { ComponentType } from 'react'
 import type { NormalizedMessage } from '../types'
 import { Diff } from './Diff'
+import { Markdown } from './Markdown'
 
-type Category = 'edit' | 'bash' | 'search' | 'todo' | 'read' | 'agent' | 'default'
+type Category = 'edit' | 'bash' | 'search' | 'todo' | 'read' | 'agent' | 'plan' | 'default'
 
 const CATEGORY: Record<string, Category> = {
   Edit: 'edit',
@@ -30,6 +32,8 @@ const CATEGORY: Record<string, Category> = {
   TodoWrite: 'todo',
   TodoRead: 'todo',
   Task: 'agent',
+  ExitPlanMode: 'plan',
+  exit_plan_mode: 'plan',
 }
 
 const BORDER: Record<Category, string> = {
@@ -39,6 +43,7 @@ const BORDER: Record<Category, string> = {
   todo: 'border-l-violet-500',
   read: 'border-l-sky-500',
   agent: 'border-l-purple-500',
+  plan: 'border-l-indigo-500',
   default: 'border-l-ink-600',
 }
 
@@ -49,6 +54,7 @@ const ICON: Record<Category, ComponentType<{ size?: number; className?: string }
   todo: ListTodo,
   read: FileText,
   agent: Sparkles,
+  plan: ClipboardList,
   default: Wrench,
 }
 
@@ -87,7 +93,7 @@ function TodoList({ todos }: { todos: TodoItem[] }) {
   const done = todos.filter((t) => t.status === 'completed').length
   return (
     <div className="rounded-md border border-ink-800 bg-ink-900/50 p-2.5 text-xs">
-      <div className="mb-1.5 text-[11px] font-medium text-ink-400">
+      <div className="mb-1.5 text-xs font-medium text-ink-400">
         Todo list · {done}/{todos.length}
       </div>
       <ul className="space-y-1">
@@ -136,7 +142,7 @@ function Collapsible({
   const [open, setOpen] = useState(Boolean(defaultOpen))
   const Icon = ICON[category]
   return (
-    <div className={`mr-10 border-l-2 ${BORDER[category]} rounded-r-md bg-ink-900/30`}>
+    <div className={`border-l-2 ${BORDER[category]} rounded-r-md bg-ink-900/30`}>
       <div className="flex items-center gap-2 py-1 pl-2.5 pr-2">
         <button
           type="button"
@@ -149,7 +155,7 @@ function Collapsible({
           />
           <Icon size={12} className="shrink-0 text-ink-500" />
           <span className="shrink-0 font-mono text-xs font-medium text-ink-300">{title}</span>
-          {subtitle && <span className="truncate font-mono text-[11px] text-ink-600">{subtitle}</span>}
+          {subtitle && <span className="truncate font-mono text-xs text-ink-600">{subtitle}</span>}
         </button>
         {copyText && <CopyButton text={copyText} />}
       </div>
@@ -178,12 +184,12 @@ function OneLine({
   const terminal = category === 'bash'
   return (
     <div
-      className={`mr-10 flex items-center gap-2 border-l-2 ${BORDER[category]} rounded-r-md py-1 pl-2.5 pr-2 ${
+      className={`flex items-center gap-2 border-l-2 ${BORDER[category]} rounded-r-md py-1 pl-2.5 pr-2 ${
         terminal ? 'bg-emerald-950/20' : 'bg-ink-900/30'
       }`}
     >
       <Icon size={12} className={`shrink-0 ${terminal ? 'text-emerald-500' : 'text-ink-500'}`} />
-      <span className="shrink-0 text-[11px] font-medium text-ink-500">{label}</span>
+      <span className="shrink-0 text-xs font-medium text-ink-500">{label}</span>
       <span
         className={`min-w-0 flex-1 truncate ${mono ? 'font-mono' : ''} text-xs ${
           terminal ? 'text-emerald-300' : 'text-ink-300'
@@ -192,7 +198,7 @@ function OneLine({
       >
         {value}
       </span>
-      {secondary && <span className="shrink-0 truncate text-[11px] text-ink-600">{secondary}</span>}
+      {secondary && <span className="shrink-0 truncate text-xs text-ink-600">{secondary}</span>}
       {copyText && <CopyButton text={copyText} />}
     </div>
   )
@@ -202,7 +208,7 @@ function ResultBlock({ content, isError }: { content: string; isError?: boolean 
   if (!content.trim()) return null
   return (
     <pre
-      className={`mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-ink-800/60 bg-ink-950/50 p-2 font-mono text-[11px] ${
+      className={`mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-ink-800/60 bg-ink-950/50 p-2 font-mono text-xs ${
         isError ? 'text-rose-400' : 'text-ink-500'
       }`}
     >
@@ -247,7 +253,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
     const todos = Array.isArray(input.todos) ? (input.todos as TodoItem[]) : []
     if (todos.length > 0) {
       return (
-        <div className="mr-10 border-l-2 border-l-violet-500 rounded-r-md bg-ink-900/30 py-1 pl-2.5 pr-2">
+        <div className="border-l-2 border-l-violet-500 rounded-r-md bg-ink-900/30 py-1 pl-2.5 pr-2">
           <TodoList todos={todos} />
         </div>
       )
@@ -261,7 +267,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
     if (result && result.content.trim()) {
       return (
         <Collapsible category="bash" title="Bash" subtitle={description || command} copyText={command}>
-          <div className="rounded bg-emerald-950/20 px-2 py-1 font-mono text-[11px] text-emerald-300">
+          <div className="rounded bg-emerald-950/20 px-2 py-1 font-mono text-xs text-emerald-300">
             $ {command}
           </div>
           <ResultBlock content={result.content} isError={result.isError} />
@@ -269,6 +275,20 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
       )
     }
     return <OneLine category="bash" label="$" value={command} secondary={description} copyText={command} />
+  }
+
+  // ExitPlanMode → the proposed implementation plan, rendered as markdown.
+  // The success result is just an ack ("User has approved…") — hide it.
+  if (name === 'ExitPlanMode' || name === 'exit_plan_mode') {
+    const plan = asString(input.plan)
+    return (
+      <Collapsible category="plan" title="Implementation plan" defaultOpen copyText={plan}>
+        <div className="rounded-md border border-ink-800 bg-ink-900/50 p-3 text-[13px]">
+          <Markdown>{plan}</Markdown>
+        </div>
+        {result?.isError && <ResultBlock content={result.content} isError />}
+      </Collapsible>
+    )
   }
 
   // Read / Grep / Glob → one-line.
@@ -293,7 +313,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
       subtitle={filePath || undefined}
       copyText={inputText}
     >
-      <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] text-ink-400">
+      <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-ink-400">
         {inputText}
       </pre>
       {result && <ResultBlock content={result.content} isError={result.isError} />}

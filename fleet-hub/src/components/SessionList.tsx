@@ -5,6 +5,7 @@ interface Props {
   sessions: FleetSession[]
   hosts: HostRuntime[]
   onOpen: (item: FleetSession) => void
+  onArchive: (item: FleetSession) => void
 }
 
 function SkeletonRow() {
@@ -19,7 +20,7 @@ function SkeletonRow() {
   )
 }
 
-export function SessionList({ sessions, hosts, onOpen }: Props) {
+export function SessionList({ sessions, hosts, onOpen, onArchive }: Props) {
   if (sessions.length === 0) {
     const anyLoading = hosts.some((host) => host.status === 'loading')
     if (anyLoading) {
@@ -40,7 +41,7 @@ export function SessionList({ sessions, hosts, onOpen }: Props) {
   return (
     <div className="flex flex-col gap-2">
       {sessions.map((item) => (
-        <SessionRow key={item.key} item={item} onOpen={onOpen} />
+        <SessionRow key={item.key} item={item} onOpen={onOpen} onArchive={onArchive} />
       ))}
     </div>
   )

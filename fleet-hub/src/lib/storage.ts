@@ -8,10 +8,11 @@ const MODEL_KEY = 'fleethub.v1.models'
 const PERMISSIONS_KEY = 'fleethub.v1.permissions'
 const PERMISSION_MODES_KEY = 'fleethub.v1.permissionModes'
 const SIDEBAR_WIDTH_KEY = 'fleethub.v1.sidebarWidth'
+const DRAFTS_KEY = 'fleethub.v1.drafts'
 
 export const SIDEBAR_MIN_WIDTH = 200
 export const SIDEBAR_MAX_WIDTH = 480
-const SIDEBAR_DEFAULT_WIDTH = 256
+const SIDEBAR_DEFAULT_WIDTH = 288
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -135,6 +136,19 @@ export function loadSidebarWidth(): number {
 
 export function saveSidebarWidth(width: number): void {
   localStorage.setItem(SIDEBAR_WIDTH_KEY, JSON.stringify(width))
+}
+
+/** Unsent chat input, keyed `hostId:sessionId`, so drafts survive switching chats. */
+export function loadDraft(hostId: string, sessionId: string): string {
+  return readJson<Record<string, string>>(DRAFTS_KEY, {})[`${hostId}:${sessionId}`] ?? ''
+}
+
+export function saveDraft(hostId: string, sessionId: string, text: string): void {
+  const drafts = readJson<Record<string, string>>(DRAFTS_KEY, {})
+  const key = `${hostId}:${sessionId}`
+  if (text) drafts[key] = text
+  else delete drafts[key]
+  localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts))
 }
 
 /** Adds an "Always allow" rule token; returns the updated list. */

@@ -1,8 +1,15 @@
 import { MousePointer2, Sparkles, SquareCode, Terminal, TriangleAlert } from 'lucide-react'
 import type { ComponentType } from 'react'
 import type { NormalizedMessage, Provider } from '../types'
+import { AuthedImage } from './AuthedImage'
 import { Markdown } from './Markdown'
 import { ToolCall } from './ToolCall'
+
+/** Where to fetch stored image attachments from (the message's host). */
+export interface ImageSource {
+  baseUrl: string
+  hostId: string
+}
 
 export const PROVIDER_META: Record<
   Provider,
@@ -38,25 +45,49 @@ export function contentToText(content: unknown): string {
 /** Kinds that render as transcript entries; everything else is lifecycle/gateway. */
 export const RENDERED_KINDS = new Set(['text', 'tool_use', 'thinking', 'error'])
 
-export function MessageItem({ message }: { message: NormalizedMessage }) {
+export function MessageItem({
+  message,
+  imageSource,
+}: {
+  message: NormalizedMessage
+  imageSource?: ImageSource
+}) {
   if (message.kind === 'text') {
     const text = contentToText(message.content)
     if (message.role === 'user') {
+      const images = imageSource ? message.images ?? [] : []
       return (
-        <div className="ml-10 self-end whitespace-pre-wrap break-words rounded-lg rounded-br-sm bg-ink-800 px-3.5 py-2.5 text-sm text-ink-100">
-          {text}
+        <div className="flex max-w-[75%] flex-col items-end gap-1.5 self-end">
+          {images.length > 0 && (
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {images.map((image) => (
+                <AuthedImage
+                  key={image.path}
+                  baseUrl={imageSource!.baseUrl}
+                  hostId={imageSource!.hostId}
+                  path={image.path}
+                  name={image.name}
+                />
+              ))}
+            </div>
+          )}
+          {text && (
+            <div className="whitespace-pre-wrap break-words rounded-lg rounded-br-sm bg-ink-800 px-3.5 py-2.5 text-[15px] text-ink-100">
+              {text}
+            </div>
+          )}
         </div>
       )
     }
     return (
-      <div className="mr-6">
+      <div className="max-w-[46rem]">
         <Markdown>{text}</Markdown>
       </div>
     )
   }
   if (message.kind === 'thinking') {
     return (
-      <details className="mr-10 text-xs text-ink-500">
+      <details className="max-w-[46rem] text-xs text-ink-500">
         <summary className="cursor-pointer select-none italic">thinking…</summary>
         <div className="mt-1 whitespace-pre-wrap break-words border-l border-ink-800 pl-3 italic">
           {contentToText(message.content)}
@@ -69,7 +100,7 @@ export function MessageItem({ message }: { message: NormalizedMessage }) {
   }
   if (message.kind === 'error') {
     return (
-      <div className="mr-10 flex items-start gap-2 rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-300">
+      <div className="flex items-start gap-2 rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-300">
         <TriangleAlert size={13} className="mt-0.5 shrink-0" />
         <span className="whitespace-pre-wrap break-words">{contentToText(message.content)}</span>
       </div>

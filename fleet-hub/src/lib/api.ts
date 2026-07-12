@@ -1,11 +1,17 @@
 import type {
+  ArchivedSession,
   FileNode,
+  GitBranches,
+  GitRemoteStatus,
+  GitStatus,
   MessagesPage,
   ModelCatalog,
   ModelOption,
   Project,
   Provider,
   SessionSummary,
+  SlashCommand,
+  StoredImage,
 } from '../types'
 
 export class HostUnreachableError extends Error {
@@ -115,6 +121,19 @@ export async function getProjects(
   })) as Project[]
 }
 
+/** App-facing ids of sessions whose agent run is currently processing (status-only, cheap). */
+export async function getRunningSessions(
+  baseUrl: string,
+  token: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<string[]> {
+  const body = (await fetchJson(baseUrl, '/api/providers/sessions/running', {
+    token,
+    onTokenRefresh,
+  })) as { success: boolean; data: { sessions: { sessionId: string }[] } }
+  return (body.data.sessions ?? []).map((session) => session.sessionId)
+}
+
 /**
  * Fetches a page of the provider-normalized transcript. `offset: 0` returns the
  * newest `limit` messages; increasing offsets walk backwards in time. The offset
@@ -152,6 +171,65 @@ export async function createSession(
     timeoutMs: 10000,
   })) as { success: boolean; data: { sessionId: string; provider: Provider; projectPath: string } }
   return body.data
+}
+
+/** Soft-archives a session: it leaves all active lists but stays restorable. */
+export async function archiveSession(
+  baseUrl: string,
+  token: string,
+  sessionId: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<void> {
+  await fetchJson(baseUrl, `/api/providers/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+    token,
+    onTokenRefresh,
+    timeoutMs: 10000,
+  })
+}
+
+/** Permanently deletes a session, including its transcript file on the host's disk. */
+export async function deleteSessionPermanently(
+  baseUrl: string,
+  token: string,
+  sessionId: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<void> {
+  await fetchJson(baseUrl, `/api/providers/sessions/${encodeURIComponent(sessionId)}?force=true`, {
+    method: 'DELETE',
+    token,
+    onTokenRefresh,
+    timeoutMs: 10000,
+  })
+}
+
+/** Restores an archived session back into the active lists. */
+export async function restoreSession(
+  baseUrl: string,
+  token: string,
+  sessionId: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<void> {
+  await fetchJson(baseUrl, `/api/providers/sessions/${encodeURIComponent(sessionId)}/restore`, {
+    method: 'POST',
+    token,
+    onTokenRefresh,
+    timeoutMs: 10000,
+  })
+}
+
+/** All archived sessions on a host, with project metadata for grouping/restore. */
+export async function getArchivedSessions(
+  baseUrl: string,
+  token: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<ArchivedSession[]> {
+  const body = (await fetchJson(baseUrl, '/api/providers/sessions/archived', {
+    token,
+    onTokenRefresh,
+    timeoutMs: 10000,
+  })) as { success: boolean; data: { sessions: ArchivedSession[] } }
+  return body.data.sessions ?? []
 }
 
 /** Pages through one project's sessions (newest first, archived excluded). */
@@ -212,6 +290,245 @@ export async function getFileTree(
     onTokenRefresh,
     timeoutMs: 15000,
   })) as FileNode[]
+}
+
+/**
+ * Custom slash commands from the host's `.claude/commands/` (project + user).
+ * The response also lists CloudCLI's built-ins (/help, /models, …) — those are
+ * features of CloudCLI's own frontend, not the agent, so we drop them.
+ */
+export async function getSlashCommands(
+  baseUrl: string,
+  token: string,
+  projectPath: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<SlashCommand[]> {
+  const body = (await fetchJson(baseUrl, '/api/commands/list', {
+    method: 'POST',
+    token,
+    body: { projectPath },
+    onTokenRefresh,
+    timeoutMs: 10000,
+  })) as { custom?: { name: string; description?: string }[] }
+  return (body.custom ?? []).map((command) => ({
+    name: command.name,
+    description: command.description ?? '',
+    kind: 'command' as const,
+  }))
+}
+
+/** Skills (SKILL.md, project + user scope) a provider can invoke as `/name`. */
+export async function getSkills(
+  baseUrl: string,
+  token: string,
+  provider: Provider,
+  workspacePath: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<SlashCommand[]> {
+  const body = (await fetchJson(
+    baseUrl,
+    `/api/providers/${provider}/skills?workspacePath=${encodeURIComponent(workspacePath)}`,
+    { token, onTokenRefresh, timeoutMs: 10000 },
+  )) as { success: boolean; data: { skills?: { command: string; description?: string; scope?: string }[] } }
+  return (body.data.skills ?? []).map((skill) => ({
+    name: skill.command,
+    description: skill.description ?? '',
+    kind: 'skill' as const,
+    scope: skill.scope,
+  }))
+}
+
+/**
+ * Uploads chat image attachments (multipart field `images`, max 5 × 5MB) into
+ * the host's global asset store. The returned absolute paths go into
+ * `chat.send` options.images and come back on history messages.
+ */
+export async function uploadImages(
+  baseUrl: string,
+  token: string,
+  files: File[],
+  onTokenRefresh: (token: string) => void,
+): Promise<StoredImage[]> {
+  const form = new FormData()
+  for (const file of files) form.append('images', file)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 30000)
+  let res: Response
+  try {
+    // Raw fetch: FormData must set its own multipart boundary header.
+    res = await fetch(`${baseUrl}/api/assets/images`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
+      signal: controller.signal,
+    })
+  } catch {
+    throw new HostUnreachableError(baseUrl)
+  } finally {
+    clearTimeout(timer)
+  }
+  const refreshed = res.headers.get('X-Refreshed-Token')
+  if (refreshed) onTokenRefresh(refreshed)
+  if (res.status === 401 || res.status === 403) throw new AuthError()
+  const body = (await res.json().catch(() => ({}))) as { images?: StoredImage[]; error?: string }
+  if (!res.ok) throw new Error(body.error ?? `Upload failed (${res.status})`)
+  return body.images ?? []
+}
+
+// ----------------- Git -----------------
+// The /api/git routes return bare JSON, and several report failures as
+// HTTP 200 with an {error} body — so every response is checked here.
+
+interface GitAuth {
+  token: string
+  onTokenRefresh: (token: string) => void
+}
+
+async function gitJson<T extends object>(
+  baseUrl: string,
+  path: string,
+  auth: GitAuth,
+  opts: { method?: 'GET' | 'POST'; body?: unknown; timeoutMs?: number } = {},
+): Promise<T> {
+  const body = (await fetchJson(baseUrl, `/api/git${path}`, {
+    token: auth.token,
+    onTokenRefresh: auth.onTokenRefresh,
+    method: opts.method,
+    body: opts.body,
+    timeoutMs: opts.timeoutMs ?? 15000,
+  })) as T & { error?: unknown }
+  if (body && typeof body.error === 'string' && body.error) throw new Error(body.error)
+  return body
+}
+
+export async function getGitStatus(
+  baseUrl: string,
+  projectId: string,
+  auth: GitAuth,
+): Promise<GitStatus> {
+  return gitJson<GitStatus>(baseUrl, `/status?project=${encodeURIComponent(projectId)}`, auth)
+}
+
+/** Unified diff text for one file (worktree vs index, else index vs HEAD; untracked = all adds). */
+export async function getGitDiff(
+  baseUrl: string,
+  projectId: string,
+  filePath: string,
+  auth: GitAuth,
+): Promise<string> {
+  const body = await gitJson<{ diff?: string }>(
+    baseUrl,
+    `/diff?project=${encodeURIComponent(projectId)}&file=${encodeURIComponent(filePath)}`,
+    auth,
+  )
+  return body.diff ?? ''
+}
+
+export async function gitStage(
+  baseUrl: string,
+  projectId: string,
+  files: string[],
+  auth: GitAuth,
+): Promise<void> {
+  await gitJson(baseUrl, '/stage', auth, { method: 'POST', body: { project: projectId, files } })
+}
+
+export async function gitUnstage(
+  baseUrl: string,
+  projectId: string,
+  files: string[],
+  auth: GitAuth,
+): Promise<void> {
+  await gitJson(baseUrl, '/unstage', auth, { method: 'POST', body: { project: projectId, files } })
+}
+
+/** Stages the given files and commits them with the message. */
+export async function gitCommit(
+  baseUrl: string,
+  projectId: string,
+  message: string,
+  files: string[],
+  auth: GitAuth,
+): Promise<string> {
+  const body = await gitJson<{ output?: string }>(baseUrl, '/commit', auth, {
+    method: 'POST',
+    body: { project: projectId, message, files },
+    timeoutMs: 30000,
+  })
+  return body.output ?? ''
+}
+
+export async function getGitBranches(
+  baseUrl: string,
+  projectId: string,
+  auth: GitAuth,
+): Promise<GitBranches> {
+  return gitJson<GitBranches>(baseUrl, `/branches?project=${encodeURIComponent(projectId)}`, auth)
+}
+
+export async function gitCheckout(
+  baseUrl: string,
+  projectId: string,
+  branch: string,
+  auth: GitAuth,
+): Promise<void> {
+  await gitJson(baseUrl, '/checkout', auth, { method: 'POST', body: { project: projectId, branch } })
+}
+
+export async function gitCreateBranch(
+  baseUrl: string,
+  projectId: string,
+  branch: string,
+  auth: GitAuth,
+): Promise<void> {
+  await gitJson(baseUrl, '/create-branch', auth, {
+    method: 'POST',
+    body: { project: projectId, branch },
+  })
+}
+
+export async function getGitRemoteStatus(
+  baseUrl: string,
+  projectId: string,
+  auth: GitAuth,
+): Promise<GitRemoteStatus> {
+  return gitJson<GitRemoteStatus>(
+    baseUrl,
+    `/remote-status?project=${encodeURIComponent(projectId)}`,
+    auth,
+    { timeoutMs: 30000 },
+  )
+}
+
+/** action: fetch/pull/push track the upstream; publish pushes --set-upstream (needs branch). */
+export async function gitRemoteAction(
+  baseUrl: string,
+  projectId: string,
+  action: 'fetch' | 'pull' | 'push' | 'publish',
+  auth: GitAuth,
+  branch?: string,
+): Promise<string> {
+  const body = await gitJson<{ output?: string }>(baseUrl, `/${action}`, auth, {
+    method: 'POST',
+    body: action === 'publish' ? { project: projectId, branch } : { project: projectId },
+    timeoutMs: 60000,
+  })
+  return body.output ?? ''
+}
+
+/** AI-generated conventional commit message for the given files' diffs. */
+export async function generateCommitMessage(
+  baseUrl: string,
+  projectId: string,
+  files: string[],
+  auth: GitAuth,
+): Promise<string> {
+  const body = await gitJson<{ message?: string }>(baseUrl, '/generate-commit-message', auth, {
+    method: 'POST',
+    body: { project: projectId, files, provider: 'claude' },
+    timeoutMs: 60000,
+  })
+  return body.message ?? ''
 }
 
 /** Reads a single file's UTF-8 text. */

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronDown, FolderTree, LoaderCircle, Plus } from 'lucide-react'
+import { ChevronDown, FolderTree, GitBranch, LoaderCircle, Plus } from 'lucide-react'
 import type { FleetSession, HostRuntime, Project, Provider, SessionSummary } from '../types'
 import { createSession, getProjectSessions } from '../lib/api'
 import { getToken, saveToken } from '../lib/storage'
@@ -14,9 +14,19 @@ interface Props {
   project: Project
   onOpenSession: (target: FleetSession) => void
   onOpenFiles: () => void
+  onOpenGit: () => void
+  onArchiveSession: (sessionId: string) => void
 }
 
-export function ProjectPane({ runtime, hostColorIdx, project, onOpenSession, onOpenFiles }: Props) {
+export function ProjectPane({
+  runtime,
+  hostColorIdx,
+  project,
+  onOpenSession,
+  onOpenFiles,
+  onOpenGit,
+  onArchiveSession,
+}: Props) {
   const [extraSessions, setExtraSessions] = useState<SessionSummary[]>([])
   const [hasMore, setHasMore] = useState(project.sessionMeta.hasMore)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -39,6 +49,7 @@ export function ProjectPane({ runtime, hostColorIdx, project, onOpenSession, onO
     href: `${runtime.config.baseUrl}/session/${session.id}`,
     stale: runtime.status !== 'online',
     justUpdated: false,
+    running: runtime.runningSessionIds ? runtime.runningSessionIds.has(session.id) : undefined,
   })
 
   const sessions = useMemo(() => {
@@ -131,6 +142,14 @@ export function ProjectPane({ runtime, hostColorIdx, project, onOpenSession, onO
             >
               <FolderTree size={13} /> Files
             </button>
+            <button
+              type="button"
+              onClick={onOpenGit}
+              disabled={runtime.status !== 'online'}
+              className="inline-flex items-center gap-1.5 rounded-md border border-ink-800 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:bg-ink-800 disabled:opacity-50"
+            >
+              <GitBranch size={13} /> Git
+            </button>
             <select
               value={provider}
               onChange={(event) => setProvider(event.target.value as Provider)}
@@ -163,7 +182,17 @@ export function ProjectPane({ runtime, hostColorIdx, project, onOpenSession, onO
           </p>
         )}
         {sessions.map((session) => (
-          <SessionRow key={session.id} item={toTarget(session)} onOpen={onOpenSession} />
+          <SessionRow
+            key={session.id}
+            item={toTarget(session)}
+            onOpen={onOpenSession}
+            onArchive={(item) => {
+              // The fleet's optimistic removal only covers project.sessions —
+              // locally paged-in extras must be dropped here too.
+              setExtraSessions((prev) => prev.filter((s) => s.id !== item.session.id))
+              onArchiveSession(item.session.id)
+            }}
+          />
         ))}
         {hasMore && (
           <button

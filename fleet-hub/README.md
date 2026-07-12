@@ -46,7 +46,10 @@ via CloudCLI's `X-Refreshed-Token` header while the page is open.
   CloudCLI: Edit/Write as red/green diffs with file badges, Bash as a green
   terminal line with collapsible output, TodoWrite as a checklist with
   progress, Read/Grep/Glob as one-liners. Mid-run reconnects re-attach via
-  `chat.subscribe` seq replay.
+  `chat.subscribe` seq replay. The composer autocompletes `@` file tags from
+  the project tree and `/` skills + custom commands (message start only) from
+  the host's `.claude` directories — Tab/Enter inserts, and the command is
+  sent as plain text for the host's Claude Code binary to expand.
 - **File browser/editor**: per-project tree (`GET /files`, node_modules/.git
   pruned server-side) with a lazy-loaded CodeMirror editor (One Dark, language
   by extension); Cmd+S / Save button writes via `PUT /file`.

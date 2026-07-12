@@ -26,6 +26,19 @@ export function isActive(lastActivity: string, now = Date.now()): boolean {
   return !Number.isNaN(t) && now - t < ACTIVE_WINDOW_MS
 }
 
+/**
+ * True when the session's agent run is live. Trusts the host's running-session
+ * list when it reported one (even an empty one); falls back to the 2-minute
+ * activity heuristic for hosts that didn't (older CloudCLI, fetch error).
+ */
+export function sessionLive(
+  runningIds: ReadonlySet<string> | undefined,
+  sessionId: string,
+  lastActivity: string,
+): boolean {
+  return runningIds ? runningIds.has(sessionId) : isActive(lastActivity)
+}
+
 export function relativeTime(iso: string, now = Date.now()): string {
   const t = Date.parse(iso)
   if (Number.isNaN(t)) return '—'

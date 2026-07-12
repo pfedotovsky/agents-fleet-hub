@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Server, X } from 'lucide-react'
 import type { FleetSession, SessionSummary } from './types'
 import { createSession } from './lib/api'
@@ -9,23 +9,38 @@ import { SessionList } from './components/SessionList'
 import { ChatPane } from './components/ChatPane'
 import { ProjectPane } from './components/ProjectPane'
 import { FileBrowser } from './components/FileBrowser'
+import { GitPanel } from './components/GitPanel'
 import { OfflineCard } from './components/OfflineCard'
 import { LoginModal } from './components/LoginModal'
 import { SettingsPanel } from './components/SettingsPanel'
+import { SearchOverlay } from './components/SearchOverlay'
 
 export type View =
   | { kind: 'feed' }
   | { kind: 'project'; hostId: string; projectId: string }
   | { kind: 'files'; hostId: string; projectId: string }
+  | { kind: 'git'; hostId: string; projectId: string }
   | { kind: 'chat'; target: FleetSession; from: View }
 
 export default function App() {
   const fleet = useFleet()
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const [loginHostId, setLoginHostId] = useState<string | null>(null)
   const [view, setView] = useState<View>({ kind: 'feed' })
   const [creatingKey, setCreatingKey] = useState<string | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setSearchOpen((open) => !open)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   const loginRuntime = fleet.hosts.find((runtime) => runtime.config.id === loginHostId)
   const downHosts = fleet.hosts.filter(
@@ -40,6 +55,18 @@ export default function App() {
   const openProject = (hostId: string, projectId: string) => {
     fleet.markProjectOpened(hostId, projectId)
     setView({ kind: 'project', hostId, projectId })
+  }
+
+  /** Archives a session and closes its chat if it's the one on screen. */
+  const archiveSession = (hostId: string, sessionId: string) => {
+    void fleet.archiveSession(hostId, sessionId)
+    setView((current) =>
+      current.kind === 'chat' &&
+      current.target.hostId === hostId &&
+      current.target.session.id === sessionId
+        ? current.from
+        : current,
+    )
   }
 
   const openSessionFromSidebar = (hostId: string, projectId: string, session: SessionSummary) => {
@@ -137,7 +164,7 @@ export default function App() {
     if (view.kind === 'chat') {
       return <ChatPane key={view.target.key} target={view.target} onBack={() => setView(view.from)} />
     }
-    if (view.kind === 'files') {
+    if (view.kind === 'files' || view.kind === 'git') {
       const { hostIndex, runtime, project } = findProject(view.hostId, view.projectId)
       if (!runtime || !project) {
         return (
@@ -146,9 +173,10 @@ export default function App() {
           </p>
         )
       }
+      const Pane = view.kind === 'files' ? FileBrowser : GitPanel
       return (
-        <FileBrowser
-          key={`files:${view.hostId}:${view.projectId}`}
+        <Pane
+          key={`${view.kind}:${view.hostId}:${view.projectId}`}
           runtime={runtime}
           hostColorIdx={hostIndex}
           project={project}
@@ -173,6 +201,8 @@ export default function App() {
           project={project}
           onOpenSession={openChat}
           onOpenFiles={() => setView({ kind: 'files', hostId: view.hostId, projectId: view.projectId })}
+          onOpenGit={() => setView({ kind: 'git', hostId: view.hostId, projectId: view.projectId })}
+          onArchiveSession={(sessionId) => archiveSession(view.hostId, sessionId)}
         />
       )
     }
@@ -187,7 +217,12 @@ export default function App() {
               onSetup={() => setLoginHostId(runtime.config.id)}
             />
           ))}
-          <SessionList sessions={fleet.sessions} hosts={fleet.hosts} onOpen={openChat} />
+          <SessionList
+            sessions={fleet.sessions}
+            hosts={fleet.hosts}
+            onOpen={openChat}
+            onArchive={(item) => archiveSession(item.hostId, item.session.id)}
+          />
         </div>
       </div>
     )
@@ -205,8 +240,12 @@ export default function App() {
         onNewSession={(hostId, projectId) => void newSession(hostId, projectId)}
         creatingKey={creatingKey}
         onToggleStar={(hostId, projectId) => void fleet.toggleStar(hostId, projectId)}
+        onArchiveSession={archiveSession}
+        onRestoreSession={fleet.restoreSession}
+        onDeleteSessionForever={fleet.deleteSessionForever}
         onSignIn={setLoginHostId}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSearch={() => setSearchOpen(true)}
         onRefresh={fleet.refresh}
       />
       <main className="flex min-w-0 flex-1 flex-col">{renderMain()}</main>
@@ -221,6 +260,13 @@ export default function App() {
             <X size={12} />
           </button>
         </div>
+      )}
+      {searchOpen && (
+        <SearchOverlay
+          hosts={fleet.hosts}
+          onOpenSession={openChat}
+          onClose={() => setSearchOpen(false)}
+        />
       )}
       {settingsOpen && (
         <SettingsPanel
