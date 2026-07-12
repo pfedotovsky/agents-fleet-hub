@@ -36,25 +36,25 @@ claude          # then sign in once (interactive)
 codex login     # keychain login is detected automatically
 ```
 
-Then install and start fleet-server (single binary, **no Node.js/npm**):
+Then install fleet-server (single binary, **no Node.js/npm**) — one command
+that installs *and* starts a persistent service on `:3011`:
 
 ```bash
-brew install pfedotovsky/tap/fleet-server
-brew services start fleet-server          # persistent; listens on :3011
-```
+# without Homebrew — installs the binary + a launchd/systemd service
+# (auto-detects IPv6-only hosts and sets HOST=::)
+curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh -s -- --service
 
-or without Homebrew:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh
-fleet-server                              # foreground; HOST=:: on IPv6-only VMs
+# or with Homebrew (macOS/Linux)
+brew install pfedotovsky/tap/fleet-server && brew services start fleet-server
 ```
 
 Verify it's up: `curl http://localhost:3011/health`. Nothing else to
-configure — the account is created from the hub on first connect. See
-[`fleet-server/README.md`](fleet-server/README.md) for env vars, service
-units, and migrating an existing CloudCLI host. (Hosts still running stock
-CloudCLI on :3001 keep working too.)
+configure — the account is created from the hub on first connect. Drop
+`--service` (or run `fleet-server` yourself instead of `brew services`) if you
+just want the binary without a background service. See
+[`fleet-server/README.md`](fleet-server/README.md) for env vars, `--port`/
+`--host` flags, and migrating an existing CloudCLI host. (Hosts still running
+stock CloudCLI on :3001 keep working too.)
 
 **Remote hosts:** make the port reachable — bind all interfaces
 (`HOST=:: fleet-server`, or `SERVER_PORT`/reverse proxy) and open the
