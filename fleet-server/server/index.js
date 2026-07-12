@@ -424,6 +424,12 @@ app.put('/api/projects/:projectId/file', authenticateToken, async (req, res) => 
             return res.status(403).json({ error: 'Path must be under project root' });
         }
 
+        // [fork-fix #6] Create missing parent directories (path is already
+        // validated to sit under the project root). Upstream failed with
+        // ENOENT, which broke e.g. writing .claude/settings.local.json into
+        // projects that had no .claude/ directory yet.
+        await fsPromises.mkdir(path.dirname(resolved), { recursive: true });
+
         // Write the new content
         await fsPromises.writeFile(resolved, content, 'utf8');
 
