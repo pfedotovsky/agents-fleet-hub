@@ -1,0 +1,25 @@
+# systemd unit for fleet-server. Install as a USER service so the server runs
+# as the user whose ~/.claude, ~/.codex, and projects it manages:
+#
+#   mkdir -p ~/.config/systemd/user
+#   cp fleet-server.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now fleet-server
+#   loginctl enable-linger $USER   # keep it running after logout
+#
+# For IPv6-only VMs set Environment=HOST=:: below.
+
+[Unit]
+Description=fleet-server — agent host server for Agents Hub
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/fleet-server
+Restart=on-failure
+RestartSec=3
+Environment=SERVER_PORT=3011
+# Environment=HOST=::
+# Environment=FLEET_SERVER_HOME=%h/.fleet-server
+
+[Install]
+WantedBy=default.target

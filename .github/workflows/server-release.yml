@@ -1,0 +1,59 @@
+name: fleet-server release
+
+on:
+  push:
+    tags:
+      - 'server-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: fleet-server
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Typecheck
+        run: bun x tsc --noEmit -p server/tsconfig.json
+
+      - name: Test
+        run: bun test server
+
+      - name: Derive version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#server-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate third-party notices
+        run: bun run scripts/licenses.ts
+
+      - name: Build release matrix (bun cross-compiles all targets)
+        run: bun run scripts/build.ts --all --version "${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: fleet-server v${{ steps.version.outputs.version }}
+          files: |
+            fleet-server/dist/*.tar.gz
+            fleet-server/dist/*.sha256
+          body: |
+            fleet-server ${{ steps.version.outputs.version }} — single-binary agent host server for Agents Hub.
+
+            Based on CloudCLI UI (https://github.com/siteboon/claudecodeui), AGPL-3.0-or-later.
+            Source for this release: this repository at tag `${{ github.ref_name }}`, directory `fleet-server/`.
+
+            Install:
+            ```
+            curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/fleet-server/scripts/install.sh | sh
+            ```
