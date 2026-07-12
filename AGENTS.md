@@ -135,3 +135,9 @@ Rule of thumb: if rediscovering the fact would cost another agent real time,
 it belongs in `docs/`, not just in the conversation.
 
 A Stop hook will remind you about this; the source of truth is this list.
+
+## Releasing
+
+To cut a release (bump versions, tag, let CI build, bump the Homebrew tap,
+verify with `brew`), follow the runbook in `docs/releasing.md`. Hub and
+fleet-server version and tag independently (`v*` vs `server-v*`).

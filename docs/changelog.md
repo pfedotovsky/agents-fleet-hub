@@ -14,6 +14,13 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   (per-turn, 200k default) and the Codex auth-status false-negative fix
   (`[fork-fix #15]`). Upgrade with `brew upgrade fleet-server` and restart the
   service (`brew services restart fleet-server`).
+- Both tap files were bumped and verified (`brew fetch` ✔︎): cask `agents-hub`
+  0.1.6, formula `fleet-server` 0.1.2.
+
+### Added
+- **`docs/releasing.md`** — the release runbook (version bumps, `v*`/`server-v*`
+  tags, CI, Homebrew-tap bump via the GitHub contents API, `brew` verification,
+  and the signing/restart gotchas). Referenced from `AGENTS.md`.
 
 ### Fixed
 - **False "Codex is not signed in" banner (`[fork-fix #15]`).** The Codex
