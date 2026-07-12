@@ -7,6 +7,18 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-07-12
 
 ### Added
+- **fleet-server 0.1.0 released** — tag `server-v0.1.0` published the first
+  binaries via `server-release.yml` (workflow green: typecheck + `bun test`
+  + 3-target cross-compile; 6 assets = 3 tarballs + shas). Verified
+  `install.sh` end-to-end against the live release and
+  `brew install pfedotovsky/tap/fleet-server` (formula published to
+  `pfedotovsky/homebrew-tap` with real shas; dropped the formula-invalid
+  `recommends` DSL for a caveats note). Fixed a pre-release bug where the
+  install script/README/formula used the local directory name instead of
+  the GitHub slug `pfedotovsky/agents-fleet-hub`, and purged two 60 MB
+  `.bun-build` scratch files that had leaked into commits. Live-verified
+  the hub against fleet-server (42 projects, Claude+Codex feed, auth,
+  streaming turn, shell PTY).
 - **`fleet-server/` — forked the CloudCLI server** (upstream
   siteboon/claudecodeui 1.36.1, server component only; AGPL-3.0-or-later
   with Section 7 attribution — see `fleet-server/LICENSE`/`NOTICE`/

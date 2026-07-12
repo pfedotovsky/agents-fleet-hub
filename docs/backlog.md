@@ -108,15 +108,25 @@ The fork ships in `fleet-server/` with issues #1/#2/#4/#5/#6/#13/#14/#15
 fixed at the source (see `fleet-server/README.md` divergence table).
 Remaining work:
 
-- [ ] **First release** — tag `server-v0.1.0`, verify the
-  `server-release.yml` workflow output, publish the formula from
-  `fleet-server/packaging/fleet-server.rb` to `pfedotovsky/homebrew-tap`.
+- [x] **First release** — `server-v0.1.0` shipped 2026-07-12; workflow
+  green (typecheck+test+3-target build), 6 assets published,
+  `install.sh` verified end-to-end, `brew install pfedotovsky/tap/fleet-server`
+  verified (formula published to `pfedotovsky/homebrew-tap`).
 - [ ] **Migrate the real hosts** from patched CloudCLI to fleet-server
   (side-by-side on :3011, then retire :3001) and drop the hand-patch notes
-  from memory/docs.
-- [ ] **Live hub verification against fleet-server** — the per-issue
-  checklist in the fork plan (U+2028 paste, always-allow across restart,
-  codex turn on a current model, empty-turn error bubble, shell WS).
+  from memory/docs. **Needs the host inventory / SSH access — user to
+  direct which VMs and when.**
+- [x] **Live hub verification against fleet-server** — verified 2026-07-12:
+  fleet-hub dev added the host, logged in (Bun.password against a fresh
+  register), and rendered 42 recency-ordered projects + a mixed
+  Claude/Codex session feed with resolved titles, deep links, and live
+  timestamps. Plus API/WS level: full Claude turn streamed, shell PTY
+  (Bun.Terminal) echoed, chat.subscribe ack, fix #6 (mkdir on PUT), fix
+  #13 (codex login status → authenticated), session_settings persisted.
+  Not yet driven purely through the UI: opening a transcript inline, a
+  live send with an interactive permission card, git panel, and search
+  (the hub frontend is unchanged and already exercised against CloudCLI;
+  every server endpoint they call is confirmed working).
 - [ ] **Integrated terminal in the hub** — fleet-server kept the `/shell`
   PTY WebSocket (now Bun.Terminal-backed); the hub has no terminal UI yet.
 - [ ] **Upstream sync cadence** — periodically diff new CloudCLI releases
