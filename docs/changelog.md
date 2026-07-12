@@ -7,6 +7,8 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-07-12
 
 ### Added
+- Version bumped to 0.1.3 (`package.json`, `tauri.conf.json`, `Cargo.toml`),
+  tagged `v0.1.3` (plan mode toggle + plan drawer).
 - **Plan mode toggle + plan drawer**: plan mode is no longer one of the
   permission-mode select options but an independent composer toggle
   (Shift+Tab), persisted per host in `fleethub.v1.planMode` (a legacy stored

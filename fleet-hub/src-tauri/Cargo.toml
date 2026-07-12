@@ -1,6 +1,6 @@
 [package]
 name = "agents-hub"
-version = "0.1.2"
+version = "0.1.3"
 description = "Control coding agents running on remote CloudCLI hosts"
 authors = ["pfedotovsky"]
 edition = "2021"
