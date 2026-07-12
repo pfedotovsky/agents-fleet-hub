@@ -170,3 +170,22 @@ approvals are real permission grants on the remote agent.
 Vite 8 + `@vitejs/plugin-react`, TypeScript 6 (`tsc -b` runs as part of
 `npm run build` and is the typecheck), Tailwind CSS v4 via `@tailwindcss/vite`,
 oxlint for linting. No test framework is set up.
+
+## Desktop packaging (Tauri)
+
+`fleet-hub/src-tauri/` wraps the built SPA in a Tauri 2 shell ("Agents Hub",
+`io.github.pfedotovsky.agents-hub`). It's packaging only: the stock Rust entry
+point with no custom commands, no Tauri plugins, and the default capability
+set — the webview loads `dist/` and the frontend code is byte-identical to the
+browser build, still calling CloudCLI hosts directly (their open CORS covers
+the `tauri://` origin). `npm run tauri dev` (requires Rust via rustup) /
+`npm run tauri build`.
+
+Releases: pushing a `v*` tag runs `.github/workflows/release.yml`
+(tauri-action) → universal macOS `.dmg` + Linux AppImage/deb/rpm on the GitHub
+Release. macOS signing/notarization is wired but dormant until `APPLE_*` repo
+secrets exist (the workflow exports them only when non-empty — an empty-string
+`APPLE_CERTIFICATE` would make Tauri attempt signing and fail). macOS installs
+go through the `agents-hub` cask in `pfedotovsky/homebrew-tap`; a version bump
+there means updating `version` + `sha256`. The app version lives in
+`src-tauri/tauri.conf.json` (+ `Cargo.toml`, `package.json`).

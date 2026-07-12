@@ -12,6 +12,21 @@ npm install
 npm run dev     # http://localhost:5173
 ```
 
+Or install the desktop app — the same SPA in a Tauri shell:
+
+```bash
+brew install --cask pfedotovsky/tap/agents-hub    # macOS
+```
+
+Linux AppImage/deb/rpm are on the
+[releases page](https://github.com/pfedotovsky/agents-fleet-hub/releases).
+Releases aren't notarized yet; if macOS refuses to open the app, run
+`xattr -dr com.apple.quarantine "/Applications/Agents Hub.app"`.
+Native development needs Rust: `npm run tauri dev`. A release is cut by
+bumping the version in `src-tauri/tauri.conf.json` and pushing a `v*` tag
+(CI attaches bundles to the GitHub Release), then updating `version`/`sha256`
+in the tap's `Casks/agents-hub.rb`.
+
 Open settings (gear in the sidebar) → add each host: a name, its base URL
 (e.g. `http://my-vm.example.net:3001` or `http://localhost:3001`),
 and optionally a username to prefill the login form. Sign in once per host —

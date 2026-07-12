@@ -7,6 +7,23 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-07-12
 
 ### Added
+- **Desktop app (Tauri 2)**: `fleet-hub/src-tauri/` wraps the SPA as a native
+  app ("Agents Hub", identifier `io.github.pfedotovsky.agents-hub`). No Rust
+  logic beyond the stock shell — the frontend is unchanged and still talks to
+  CloudCLI hosts directly. `npm run tauri dev` for a native window,
+  `npm run tauri build` for bundles.
+- **Release pipeline**: pushing a `v*` tag runs `.github/workflows/release.yml`
+  (tauri-action), which attaches a universal macOS `.dmg` and Linux
+  AppImage/deb/rpm to a GitHub Release. macOS signing/notarization activates
+  automatically once `APPLE_*` repo secrets are set; until then builds are
+  unsigned (Tauri ad-hoc signs). Gotcha fixed en route: missing GitHub secrets
+  arrive as *empty strings*, which Tauri treats as "please sign" — the workflow
+  now exports `APPLE_*` env vars only when non-empty.
+- **Homebrew tap**: `pfedotovsky/homebrew-tap` with `Casks/agents-hub.rb` —
+  `brew install --cask pfedotovsky/tap/agents-hub` (v0.1.0 released and
+  verified end-to-end). Release bump = update `version` + `sha256` in the cask.
+- Version bumped to 0.1.1 (`package.json`, `tauri.conf.json`, `Cargo.toml`) —
+  not yet tagged/released.
 - P1 feature-parity batch (all verified live against CloudCLI 1.36.1 on
   localhost:3001):
   - **True running indicator**: each 12s fleet poll now also fetches
