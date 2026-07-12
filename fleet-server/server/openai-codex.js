@@ -16,6 +16,7 @@
 import { Codex } from '@openai/codex-sdk';
 
 import { buildCodexInputItems, normalizeImageDescriptors } from './shared/image-attachments.js';
+import { resolveCodexCliPath } from './shared/codex-cli-path.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
@@ -254,10 +255,14 @@ export async function queryCodex(command, options = {}, ws) {
   let capturedSessionId = sessionId;
   let sessionCreatedSent = false;
   let terminalFailure = null;
+  let emittedAgentOutput = false; // [fork-fix #15]
   const abortController = new AbortController();
 
   try {
-    codex = new Codex();
+    // [fork-fix #14] Spawn the host's codex binary, never the SDK's vendored
+    // one (outdated CLIs get HTTP 400 on newer models and end turns silently).
+    const codexPathOverride = resolveCodexCliPath();
+    codex = codexPathOverride ? new Codex({ codexPathOverride }) : new Codex();
 
     const threadOptions = {
       workingDirectory,
@@ -334,6 +339,11 @@ export async function queryCodex(command, options = {}, ws) {
         continue;
       }
 
+      // [fork-fix #15] Track whether the turn produced ANY agent output.
+      if (event.type === 'item.completed') {
+        emittedAgentOutput = true;
+      }
+
       const transformed = transformCodexEvent(event);
 
       // Normalize the transformed event into NormalizedMessage(s) via adapter
@@ -366,6 +376,24 @@ export async function queryCodex(command, options = {}, ws) {
     // terminal `complete` (aborted: true) was already sent by abort-session.
     const runSession = capturedSessionId ? activeCodexSessions.get(capturedSessionId) : null;
     const runAborted = runSession?.status === 'aborted' || abortController.signal.aborted;
+
+    // [fork-fix #15] A turn can fail upstream (e.g. a model/CLI version gate
+    // answering HTTP 400) and still end in a clean turn.completed with zero
+    // output items — codex emits no error event for this in JSON mode
+    // (siteboon/claudecodeui#1011/#1012). Surface a synthetic error so the
+    // client sees an actionable message instead of a silently dead chat.
+    if (!runAborted && !terminalFailure && !emittedAgentOutput) {
+      sendMessage(ws, createNormalizedMessage({
+        kind: 'error',
+        content:
+          'Codex completed the turn without producing any output. This usually means the ' +
+          'request was rejected upstream (for example a model that requires a newer Codex ' +
+          'CLI). Check `codex --version` and the model configured in ~/.codex/config.toml.',
+        sessionId: capturedSessionId || sessionId || null,
+        provider: 'codex',
+      }));
+    }
+
     if (!runAborted) {
       sendMessage(ws, createCompleteMessage({
         provider: 'codex',
