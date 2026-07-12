@@ -23,7 +23,7 @@ current state and roadmap.
   Node.js:
 
   ```bash
-  curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-remote-control/main/fleet-server/scripts/install.sh | sh
+  curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh
   fleet-server          # HOST=:: fleet-server on IPv6-only machines
   ```
 

@@ -16,7 +16,7 @@ Section 7 additional terms — see [`LICENSE`](LICENSE), [`NOTICE`](NOTICE),
 ## Install (one command per host, no Node.js/npm)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-remote-control/main/fleet-server/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh
 ```
 
 or via Homebrew (formula in `packaging/fleet-server.rb`, published through

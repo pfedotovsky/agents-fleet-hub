@@ -2,12 +2,12 @@
 # fleet-server installer: fetches the latest GitHub release binary for this
 # platform and installs it to /usr/local/bin (or $FLEET_SERVER_INSTALL_DIR).
 #
-#   curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-remote-control/main/fleet-server/scripts/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh
 #
 # Optional host dependency: ripgrep (`rg`) enables session search.
 set -eu
 
-REPO="${FLEET_SERVER_REPO:-pfedotovsky/agents-remote-control}"
+REPO="${FLEET_SERVER_REPO:-pfedotovsky/agents-fleet-hub}"
 INSTALL_DIR="${FLEET_SERVER_INSTALL_DIR:-/usr/local/bin}"
 
 os=$(uname -s)
@@ -34,11 +34,13 @@ target="${platform}-${cpu}"
 api="https://api.github.com/repos/${REPO}/releases"
 echo "Resolving latest fleet-server release for ${target}..."
 
+# Grab every asset download URL across releases (newest first), then take the
+# first one for this platform. This skips the Tauri `v*` desktop releases,
+# whose assets don't match the fleet-server-*-${target}.tar.gz pattern.
 asset_url=$(curl -fsSL "$api" |
-  grep -o "\"browser_download_url\": *\"[^\"]*server-v[^\"]*\"\|\"browser_download_url\": *\"[^\"]*fleet-server-[^\"]*${target}\.tar\.gz\"" |
-  grep "${target}.tar.gz" |
-  head -1 |
-  sed 's/.*"\(https[^"]*\)"/\1/')
+  grep -o 'https://[^"]*/releases/download/[^"]*' |
+  grep "fleet-server-.*-${target}\.tar\.gz$" |
+  head -1)
 
 if [ -z "$asset_url" ]; then
   echo "Could not find a fleet-server release asset for ${target}." >&2
