@@ -4,3 +4,7 @@ bun.lock
 *.db
 *.db-wal
 *.db-shm
+
+# bun build scratch files
+*.bun-build
+.*.bun-build
