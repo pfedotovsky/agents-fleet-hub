@@ -26,13 +26,33 @@ for agents:
 
 ### Setup simplicity (priority 1)
 
-- [ ] **Host install script** — `scripts/install-host.sh`, runnable as
-  `curl … | bash`: Node ≥20 check/install, `npm i -g @cloudcli-ai/cloudcli`,
-  IPv6-only detection baking `HOST=::` into the service env, systemd user
-  unit (+ linger) on Linux / launchd agent on macOS, optional `--codex`
-  writing `cli_auth_credentials_store = "file"` to `~/.codex/config.toml`,
-  idempotent so re-running = update. Prints the final host URL. Details and
-  open questions: `docs/installation-simplicity.md` (server side).
+- [ ] **`install.sh --service` (auto-start)** — the biggest remaining host
+  gap. Today `brew install` doesn't start the service and the `curl | sh`
+  path only prints a hint. Add a `--service` flag to
+  `fleet-server/scripts/install.sh` that installs+starts the unit (launchd
+  agent on macOS / systemd user unit + linger on Linux, both already in
+  `fleet-server/packaging/`), with IPv6-only detection baking `HOST=::` into
+  the unit env. End state: one command that finishes with a running server.
+  Idempotent so re-running = update.
+- [ ] **Hub auto-discovers localhost** — fleet-server writes
+  `~/.fleet-server/local-server.json` (pid/host/port); the hub could read it
+  or probe `:3011`/`:3001` and offer a one-click "Add localhost" instead of
+  typing a URL. Removes the only manual step for the local host.
+- [ ] **Agent-CLI bootstrap + auth banner** — the host still needs `claude` /
+  `codex` installed and logged in (interactive, per provider). `install.sh`
+  should detect what's missing and print exact next steps; the hub should
+  turn the "not signed in" state (issues #13/#15 already surface it
+  server-side) into a first-class actionable banner instead of a silent
+  empty chat.
+- [ ] **Keep hosts current** — self-update was stripped from the fork; today
+  it's a manual `brew upgrade fleet-server`. Add a cheap "update available"
+  check (compare `/health` version against the latest `server-v*` release)
+  surfaced in the hub, or an opt-in periodic upgrade, so a fleet doesn't
+  drift.
+- [ ] **Remote reachability helper** — the hardest part for remote VMs is
+  networking (bind address, firewall, TLS). Provide a documented one-liner
+  tunnel and/or a hub-side "paste this on the VM" snippet. Details:
+  `docs/installation-simplicity.md`.
 - [ ] **macOS signing + notarization** — get an Apple Developer ID and set
   the `APPLE_*` repo secrets; `release.yml` already activates signing when
   they're non-empty. Kills the Gatekeeper/quarantine dance, making the brew

@@ -6,6 +6,18 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-12
 
+### Changed
+- **Root README setup rewritten end-to-end** — a full 3-step flow (agent CLIs
+  + fleet-server on each host → hub desktop app/dev server → connect),
+  correcting the omitted prerequisite that `claude`/`codex` must be installed
+  and logged in on the host, and pointing the server install at
+  `brew install pfedotovsky/tap/fleet-server` + `brew services start`. Added a
+  "Toward one-click" section enumerating the remaining friction; the P1 setup
+  items in `docs/backlog.md` were refreshed from the stale CloudCLI/npm plan
+  to the fleet-server reality (auto-start `install.sh --service`, hub
+  localhost auto-discovery, agent-CLI bootstrap + auth banner, keep-hosts-
+  current, remote reachability helper).
+
 ### Fixed
 - **fleet-server 0.1.1 — Claude turns failed under `brew services`**
   ("Claude Code native binary not found at claude"). launchd starts the

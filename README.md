@@ -15,33 +15,105 @@ Two parts:
 **Design goal:** installation of both parts must be as simple as possible —
 one command per host for the server, one command for the hub. See
 [`docs/installation-simplicity.md`](docs/installation-simplicity.md) for the
-current state and roadmap.
+current state and roadmap, and "[Toward one-click](#toward-one-click)" below
+for what's left.
 
-## Requirements
+## Setup
 
-- **fleet-server on every host you want to control** — one command, no
-  Node.js:
+Two things get installed: **fleet-server** on each machine you want to control
+(including your own laptop), and the **hub** on the machine you drive from.
 
-  ```bash
-  curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh
-  fleet-server          # HOST=:: fleet-server on IPv6-only machines
-  ```
+### 1. On each host — the agent CLIs + fleet-server
 
-  No further setup on the host — the hub itself will prompt you to create the
-  account on first connect. (Hosts running stock CloudCLI on :3001 keep
-  working too.)
-- Node.js 20+ locally to run the hub.
-
-## Quick start
+fleet-server drives whatever agent CLIs are already on the host, so install and
+log into the ones you want first (skip any you won't use):
 
 ```bash
-cd fleet-hub
-npm install
-npm run dev       # http://localhost:5173
+# Claude Code — https://docs.claude.com/en/docs/claude-code
+claude          # then sign in once (interactive)
+
+# Codex — https://developers.openai.com/codex/cli
+codex login     # keychain login is detected automatically
 ```
 
-Open settings (gear in the sidebar), add each host by URL, sign in once per
-host. See [`fleet-hub/README.md`](fleet-hub/README.md) for details.
+Then install and start fleet-server (single binary, **no Node.js/npm**):
+
+```bash
+brew install pfedotovsky/tap/fleet-server
+brew services start fleet-server          # persistent; listens on :3011
+```
+
+or without Homebrew:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh
+fleet-server                              # foreground; HOST=:: on IPv6-only VMs
+```
+
+Verify it's up: `curl http://localhost:3011/health`. Nothing else to
+configure — the account is created from the hub on first connect. See
+[`fleet-server/README.md`](fleet-server/README.md) for env vars, service
+units, and migrating an existing CloudCLI host. (Hosts still running stock
+CloudCLI on :3001 keep working too.)
+
+**Remote hosts:** make the port reachable — bind all interfaces
+(`HOST=:: fleet-server`, or `SERVER_PORT`/reverse proxy) and open the
+firewall, or reach it over a VPN/SSH tunnel. Anyone who can reach the port +
+sign in can run code as that user, so don't expose it on the open internet
+without TLS in front.
+
+### 2. On your machine — the hub
+
+Desktop app (recommended):
+
+```bash
+brew install --cask pfedotovsky/tap/agents-hub    # macOS
+```
+
+Linux builds and the source/dev-server path are in
+[`fleet-hub/README.md`](fleet-hub/README.md) (`npm install && npm run dev` →
+http://localhost:5173).
+
+### 3. Connect
+
+In the hub: **Settings (gear)** → add a host with its base URL
+(`http://localhost:3011`, or `http://my-vm.example.net:3011`) → sign in. A
+brand-new host prompts you to create its single account; after that only the
+JWT is stored (in the hub, never the password). Projects and sessions from
+that host appear immediately.
+
+## Toward one-click
+
+Setup is short but not yet one gesture. The remaining friction, roughly
+highest-leverage first (tracked in [`docs/backlog.md`](docs/backlog.md)):
+
+1. **Auto-start on install.** `brew install` doesn't start the service, and
+   the `curl | sh` path leaves you to wire up launchd/systemd. Fold a
+   `--service` flag into `install.sh` that installs and starts the unit, so
+   host setup is a single command that ends with a running server.
+2. **Hub auto-discovers localhost.** fleet-server writes
+   `~/.fleet-server/local-server.json` (pid/host/port). The hub could read it
+   (or just probe `:3011`/`:3001`) and offer "Add localhost" with one click
+   instead of typing a URL.
+3. **Signed & notarized desktop app.** If the cask ships an unsigned build,
+   macOS Gatekeeper adds a scary right-click-open step. Notarization makes the
+   hub install truly one-click. (Windows/Linux signing likewise.)
+4. **Agent-CLI bootstrap + clear auth state.** The host still needs `claude` /
+   `codex` installed and logged in. Login is interactive per provider, but the
+   installer could detect what's missing and print exact next steps, and the
+   hub already surfaces "not signed in" (issues #13/#15) — make that a
+   first-class, actionable banner rather than a silent empty chat.
+5. **Keep hosts current.** Self-update was stripped from the fork; today it's
+   a manual `brew upgrade fleet-server`. A tiny "update available" check
+   (compare `/health` version to the latest release) or an opt-in periodic
+   upgrade would keep a fleet from drifting.
+6. **Remote reachability helper.** The hardest part for remote VMs is the
+   network (bind address, firewall, TLS). A documented one-liner tunnel, or a
+   hub-side "paste this on the VM" snippet, would remove the last manual step.
+
+The current north star: **one command per host** (install + start + a nudge to
+log the agent CLIs in) and **one install for the hub** (signed app), with the
+hub discovering localhost automatically and making remote-host add a paste.
 
 ## Security
 
