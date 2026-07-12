@@ -1,5 +1,4 @@
 import express from 'express';
-import bcrypt from 'bcrypt';
 import { userDb } from '../modules/database/index.js';
 import { getConnection } from '../modules/database/connection.js';
 import { generateToken, authenticateToken } from '../middleware/auth.js';
@@ -45,9 +44,10 @@ router.post('/register', async (req, res) => {
         return res.status(403).json({ error: 'User already exists. This is a single-user system.' });
       }
       
-      // Hash password
-      const saltRounds = 12;
-      const passwordHash = await bcrypt.hash(password, saltRounds);
+      // Hash password. Bun.password with the bcrypt algorithm produces and
+      // verifies the same $2b$ hashes as the node bcrypt module, so databases
+      // created by upstream CloudCLI keep working (see docs/bun-port-notes.md).
+      const passwordHash = await Bun.password.hash(password, { algorithm: 'bcrypt', cost: 12 });
       
       // Create user
       const user = userDb.createUser(username, passwordHash);
@@ -97,7 +97,7 @@ router.post('/login', async (req, res) => {
     }
     
     // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    const isValidPassword = await Bun.password.verify(password, user.password_hash);
     if (!isValidPassword) {
       return res.status(401).json({ error: 'Invalid username or password' });
     }

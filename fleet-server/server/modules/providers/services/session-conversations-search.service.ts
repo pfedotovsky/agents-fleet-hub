@@ -3,7 +3,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 
 import { spawn } from 'cross-spawn';
-import { rgPath } from '@vscode/ripgrep';
+import { resolveRipgrepPath } from '@/shared/ripgrep-path.js';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 
@@ -583,6 +583,11 @@ async function runRipgrepFilesWithMatches(
       pattern,
       ...filePaths,
     ];
+    const rgPath = resolveRipgrepPath();
+    if (!rgPath) {
+      reject(new Error('ripgrep is not installed on this host — session search is unavailable.'));
+      return;
+    }
     const rg = spawn(rgPath, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,

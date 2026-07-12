@@ -1,16 +1,13 @@
 import { ClaudeProvider } from '@/modules/providers/list/claude/claude.provider.js';
 import { CodexProvider } from '@/modules/providers/list/codex/codex.provider.js';
-import { CursorProvider } from '@/modules/providers/list/cursor/cursor.provider.js';
-import { OpenCodeProvider } from '@/modules/providers/list/opencode/opencode.provider.js';
 import type { IProvider } from '@/shared/interfaces.js';
 import type { LLMProvider } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
 
-const providers: Record<LLMProvider, IProvider> = {
+// Modified from CloudCLI 1.36.1 — fleet-server ships claude + codex only.
+const providers: Partial<Record<LLMProvider, IProvider>> = {
   claude: new ClaudeProvider(),
   codex: new CodexProvider(),
-  cursor: new CursorProvider(),
-  opencode: new OpenCodeProvider(),
 };
 
 /**
@@ -18,7 +15,7 @@ const providers: Record<LLMProvider, IProvider> = {
  */
 export const providerRegistry = {
   listProviders(): IProvider[] {
-    return Object.values(providers);
+    return Object.values(providers).filter((p): p is IProvider => Boolean(p));
   },
 
   resolveProvider(provider: string): IProvider {

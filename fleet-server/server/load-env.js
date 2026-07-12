@@ -1,17 +1,27 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
 // Load environment variables from .env before other imports execute.
+// fleet-server resolves .env from the data directory (~/.fleet-server by
+// default) and the current working directory instead of upstream's npm
+// package root, which does not exist for a compiled single-file binary.
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 
-const __dirname = getModuleDir(import.meta.url);
-// Resolve the repo/app root via the nearest /server folder so this file keeps finding the
-// same top-level .env file from both /server/load-env.js and /dist-server/server/load-env.js.
-const APP_ROOT = findAppRoot(__dirname);
+export function getFleetServerHome() {
+  return process.env.FLEET_SERVER_HOME || path.join(os.homedir(), '.fleet-server');
+}
 
-try {
-  const envPath = path.join(APP_ROOT, '.env');
-  const envFile = fs.readFileSync(envPath, 'utf8');
+export function getDefaultDatabasePath() {
+  return path.join(getFleetServerHome(), 'auth.db');
+}
+
+function loadEnvFile(envPath) {
+  let envFile;
+  try {
+    envFile = fs.readFileSync(envPath, 'utf8');
+  } catch {
+    return; // .env files are optional
+  }
   envFile.split('\n').forEach(line => {
     const trimmedLine = line.trim();
     if (trimmedLine && !trimmedLine.startsWith('#')) {
@@ -21,14 +31,12 @@ try {
       }
     }
   });
-} catch (e) {
-  console.error('No .env file found or error reading it:', e.message);
 }
 
-// Keep the default database in a stable user-level location so rebuilding dist-server
-// never changes where the backend stores auth.db when DATABASE_PATH is not set explicitly.
-const DEFAULT_DATABASE_PATH = path.join(os.homedir(), '.cloudcli', 'auth.db');
+// cwd first so an explicit local .env wins over the data-dir one.
+loadEnvFile(path.join(process.cwd(), '.env'));
+loadEnvFile(path.join(getFleetServerHome(), '.env'));
 
 if (!process.env.DATABASE_PATH) {
-  process.env.DATABASE_PATH = DEFAULT_DATABASE_PATH;
+  process.env.DATABASE_PATH = getDefaultDatabasePath();
 }

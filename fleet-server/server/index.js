@@ -6,21 +6,25 @@ import path from 'path';
 import os from 'os';
 import http from 'http';
 
+// Modified from CloudCLI 1.36.1 — see NOTICE. fleet-server keeps the API
+// surface consumed by Agents Hub plus the /shell terminal; cursor/opencode
+// providers, taskmaster, plugins, browser-use, voice, notifications, settings,
+// the agent endpoint, self-update, and frontend serving were removed.
+
 // cross-spawn is a drop-in for child_process.spawn that resolves .cmd
 // shims/PATHEXT on Windows and delegates to the native spawn elsewhere.
 import spawn from 'cross-spawn';
 import express from 'express';
 import cors from 'cors';
 import mime from 'mime-types';
-import Database from 'better-sqlite3';
 
-import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
+import { AppError, WORKSPACES_ROOT, validateWorkspacePath } from '@/shared/utils.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
 import { createWebSocketServer } from '@/modules/websocket/index.js';
 
-import { getConnectableHost } from '../shared/networkHosts.js';
+import { getConnectableHost } from './shared-root/networkHosts.js';
 
-import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
+import { VERSION, PRODUCT_NAME, UPSTREAM_ATTRIBUTION } from './shared/build-info.js';
 import {
     queryClaudeSDK,
     abortClaudeSDKSession,
@@ -28,17 +32,9 @@ import {
     getPendingApprovalsForSession,
 } from './claude-sdk.js';
 import {
-    spawnCursor,
-    abortCursorSession,
-} from './cursor-cli.js';
-import {
     queryCodex,
     abortCodexSession,
 } from './openai-codex.js';
-import {
-    spawnOpenCode,
-    abortOpenCodeSession,
-} from './opencode-cli.js';
 import {
     stripAnsiSequences,
     normalizeDetectedUrl,
@@ -47,47 +43,16 @@ import {
 } from './utils/url-detection.js';
 import gitRoutes from './routes/git.js';
 import authRoutes from './routes/auth.js';
-import cursorRoutes from './routes/cursor.js';
-import taskmasterRoutes from './routes/taskmaster.js';
-import mcpUtilsRoutes from './routes/mcp-utils.js';
 import commandsRoutes from './routes/commands.js';
-import settingsRoutes from './routes/settings.js';
-import agentRoutes from './routes/agent.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
-import notificationRoutes from './modules/notifications/notifications.routes.js';
-import userRoutes from './routes/user.js';
-import pluginsRoutes from './routes/plugins.js';
 import providerRoutes from './modules/providers/provider.routes.js';
-import voiceRoutes from './voice-proxy.js';
-import browserUseRoutes from './modules/browser-use/browser-use.routes.js';
 import { assetsRoutes } from './modules/assets/index.js';
-import browserUseMcpRoutes from './modules/browser-use/browser-use-mcp.routes.js';
-import { browserUseService } from './modules/browser-use/browser-use.service.js';
-import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, projectsDb, sessionsDb } from './modules/database/index.js';
-import { configureWebPush } from './services/vapid-keys.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
 import { IS_PLATFORM } from './constants/config.js';
 import { c } from './utils/colors.js';
 
-const __dirname = getModuleDir(import.meta.url);
-// The server source runs from /server, while the compiled output runs from /dist-server/server.
-// Resolving the app root once keeps every repo-level lookup below aligned across both layouts.
-const APP_ROOT = findAppRoot(__dirname);
-const installMode = fs.existsSync(path.join(APP_ROOT, '.git')) ? 'git' : 'npm';
-// Version of the code that is actually running, captured once at process
-// startup. This intentionally does NOT re-read package.json per request: after
-// an update replaces the files on disk, package.json reflects the NEW version
-// while this long-lived process still runs the OLD code. The frontend bundle is
-// rebuilt on update, so a mismatch between this value and the frontend's
-// build-time version means the server was updated but not restarted.
-const RUNNING_VERSION = (() => {
-    try {
-        return JSON.parse(fs.readFileSync(path.join(APP_ROOT, 'package.json'), 'utf8')).version || null;
-    } catch {
-        return null;
-    }
-})();
+const RUNNING_VERSION = VERSION;
 const MAX_FILE_UPLOAD_SIZE_MB = 200;
 const MAX_FILE_UPLOAD_SIZE_BYTES = MAX_FILE_UPLOAD_SIZE_MB * 1024 * 1024;
 const MAX_FILE_UPLOAD_COUNT = 20;
@@ -102,7 +67,7 @@ function readUsageNumber(value) {
 const app = express();
 const server = http.createServer(app);
 
-// Single WebSocket server that handles chat, shell, and plugin proxy paths.
+// Single WebSocket server that handles the chat and shell paths.
 const wss = createWebSocketServer(server, {
     verifyClient: {
         isPlatform: IS_PLATFORM,
@@ -111,15 +76,11 @@ const wss = createWebSocketServer(server, {
     chat: {
         spawnFns: {
             claude: queryClaudeSDK,
-            cursor: spawnCursor,
             codex: queryCodex,
-            opencode: spawnOpenCode,
         },
         abortFns: {
             claude: abortClaudeSDKSession,
-            cursor: abortCursorSession,
             codex: abortCodexSession,
-            opencode: abortOpenCodeSession,
         },
         resolveToolApproval,
         getPendingApprovalsForSession,
@@ -138,7 +99,6 @@ const wss = createWebSocketServer(server, {
         extractUrlsFromText,
         shouldAutoOpenUrlFromOutput,
     },
-    getPluginPort,
 });
 
 // Make WebSocket server available to routes
@@ -163,7 +123,6 @@ app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        installMode,
         version: RUNNING_VERSION
     });
 });
@@ -183,138 +142,23 @@ app.use('/api/assets', authenticateToken, assetsRoutes);
 // Git API Routes (protected)
 app.use('/api/git', authenticateToken, gitRoutes);
 
-// Cursor API Routes (protected)
-app.use('/api/cursor', authenticateToken, cursorRoutes);
-
-// TaskMaster API Routes (protected)
-app.use('/api/taskmaster', authenticateToken, taskmasterRoutes);
-
-// MCP utilities
-app.use('/api/mcp-utils', authenticateToken, mcpUtilsRoutes);
-
 // Commands API Routes (protected)
 app.use('/api/commands', authenticateToken, commandsRoutes);
 
-// Settings API Routes (protected)
-app.use('/api/settings', authenticateToken, settingsRoutes);
-
-app.use('/api/notifications', authenticateToken, notificationRoutes);
-
-// User API Routes (protected)
-app.use('/api/user', authenticateToken, userRoutes);
-
-// Plugins API Routes (protected)
-app.use('/api/plugins', authenticateToken, pluginsRoutes);
-
-// Browser MCP bridge API (local token protected)
-app.use('/api/browser-use-mcp', browserUseMcpRoutes);
-
-// Browser API Routes (protected)
-app.use('/api/browser-use', authenticateToken, browserUseRoutes);
-
-// Unified provider MCP routes (protected)
+// Provider routes: sessions, messages, models, auth status, skills, search (protected)
 app.use('/api/providers', authenticateToken, providerRoutes);
 
-// Agent API Routes (uses API key authentication)
-app.use('/api/agent', agentRoutes);
-
-app.use('/api/voice', authenticateToken, voiceRoutes);
-
-// Serve public files (like api-docs.html)
-app.use(express.static(path.join(APP_ROOT, 'public')));
-
-// Static files served after API routes
-// Add cache control: HTML files should not be cached, but assets can be cached
-app.use(express.static(path.join(APP_ROOT, 'dist'), {
-    setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.html')) {
-            // Prevent HTML caching to avoid service worker issues after builds
-            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-            res.setHeader('Pragma', 'no-cache');
-            res.setHeader('Expires', '0');
-        } else if (filePath.match(/\.(js|css|woff2?|ttf|eot|svg|png|jpg|jpeg|gif|ico)$/)) {
-            // Cache static assets for 1 year (they have hashed names)
-            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        }
-    }
-}));
-
-// API Routes (protected)
-// /api/config endpoint removed - no longer needed
-// Frontend now uses window.location for WebSocket URLs
-
-// System update endpoint
-app.post('/api/system/update', authenticateToken, async (req, res) => {
-    try {
-        // Get the project root directory (parent of server directory)
-        const projectRoot = APP_ROOT;
-
-        console.log('Starting system update from directory:', projectRoot);
-
-        // Platform deployments use their own update workflow from the project root.
-        const updateCommand = IS_PLATFORM
-        // In platform, husky and dev dependencies are not needed
-            ? 'npm run update:platform'
-            : installMode === 'git'
-                ? 'git checkout main && git pull && npm install'
-                : 'npm install -g @cloudcli-ai/cloudcli@latest';
-
-        const updateCwd = IS_PLATFORM || installMode === 'git'
-            ? projectRoot
-            : os.homedir();
-
-        const child = spawn('sh', ['-c', updateCommand], {
-            cwd: updateCwd,
-            env: process.env
-        });
-
-        let output = '';
-        let errorOutput = '';
-
-        child.stdout.on('data', (data) => {
-            const text = data.toString();
-            output += text;
-            console.log('Update output:', text);
-        });
-
-        child.stderr.on('data', (data) => {
-            const text = data.toString();
-            errorOutput += text;
-            console.error('Update error:', text);
-        });
-
-        child.on('close', (code) => {
-            if (code === 0) {
-                res.json({
-                    success: true,
-                    output: output || 'Update completed successfully',
-                    message: 'Update completed. Please restart the server to apply changes.'
-                });
-            } else {
-                res.status(500).json({
-                    success: false,
-                    error: 'Update command failed',
-                    output: output,
-                    errorOutput: errorOutput
-                });
-            }
-        });
-
-        child.on('error', (error) => {
-            console.error('Update process error:', error);
-            res.status(500).json({
-                success: false,
-                error: error.message
-            });
-        });
-
-    } catch (error) {
-        console.error('System update error:', error);
-        res.status(500).json({
-            success: false,
-            error: error.message
-        });
-    }
+// No frontend is served — Agents Hub is the client. A minimal landing page
+// replaces upstream's SPA static serving.
+app.get('/', (req, res) => {
+    res.type('html').send(`<!doctype html>
+<html><head><meta charset="utf-8"><title>${PRODUCT_NAME}</title></head>
+<body style="font-family: system-ui; background: #18181b; color: #e4e4e7; display: grid; place-items: center; min-height: 100vh; margin: 0">
+<div style="text-align: center">
+<h1 style="font-weight: 600">${PRODUCT_NAME} ${RUNNING_VERSION}</h1>
+<p>This host is ready to be added to <strong>Agents Hub</strong>.</p>
+<p style="color: #a1a1aa; font-size: 0.85rem">${UPSTREAM_ATTRIBUTION}</p>
+</div></body></html>`);
 });
 
 const expandWorkspacePath = (inputPath) => {
@@ -1092,78 +936,6 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
         const provider = sessionRow.provider || 'claude';
         const providerNativeSessionId = sessionRow?.provider_session_id || safeSessionId;
 
-        // Handle Cursor sessions - they use SQLite and don't have token usage info
-        if (provider === 'cursor') {
-            return res.json({
-                used: 0,
-                total: 0,
-                inputTokens: 0,
-                outputTokens: 0,
-                breakdown: { input: 0, output: 0 },
-                unsupported: true,
-                message: 'Token usage tracking not available for Cursor sessions'
-            });
-        }
-
-        if (provider === 'opencode') {
-            const dbPath = getOpenCodeDatabasePath();
-            if (!fs.existsSync(dbPath)) {
-                return res.status(404).json({ error: 'OpenCode database not found' });
-            }
-
-            const db = new Database(dbPath, { readonly: true, fileMustExist: true });
-            try {
-                const columns = db.prepare('PRAGMA table_info(session)').all();
-                const columnNames = new Set(columns.map((column) => column.name));
-                const requiredColumns = ['tokens_input', 'tokens_output', 'tokens_reasoning', 'tokens_cache_read', 'tokens_cache_write'];
-                if (!requiredColumns.every((column) => columnNames.has(column))) {
-                    return res.json({
-                        used: 0,
-                        inputTokens: 0,
-                        outputTokens: 0,
-                        breakdown: { input: 0, output: 0 },
-                        unsupported: true,
-                        message: 'Token usage tracking is not available in this OpenCode database schema'
-                    });
-                }
-
-                const row = db.prepare(`
-                    SELECT
-                        tokens_input AS inputTokens,
-                        tokens_output AS outputTokens,
-                        tokens_reasoning AS reasoningTokens,
-                        tokens_cache_read AS cacheReadTokens,
-                        tokens_cache_write AS cacheWriteTokens
-                    FROM session
-                    WHERE id = ?
-                `).get(providerNativeSessionId);
-
-                if (!row) {
-                    return res.status(404).json({ error: 'OpenCode session not found', sessionId: safeSessionId });
-                }
-
-                const inputTokens = Number(row.inputTokens || 0) + Number(row.cacheReadTokens || 0);
-                const outputTokens = Number(row.outputTokens || 0);
-                const totalUsed = Number(row.inputTokens || 0)
-                    + outputTokens
-                    + Number(row.reasoningTokens || 0)
-                    + Number(row.cacheReadTokens || 0)
-                    + Number(row.cacheWriteTokens || 0);
-
-                return res.json({
-                    used: totalUsed,
-                    inputTokens,
-                    outputTokens,
-                    breakdown: {
-                        input: inputTokens,
-                        output: outputTokens
-                    }
-                });
-            } finally {
-                db.close();
-            }
-        }
-
         // Handle Codex sessions
         if (provider === 'codex') {
             const codexSessionsDir = path.join(homeDir, '.codex', 'sessions');
@@ -1341,29 +1113,9 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
     }
 });
 
-// Serve React app for all other routes (excluding static files)
+// No SPA is bundled — anything unmatched is a 404.
 app.get('*', (req, res) => {
-    // Skip requests for static assets (files with extensions)
-    if (path.extname(req.path)) {
-        return res.status(404).send('Not found');
-    }
-
-    // Only serve index.html for HTML routes, not for static assets
-    // Static assets should already be handled by express.static middleware above
-    const indexPath = path.join(APP_ROOT, 'dist', 'index.html');
-
-    // Check if dist/index.html exists (production build available)
-    if (fs.existsSync(indexPath)) {
-        // Set no-cache headers for HTML to prevent service worker issues
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        res.sendFile(indexPath);
-    } else {
-        // In development, redirect to Vite dev server only if dist doesn't exist
-        const redirectHost = getConnectableHost(req.hostname);
-        res.redirect(`${req.protocol}://${redirectHost}:${VITE_PORT}`);
-    }
+    res.status(404).send('Not found');
 });
 
 // global error middleware must be last
@@ -1533,11 +1285,13 @@ async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden =
     });
 }
 
-const SERVER_PORT = process.env.SERVER_PORT || 3001;
+// Port 3011 (upstream CloudCLI defaults to 3001) so both servers can run
+// side by side on a host during migration.
+const SERVER_PORT = process.env.SERVER_PORT || 3011;
 const HOST = process.env.HOST || '0.0.0.0';
 const DISPLAY_HOST = getConnectableHost(HOST);
-const VITE_PORT = process.env.VITE_PORT || 5173;
-const LOCAL_SERVER_MARKER_PATH = path.join(os.homedir(), '.cloudcli', 'local-server.json');
+const FLEET_SERVER_HOME = process.env.FLEET_SERVER_HOME || path.join(os.homedir(), '.fleet-server');
+const LOCAL_SERVER_MARKER_PATH = path.join(FLEET_SERVER_HOME, 'local-server.json');
 
 async function writeLocalServerMarker() {
     const marker = {
@@ -1545,8 +1299,7 @@ async function writeLocalServerMarker() {
         host: HOST,
         port: Number.parseInt(String(SERVER_PORT), 10),
         url: `http://${DISPLAY_HOST}:${SERVER_PORT}`,
-        installMode,
-        appRoot: APP_ROOT,
+        version: RUNNING_VERSION,
         updatedAt: new Date().toISOString(),
     };
 
@@ -1578,61 +1331,30 @@ async function startServer() {
         // Initialize authentication database
         await initializeDatabase();
 
-        // Configure Web Push (VAPID keys)
-        configureWebPush();
-
-        // Check if running in production mode (dist folder exists)
-        const distIndexPath = path.join(APP_ROOT, 'dist', 'index.html');
-        const isProduction = fs.existsSync(distIndexPath);
-
         // Log Claude implementation mode
         console.log(`${c.info('[INFO]')} Using Claude Agents SDK for Claude integration`);
         console.log('');
 
-        if (isProduction) {
-            console.log(`${c.info('[INFO]')} To run in production mode, go to http://${DISPLAY_HOST}:${SERVER_PORT}`);            
-        }
-
-        console.log(`${c.info('[INFO]')} To run in development mode with hot-module replacement, go to http://${DISPLAY_HOST}:${VITE_PORT}`);
-   
         server.listen(SERVER_PORT, HOST, async () => {
-            const appInstallPath = APP_ROOT;
             await writeLocalServerMarker().catch((error) => {
                 console.warn('[WARN] Could not write local server marker:', error.message);
             });
 
             console.log('');
             console.log(c.dim('═'.repeat(63)));
-            console.log(`  ${c.bright('CloudCLI Server - Ready')}`);
+            console.log(`  ${c.bright(`${PRODUCT_NAME} ${RUNNING_VERSION} - Ready`)}`);
             console.log(c.dim('═'.repeat(63)));
             console.log('');
             console.log(`${c.info('[INFO]')} Server URL:  ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
-            console.log(`${c.info('[INFO]')} Installed at: ${c.dim(appInstallPath)}`);
-            console.log(`${c.tip('[TIP]')}  Run "cloudcli status" for full configuration details`);
+            console.log(`${c.tip('[TIP]')}  Run "${PRODUCT_NAME} status" for full configuration details`);
             console.log('');
 
             // Start watching the projects folder for changes
             await initializeSessionsWatcher();
-
-            // Start server-side plugin processes for enabled plugins
-            startEnabledPluginServers().catch(err => {
-                console.error('[Plugins] Error during startup:', err.message);
-            });
         });
 
         await closeSessionsWatcher();
-        // Clean up plugin processes on shutdown
         const shutdownRuntimeServices = async () => {
-            try {
-                await browserUseService.stopAllSessions();
-            } catch (err) {
-                console.error('[Browser] Error stopping sessions during shutdown:', err?.message || err);
-            }
-            try {
-                await stopAllPlugins();
-            } catch (err) {
-                console.error('[Plugins] Error stopping plugins during shutdown:', err?.message || err);
-            }
             try {
                 await removeLocalServerMarker();
             } catch (err) {

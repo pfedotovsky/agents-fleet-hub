@@ -10,8 +10,9 @@
  * `getConnection()` to obtain the shared singleton.
  */
 
-import Database from 'better-sqlite3';
+import Database, { type Database as DatabaseInstance } from '@/modules/database/sqlite-driver.js';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -59,31 +60,47 @@ function ensureDatabaseDirectory(dbPath: string): void {
 }
 
 /**
- * If the database was moved to an external location (e.g. ~/.cloudcli/)
+ * If the database was moved to an external location
  * but the user still has a legacy auth.db inside the install directory,
  * copy it to the new location as a one-time migration.
+ *
+ * fleet-server addition: on first run, adopt an existing upstream CloudCLI
+ * database (~/.cloudcli/auth.db) — same schema, so users, projects, and the
+ * session index carry over. The original is copied, never touched, so
+ * CloudCLI can keep running side by side.
  */
 function migrateLegacyDatabase(targetPath: string): void {
-  const legacyPath = resolveLegacyDatabasePath();
+  const fleetServerHome = process.env.FLEET_SERVER_HOME || path.join(os.homedir(), '.fleet-server');
+  const defaultTargetPath = path.join(fleetServerHome, 'auth.db');
+  const cloudcliPath = path.join(os.homedir(), '.cloudcli', 'auth.db');
+  // Adopt the CloudCLI database only for the default data-dir location — an
+  // explicitly customized DATABASE_PATH (tests, multi-instance setups) must
+  // start from whatever that path holds, not inherit another server's data.
+  const candidates =
+    targetPath === defaultTargetPath
+      ? [resolveLegacyDatabasePath(), cloudcliPath]
+      : [resolveLegacyDatabasePath()];
 
-  if (targetPath === legacyPath) return;
-  if (fs.existsSync(targetPath)) return;
-  if (!fs.existsSync(legacyPath)) return;
+  for (const legacyPath of candidates) {
+    if (targetPath === legacyPath) continue;
+    if (fs.existsSync(targetPath)) return;
+    if (!fs.existsSync(legacyPath)) continue;
 
-  try {
-    fs.copyFileSync(legacyPath, targetPath);
-    console.log('Migrated legacy database', { from: legacyPath, to: targetPath });
+    try {
+      fs.copyFileSync(legacyPath, targetPath);
+      console.log('Migrated legacy database', { from: legacyPath, to: targetPath });
 
-
-    // copy the write-ahead log and shared memory files (auth.db-wal, auth.db-shm) if they exist, to preserve any uncommitted transactions
-    for (const suffix of ['-wal', '-shm']) {
-      const src = legacyPath + suffix;
-      if (fs.existsSync(src)) {
-        fs.copyFileSync(src, targetPath + suffix);
+      // copy the write-ahead log and shared memory files (auth.db-wal, auth.db-shm) if they exist, to preserve any uncommitted transactions
+      for (const suffix of ['-wal', '-shm']) {
+        const src = legacyPath + suffix;
+        if (fs.existsSync(src)) {
+          fs.copyFileSync(src, targetPath + suffix);
+        }
       }
+      return;
+    } catch (err: any) {
+      console.error('Could not migrate legacy database', { error: err.message });
     }
-  } catch (err: any) {
-    console.error('Could not migrate legacy database', { error: err.message });
   }
 }
 
@@ -92,7 +109,7 @@ function migrateLegacyDatabase(targetPath: string): void {
 // Singleton connection
 // ---------------------------------------------------------------------------
 
-let instance: Database.Database | null = null;
+let instance: DatabaseInstance | null = null;
 
 /**
  * Returns the shared database connection, creating it on first call.
@@ -105,7 +122,7 @@ let instance: Database.Database | null = null;
  *   5. Eagerly creates the app_config table (auth reads JWT secret at import time)
  *   6. Logs the database location
  */
-export function getConnection(): Database.Database {
+export function getConnection(): DatabaseInstance {
   if (instance) return instance;
 
   const dbPath = resolveDatabasePath();

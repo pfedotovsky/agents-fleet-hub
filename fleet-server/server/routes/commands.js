@@ -6,12 +6,9 @@ import express from "express";
 
 import { providerModelsService } from "../modules/providers/services/provider-models.service.js";
 import { parseFrontMatter } from "../shared/frontmatter.js";
-import { findAppRoot, getModuleDir } from "../utils/runtime-paths.js";
+import { VERSION, PRODUCT_NAME } from "../shared/build-info.js";
 
-const __dirname = getModuleDir(import.meta.url);
 // This route reads the top-level package.json for the status command, so it needs the real
-// app root even after compilation moves the route file under dist-server/server/routes.
-const APP_ROOT = findAppRoot(__dirname);
 
 const router = express.Router();
 
@@ -333,20 +330,8 @@ Custom commands can be created in:
   },
 
   "/status": async (args, context) => {
-    // Read version from package.json
-    const packageJsonPath = path.join(APP_ROOT, "package.json");
-    let version = "unknown";
-    let packageName = "claude-code-ui";
-
-    try {
-      const packageJson = JSON.parse(
-        await fs.readFile(packageJsonPath, "utf8"),
-      );
-      version = packageJson.version;
-      packageName = packageJson.name;
-    } catch (err) {
-      console.error("Error reading package.json:", err);
-    }
+    const version = VERSION;
+    const packageName = PRODUCT_NAME;
 
     const uptime = process.uptime();
     const uptimeMinutes = Math.floor(uptime / 60);

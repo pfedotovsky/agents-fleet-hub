@@ -1,4 +1,4 @@
-import { Database } from 'better-sqlite3';
+import { type Database } from '@/modules/database/sqlite-driver.js';
 
 import {
   APP_CONFIG_TABLE_SCHEMA_SQL,
