@@ -43,11 +43,10 @@ for agents:
 
 ### Codex (priority 2)
 
-- [ ] **Durable Codex auth-status fix** — stop depending on the local
-  CloudCLI patch that every `npm update -g` wipes (issue #13 in
-  `docs/cloudcli-server-issues.md`). Host-side fix without forking CloudCLI:
-  the install script's `--codex` flag (file credential store). Until the
-  script exists, document the config.toml one-liner in the READMEs.
+- [x] **Durable Codex auth-status fix** — fixed at the source in
+  fleet-server (`[fork-fix #13]`, `codex login status` fallback); ships with
+  the first fleet-server release. Hosts still on stock CloudCLI keep needing
+  the config.toml one-liner (file credential store).
 - [ ] **Codex parity audit in the hub** — drive a live Codex host and file
   concrete follow-ups: token-usage chip coverage, tool-call rendering edge
   cases beyond the v0.1.4 fixes, model/effort catalog freshness.
@@ -103,9 +102,30 @@ for agents:
 - [ ] **Windows build** — add `windows-latest` to the release matrix when a
   Windows user exists.
 
+## fleet-server (the CloudCLI server fork, added 2026-07-12)
+
+The fork ships in `fleet-server/` with issues #1/#2/#4/#5/#6/#13/#14/#15
+fixed at the source (see `fleet-server/README.md` divergence table).
+Remaining work:
+
+- [ ] **First release** — tag `server-v0.1.0`, verify the
+  `server-release.yml` workflow output, publish the formula from
+  `fleet-server/packaging/fleet-server.rb` to `pfedotovsky/homebrew-tap`.
+- [ ] **Migrate the real hosts** from patched CloudCLI to fleet-server
+  (side-by-side on :3011, then retire :3001) and drop the hand-patch notes
+  from memory/docs.
+- [ ] **Live hub verification against fleet-server** — the per-issue
+  checklist in the fork plan (U+2028 paste, always-allow across restart,
+  codex turn on a current model, empty-turn error bubble, shell WS).
+- [ ] **Integrated terminal in the hub** — fleet-server kept the `/shell`
+  PTY WebSocket (now Bun.Terminal-backed); the hub has no terminal UI yet.
+- [ ] **Upstream sync cadence** — periodically diff new CloudCLI releases
+  per `fleet-server/UPSTREAM.md` and cherry-pick relevant fixes.
+
 ## Explicitly out of scope
 
 Plugin system/marketplace, browser-use automation, Electron build,
 API-key/credential admin, onboarding/git-identity setup — host-local
 features or ones requiring a backend the hub deliberately doesn't have.
-Also: forking or patching CloudCLI (hard constraint, see AGENTS.md).
+(The former "no forking CloudCLI" constraint was dropped 2026-07-12 —
+the fork lives in `fleet-server/`.)

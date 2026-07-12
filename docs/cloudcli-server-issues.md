@@ -4,6 +4,14 @@ Catalog of server-side defects and limitations in CloudCLI (upstream:
 [siteboon/claudecodeui](https://github.com/siteboon/claudecodeui)) that affect
 Agents Hub. Purpose: input for the **fork vs. keep-working-around** decision.
 
+> **Decision (2026-07-12): forked.** The server now lives in
+> [`../fleet-server/`](../fleet-server/README.md) (Bun single binary,
+> AGPL-3.0-or-later). Issues **#1, #2, #4/#5, #6, #13, #14, #15 are fixed in
+> the fork** (commits prefixed `[fork-fix #N]`); #7 is moot there (no bundled
+> SPA); #3 remains solved by Agents Hub itself; #8–#12 are still worked
+> around client-side. This catalog stays as the reference for hosts running
+> stock CloudCLI and for the upstream issue reports.
+
 Verified against CloudCLI 1.36.1 (source at
 `/opt/homebrew/lib/node_modules/@cloudcli-ai/cloudcli/` + live testing),
 2026-07-11.
@@ -26,6 +34,8 @@ workaround · ⚪ annoyance / cosmetic.
 | 11 | Mixed timestamp formats in the sessions DB | ⚪ | N/A (server-internal) | Not reported |
 | 12 | Cursor-IDE sessions have no `store.db` → no transcripts/deep links | ⚪ | Yes — warning badge + hide toggle | Upstream/Cursor limitation |
 | 13 | Codex keychain auth not detected — "not signed in" despite working login | 🟡 | No — host-side only (config or server patch) | [#1008](https://github.com/siteboon/claudecodeui/issues/1008) (ours, open) |
+| 14 | Vendored codex-cli 0.141 rejects newer models (400) → every Codex turn ends empty | 🔴 | No — host-side binary symlink patch only | [#1011](https://github.com/siteboon/claudecodeui/issues/1011) (ours, open) |
+| 15 | Turn completing with zero output surfaces nothing in the UI | 🟡 | No — client can't distinguish "empty turn" from "still streaming" | [#1012](https://github.com/siteboon/claudecodeui/issues/1012) (ours, open) |
 
 ## 🔴 Blockers — cannot be fixed from the client
 
@@ -76,6 +86,45 @@ content-dependent failure translates into a permanently invisible session.
 — stalled. Each CloudCLI instance is a single-host, single-user island. This
 is the founding reason Agents Hub exists; a fork could instead make the server
 itself aggregate hosts, but that is a large divergence from upstream.
+
+### 14. Vendored codex-cli 0.141 rejects newer models — every Codex turn ends empty
+
+[siteboon/claudecodeui#1011](https://github.com/siteboon/claudecodeui/issues/1011)
+(reported by us, 2026-07-12; PR offered).
+
+`queryCodex` (`server/openai-codex.js`) calls `new Codex()` with no
+`codexPathOverride`, so the SDK always spawns the binary vendored inside
+`@openai/codex-sdk` 0.141.0 — never the host's installed codex. That binary
+still honors the user's `~/.codex/config.toml`, requests `gpt-5.6-sol`, and
+the API answers HTTP 400 *"requires a newer version of Codex"*. In
+`--experimental-json` mode codex 0.141 emits **no error event** for this —
+the rollout ends with a clean `task_complete`, `last_agent_message: null`.
+The user sees their bubble and nothing else; each retry spawns another
+orphaned session.
+
+Verified 2026-07-12 (CloudCLI 1.36.1, host codex 0.144.1): auth was *not* the
+problem (even vendored 0.141 reads the keychain fine); pointing the SDK at the
+host binary fixes the turn end-to-end. Host-side patch applied on the dev
+machine: symlink
+`node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex`
+→ `/opt/homebrew/bin/codex` (original kept as `codex-0.141-orig`). **Wiped by
+every cloudcli update**, like the #13 patch. No server restart needed (binary
+is spawned per turn).
+
+No client-side workaround: the model/CLI compatibility gate lives upstream at
+OpenAI, and the hub never learns the turn failed (see #15).
+
+### 15. Turns that complete with zero output surface nothing in the UI
+
+[siteboon/claudecodeui#1012](https://github.com/siteboon/claudecodeui/issues/1012)
+(reported by us, 2026-07-12).
+
+The server maps `turn.failed` and `error` items correctly, but a turn can
+fail upstream and still end in a clean `turn.completed` with no output items
+(#14 is one instance). The server should detect "completed with zero agent
+output" and emit a synthetic error; today the chat is simply dead. The hub
+cannot distinguish this from a slow stream, so no client workaround exists —
+this is what made #14 look like a UI glitch.
 
 ## 🟡 Design limitations — worked around in Agents Hub, at a cost
 
@@ -162,11 +211,16 @@ logged-out hosts.
 - One-line fixes for #6 and #7.
 - Optionally per-session option persistence (#4–5), removing the hub's most
   fragile re-send logic.
-- A durable home for the #13 fix — today it lives as a hand-patch inside the
-  globally-installed npm package and dies on every `npm update`. This is the
-  first issue where "keep working around" means *re-applying a patch after
-  every upstream release*, which is fork-shaped maintenance without fork
-  benefits.
+- A durable home for the #13 and #14 fixes — today both live as hand-patches
+  inside the globally-installed npm package (a ~15-line code patch and a
+  binary symlink) and die on every `npm update`. With two of these now, "keep
+  working around" means *re-applying a patch set after every upstream
+  release* — fork-shaped maintenance without fork benefits — and #14 will
+  recur every time OpenAI gates a model on CLI version while upstream's
+  vendored SDK lags.
+- A ~one-boolean fix for #15 (synthetic error on empty completed turns),
+  which would convert all current and future silent Codex failures into
+  actionable messages.
 
 **What a fork costs:**
 - Upstream moves fast (1.36.x); we take on merge burden for the whole server.
@@ -191,3 +245,12 @@ logged-out hosts.
   login` on a Codex CLI 0.144.1 host kept showing "not signed in"; patched
   locally and filed
   [#1008](https://github.com/siteboon/claudecodeui/issues/1008).
+- 2026-07-12 (evening) — added #14 (vendored codex-cli 0.141 → empty turns)
+  and #15 (empty turns invisible in UI) after Codex chats silently dropped
+  every reply; root-caused to a 400 on `gpt-5.6-sol`, patched locally with a
+  binary symlink and filed
+  [#1011](https://github.com/siteboon/claudecodeui/issues/1011) /
+  [#1012](https://github.com/siteboon/claudecodeui/issues/1012). Note: the
+  #13/#14 patch pair now needs re-applying after every cloudcli update (#13
+  also needs a server restart) — this shifts the fork calculus toward at
+  least maintaining a patch set, if not forking.

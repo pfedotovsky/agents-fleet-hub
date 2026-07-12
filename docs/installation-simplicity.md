@@ -4,8 +4,17 @@ Work-item status is tracked in `docs/backlog.md` (Priorities → item 1); this
 document holds the detailed analysis behind those items.
 
 Requirement (see AGENTS.md → Product principles): installing both parts must
-be as simple as possible — **one command per host** for the server (CloudCLI)
-and **one command on the user's machine** for Agents Hub.
+be as simple as possible — **one command per host** for the server and
+**one command on the user's machine** for Agents Hub.
+
+> **Superseded for the server side (2026-07-12 evening):** the CloudCLI
+> analysis below led to forking the server. **fleet-server**
+> (`../fleet-server/`) is now the intended host install: one `curl | sh` (or
+> brew formula), a single compiled binary, **no Node.js/npm on the host**,
+> data in `~/.fleet-server` with automatic adoption of an existing
+> `~/.cloudcli/auth.db`, port 3011 for side-by-side migration. The Codex
+> auth/version hand-patches described below are fixed in the fork itself.
+> The sections below remain accurate for hosts still on stock CloudCLI.
 
 Written 2026-07-12 after auditing the actual install paths. Facts below are
 verified against CloudCLI 1.36.1, Agents Hub v0.1.4, `release.yml`, and the

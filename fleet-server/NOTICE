@@ -1,0 +1,40 @@
+fleet-server — NOTICE
+
+This software is a modified version of the server component of
+CloudCLI UI (https://github.com/siteboon/claudecodeui).
+
+  Copyright (C) 2025 CloudCLI UI Contributors
+  Portions Copyright (C) Siteboon AI B.V.
+  Modifications Copyright (C) 2026 fleet-server contributors
+
+License: GNU Affero General Public License v3.0 or later, WITH the
+additional terms under AGPL Section 7 granted by Siteboon AI B.V. —
+see the LICENSE file (attribution preservation, marking of modified
+versions, publicity and trademark limitations for the names
+"CloudCLI", "CloudCLI UI", and "Siteboon"). Contributions made to
+upstream before commit 004135ef (2026-03-28) by third-party authors
+remain under GPL-3.0 and are incorporated here under GPL Section 13.
+
+Attribution required by Section 7(b) of the additional terms:
+
+  CloudCLI UI (https://github.com/siteboon/claudecodeui)
+
+This is a MODIFIED version (first modified 2026-07-12). It is not the
+original CloudCLI UI and is not endorsed by or affiliated with
+Siteboon AI B.V. What changed:
+
+  - Everything outside the server was removed (the client is the
+    separately-developed Agents Hub / fleet-hub application).
+  - The server was trimmed to the Agents Hub API surface plus the
+    /shell terminal, ported to the Bun runtime, and compiled to a
+    single-file binary.
+  - A set of upstream defects was fixed (commits prefixed
+    "[fork-fix #N]").
+
+Provenance and the exact diff against upstream: see UPSTREAM.md and
+the git tag `fleet-server-vendor-1.36.1` (pristine copy of upstream
+1.36.1). Complete corresponding source for every release is published
+in this repository under fleet-server/ at the matching `server-v*` tag.
+
+Embedded third-party npm packages and their licenses:
+see THIRD-PARTY-NOTICES.md.

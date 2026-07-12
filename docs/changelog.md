@@ -6,6 +6,33 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-12
 
+### Added
+- **`fleet-server/` — forked the CloudCLI server** (upstream
+  siteboon/claudecodeui 1.36.1, server component only; AGPL-3.0-or-later
+  with Section 7 attribution — see `fleet-server/LICENSE`/`NOTICE`/
+  `UPSTREAM.md`; pristine baseline at git tag `fleet-server-vendor-1.36.1`).
+  Trimmed to the hub's API surface + the `/shell` PTY, claude+codex only;
+  ported to **Bun** and compiled to a single binary so hosts need no
+  Node.js/npm (better-sqlite3→`bun:sqlite`, node-pty→`Bun.Terminal`,
+  bcrypt→`Bun.password`; defaults: port 3011, data in `~/.fleet-server`
+  with automatic one-time adoption of `~/.cloudcli/auth.db`). Fixes
+  upstream issues **#1 #2 #4/#5 #6 #13 #14 #15** from
+  `cloudcli-server-issues.md` at the source (`[fork-fix #N]` commits) —
+  including the two host hand-patches (Codex keychain auth-status,
+  vendored-CLI model gate) that died on every `npm update -g`. Packaging:
+  `fleet-server/scripts/build.ts` (darwin-arm64/linux-x64/linux-arm64,
+  verified locally), `.github/workflows/server-release.yml` on `server-v*`
+  tags, curl|sh installer, systemd/launchd units, homebrew formula
+  template, THIRD-PARTY-NOTICES generator (121 embedded packages). Docs:
+  `fleet-server/README.md` (install, env vars, migration, divergence
+  table), `fleet-server/docs/bun-port-notes.md` (spike findings: node-pty
+  broken under Bun, `Bun.Terminal` works end-to-end in a compiled binary).
+  AGENTS.md's "do NOT fork CloudCLI" hard constraint replaced with fork +
+  licensing-split conventions; root README gained a Licensing section
+  (fleet-hub's own license still TBD); backlog gained a fleet-server
+  section (first release, host migration, live verification, upstream
+  sync cadence).
+
 ### Changed
 - **Backlog consolidated into `docs/backlog.md`** — the single canonical,
   prioritized (P1/P2/P3), agent-editable backlog, headed by a user-set

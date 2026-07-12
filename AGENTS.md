@@ -5,20 +5,29 @@ Guidance for coding agents working in this workspace.
 ## What this is
 
 `agents-remote-control` is a workspace for remotely controlling coding agents
-(Claude Code and others) running on CloudCLI hosts. The only project right now
-is **`fleet-hub/`** — a static React SPA that aggregates projects, sessions,
-and live agent chat across several CloudCLI instances (remote VMs +
-localhost). There is no backend: the browser talks to each host's CloudCLI
-REST API and `/ws` chat WebSocket directly.
+(Claude Code and others) running on remote hosts. Two projects:
+
+- **`fleet-hub/`** — a static React SPA that aggregates projects, sessions,
+  and live agent chat across several hosts (remote VMs + localhost). There is
+  no backend: the browser talks to each host's REST API and `/ws` chat
+  WebSocket directly.
+- **`fleet-server/`** — the server that runs on each host: our fork of the
+  CloudCLI UI server (upstream siteboon/claudecodeui 1.36.1), trimmed to the
+  hub's API surface + a `/shell` PTY, ported to Bun, shipped as a single
+  compiled binary. Licensed AGPL-3.0-or-later (unlike the rest of the repo) —
+  see `fleet-server/LICENSE`, `NOTICE`, and `UPSTREAM.md` (provenance +
+  upstream cherry-pick procedure). Hosts may alternatively still run stock
+  CloudCLI; the hub supports both.
 
 Read `docs/architecture.md` before touching `fleet-hub/src` — it documents the
 module layout, data flow, and the verified CloudCLI 1.36.1 API contracts
 (several of which are non-obvious: 403 = auth failure, `messageCount` always
-0, unordered projects, etc.).
+0, unordered projects, etc.). fleet-server preserves those contracts except
+where `docs/cloudcli-server-issues.md` marks an issue as fixed in the fork.
 
 ## Commands
 
-All commands run from `fleet-hub/`:
+From `fleet-hub/`:
 
 ```bash
 npm run dev       # Vite dev server, http://localhost:5173
@@ -27,8 +36,18 @@ npm run lint      # oxlint
 npm run preview   # serve the production build
 ```
 
-There are no tests. Verification = `npm run build` + `npm run lint` + driving
-the UI against a live CloudCLI host.
+The hub has no tests. Verification = `npm run build` + `npm run lint` +
+driving the UI against a live host.
+
+From `fleet-server/` (requires Bun, not Node):
+
+```bash
+bun install
+bun run dev        # start interpreted, port 3011
+bun run typecheck  # tsc --noEmit
+bun test server    # the test suite
+bun run build      # compiled binary for this platform → dist/
+```
 
 ## Conventions
 
@@ -48,8 +67,8 @@ the UI against a live CloudCLI host.
 ## Product principles
 
 - **Installation of both parts must stay as simple as possible.** The target
-  is: one command per host for the server (CloudCLI), one command on the
-  user's machine for Agents Hub. When making changes, never add a manual
+  is: one command per host for the server (fleet-server single binary), one
+  command on the user's machine for Agents Hub. When making changes, never add a manual
   install/setup step if it can be automated, defaulted, or handled by the hub
   at first run (the way first-connect account creation already is). Anything
   that unavoidably adds friction (a new prerequisite, a manual post-install
@@ -58,13 +77,20 @@ the UI against a live CloudCLI host.
 
 ## Hard constraints
 
-- **Do NOT fork or patch CloudCLI.** Work around its API instead (upstream
-  multi-host issue siteboon/claudecodeui#187 is stalled).
+- **fleet-server is AGPL-3.0-or-later; the rest of the repo is not.** Never
+  move code between `fleet-server/` and other directories. Keep the Section 7
+  attribution ("CloudCLI UI (https://github.com/siteboon/claudecodeui)") and
+  the NOTICE file intact; mark substantial changes to vendored files with a
+  `Modified from CloudCLI 1.36.1 — see NOTICE` header; prefix upstream-defect
+  fixes with `[fork-fix #N]` (numbering from `docs/cloudcli-server-issues.md`).
+- **Don't hand-patch globally-installed CloudCLI** on hosts anymore — fix it
+  in `fleet-server/` instead. (The old "no fork" constraint was dropped
+  2026-07-12 when fleet-server was created.)
 - A host's JWT allows running code as the user on that machine — never log
   tokens, never send them anywhere except the host they belong to, never
   persist passwords (only the JWT goes to localStorage).
-- IPv6-only VMs need CloudCLI launched with `HOST=:: cloudcli`.
-  Never `pkill -f cloudcli` from an agent shell.
+- IPv6-only VMs need the server launched with `HOST=::`.
+  Never `pkill -f cloudcli` or `pkill -f fleet-server` from an agent shell.
 
 ## Backlog
 
