@@ -25,6 +25,7 @@ workaround · ⚪ annoyance / cosmetic.
 | 10 | 403 for *bad* JWT vs 401 for missing (non-standard) | ⚪ | Yes — both mapped to `AuthError` | Not reported |
 | 11 | Mixed timestamp formats in the sessions DB | ⚪ | N/A (server-internal) | Not reported |
 | 12 | Cursor-IDE sessions have no `store.db` → no transcripts/deep links | ⚪ | Yes — warning badge + hide toggle | Upstream/Cursor limitation |
+| 13 | Codex keychain auth not detected — "not signed in" despite working login | 🟡 | No — host-side only (config or server patch) | [#1008](https://github.com/siteboon/claudecodeui/issues/1008) (ours, open) |
 
 ## 🔴 Blockers — cannot be fixed from the client
 
@@ -105,6 +106,38 @@ user into an authenticated host UI; users must have logged into each host
 page manually at least once. Fork fix would be trivial (accept `?token=` on
 the frontend — the API middleware already accepts it server-side).
 
+### 13. Codex keychain auth not detected
+
+[siteboon/claudecodeui#1008](https://github.com/siteboon/claudecodeui/issues/1008)
+(reported by us, 2026-07-12, with the fix sketched; PR offered).
+
+Codex CLI ≥0.144 stores login credentials in the OS keychain by default
+(macOS: item "Codex Auth"); `~/.codex/auth.json` is never written. CloudCLI's
+auth check (`server/modules/providers/list/codex/codex-auth.provider.ts` →
+`checkCredentials`) reads **only** `auth.json`, so
+`GET /api/providers/codex/auth/status` returns `authenticated: false` after a
+perfectly successful `codex login`, and the hub shows "Codex is not signed in
+on this host".
+
+Verified 2026-07-12 (Codex CLI 0.144.1, CloudCLI 1.36.1):
+
+- **Chat sessions are unaffected** — `@openai/codex-sdk` spawns a codex
+  binary, and the keychain item's ACL matches OpenAI's code signature, so any
+  codex binary (even the SDK's vendored 0.141.0) reads it silently. Only the
+  status endpoint lies.
+- Reading the keychain item from Node/`security` directly triggers a macOS
+  GUI permission dialog — not viable for a headless server. The correct
+  fallback is shelling out to `codex login status` (exit 0 = logged in).
+- Host-side workarounds (the patch is applied on the dev machine):
+  a ~15-line local patch to the installed `codex-auth.provider.js` adding the
+  `codex login status` fallback — **wiped by every cloudcli update** — or
+  `cli_auth_credentials_store = "file"` in `~/.codex/config.toml` plus a
+  re-login, which makes codex write `auth.json` again.
+
+No client-side workaround is possible: the hub can only relay what the status
+endpoint reports, and suppressing the banner would also hide genuinely
+logged-out hosts.
+
 ## ⚪ Annoyances — cheap to live with
 
 - **8.** Session `messageCount` is hardcoded to `0` in list responses.
@@ -129,6 +162,11 @@ the frontend — the API middleware already accepts it server-side).
 - One-line fixes for #6 and #7.
 - Optionally per-session option persistence (#4–5), removing the hub's most
   fragile re-send logic.
+- A durable home for the #13 fix — today it lives as a hand-patch inside the
+  globally-installed npm package and dies on every `npm update`. This is the
+  first issue where "keep working around" means *re-applying a patch after
+  every upstream release*, which is fork-shaped maintenance without fork
+  benefits.
 
 **What a fork costs:**
 - Upstream moves fast (1.36.x); we take on merge burden for the whole server.
@@ -149,3 +187,7 @@ the frontend — the API middleware already accepts it server-side).
 - 2026-07-11 — created after debugging a lost "Untitled session"
   (root-caused to issues #1 + #2; filed
   [#1002](https://github.com/siteboon/claudecodeui/issues/1002)).
+- 2026-07-12 — added #13 (Codex keychain auth not detected) after `codex
+  login` on a Codex CLI 0.144.1 host kept showing "not signed in"; patched
+  locally and filed
+  [#1008](https://github.com/siteboon/claudecodeui/issues/1008).

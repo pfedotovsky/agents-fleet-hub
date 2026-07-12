@@ -6,7 +6,26 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-12
 
+### Changed
+- **Backlog consolidated into `docs/backlog.md`** — the single canonical,
+  prioritized (P1/P2/P3), agent-editable backlog, headed by a user-set
+  Priorities section (setup simplicity, Codex, file upload). Items merged
+  from `backlog.html` (deleted — all 3 of its items had shipped), the
+  feature-parity TODO section (removed from both md and html, replaced with
+  a pointer), and the `installation-simplicity.md` roadmap (kept as the
+  detailed analysis the P1 items link to). `feature-parity.md` rewritten to
+  the current 2026-07-12 state and declared canonical (`feature-parity.html`
+  is now a regenerated view; stale rows fixed: slash commands ✅, token
+  usage ⚠️ codex chip, desktop app ✅ Tauri). AGENTS.md gained a "Backlog"
+  section with the maintenance rules.
+
 ### Added
+- **Installation-simplicity requirement** codified in AGENTS.md (Product
+  principles) and the root README: one command per host for CloudCLI, one
+  command for Agents Hub. Investigation of the current install friction and
+  the roadmap (host install script with systemd/launchd supervision, macOS
+  signing, cask auto-bump, Tauri updater) written up in
+  `docs/installation-simplicity.md`.
 - **Codex provider support** — Codex sessions can now be started and driven
   correctly from the hub (verified live against localhost CloudCLI 1.36.1,
   incl. rendering real Codex transcripts and creating a session):

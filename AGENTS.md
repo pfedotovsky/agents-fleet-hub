@@ -45,6 +45,17 @@ the UI against a live CloudCLI host.
 - Comments follow the existing style: only for non-obvious constraints and
   API quirks, not narration.
 
+## Product principles
+
+- **Installation of both parts must stay as simple as possible.** The target
+  is: one command per host for the server (CloudCLI), one command on the
+  user's machine for Agents Hub. When making changes, never add a manual
+  install/setup step if it can be automated, defaulted, or handled by the hub
+  at first run (the way first-connect account creation already is). Anything
+  that unavoidably adds friction (a new prerequisite, a manual post-install
+  command) must be flagged to the user and documented in the READMEs.
+  Current state and the roadmap to get there: `docs/installation-simplicity.md`.
+
 ## Hard constraints
 
 - **Do NOT fork or patch CloudCLI.** Work around its API instead (upstream
@@ -54,6 +65,22 @@ the UI against a live CloudCLI host.
   persist passwords (only the JWT goes to localStorage).
 - IPv6-only VMs need CloudCLI launched with `HOST=:: cloudcli`.
   Never `pkill -f cloudcli` from an agent shell.
+
+## Backlog
+
+`docs/backlog.md` is the single source of truth for planned work:
+
+- Before starting feature work, check it; if the work matches an item, do
+  that item (and read its pointers first).
+- When an item ships, delete it from `backlog.md` and record it in
+  `docs/changelog.md`.
+- Discovered gaps, ideas, and follow-ups → add them to `backlog.md` with
+  pointers. Don't create new planning docs (and never HTML ones).
+- The "Priorities" section at the top is user-set — don't reorder it.
+- Markdown is canonical everywhere in `docs/`; `docs/*.html` files are
+  regenerable human views (e.g. `feature-parity.html` mirrors
+  `feature-parity.md`) and must be kept in sync or regenerated when their
+  markdown source changes.
 
 ## Documentation upkeep
 

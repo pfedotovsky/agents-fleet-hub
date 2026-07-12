@@ -7,6 +7,11 @@ The app is **[`fleet-hub/`](fleet-hub/)** — a static React SPA with no backend
 The browser talks directly to the [CloudCLI](https://www.npmjs.com/package/@cloudcli-ai/cloudcli)
 API on each host.
 
+**Design goal:** installation of both parts must be as simple as possible —
+one command per host for the server, one command for the hub. See
+[`docs/installation-simplicity.md`](docs/installation-simplicity.md) for the
+current state and roadmap.
+
 ## Requirements
 
 - **CloudCLI on every host you want to control** — it is the server side:

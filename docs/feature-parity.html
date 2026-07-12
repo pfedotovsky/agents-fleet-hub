@@ -37,7 +37,7 @@
 <body>
 <main>
   <h1>Agents Hub vs. CloudCLI Web App — Feature Parity</h1>
-  <p class="meta">Agents Hub (this repo, <code>fleet-hub/</code>) vs. CloudCLI v1.36.1 web UI. Generated 2026-07-11.</p>
+  <p class="meta">Agents Hub (this repo, <code>fleet-hub/</code>) vs. CloudCLI v1.36.1 web UI. First compared 2026-07-11; status updated 2026-07-12. Canonical source: <code>feature-parity.md</code> (this HTML is a regenerated view). Planned work lives in <code>docs/backlog.md</code>.</p>
   <p>Agents Hub is a <strong>multi-host aggregator</strong> over per-VM CloudCLI APIs; CloudCLI's own UI is a <strong>single-host</strong> full-featured client. Many CloudCLI features are server APIs Agents Hub can adopt with frontend-only work; a few (plugins, Electron) are out of scope for a static hub SPA.</p>
   <div class="legend"><span class="full">✅ full</span><span class="part">⚠️ partial</span><span class="miss">❌ missing</span><span class="plus">➕ Agents Hub advantage</span></div>
 
@@ -65,69 +65,35 @@
       <tr><td>Integrated terminal / shell</td><td class="s miss">❌</td><td class="s full">✅</td><td>PTY over WS (node-pty + xterm.js), agent CLI or plain shell</td></tr>
       <tr><td>Git panel</td><td class="s part">⚠️</td><td class="s full">✅</td><td>Hub: status, unified diffs, stage/unstage, commit (+AI messages), branches, fetch/pull/push/publish. Missing: commit history, discard, revert</td></tr>
       <tr><td>MCP server management</td><td class="s miss">❌</td><td class="s full">✅</td><td>Per-provider + global, stdio/HTTP transports</td></tr>
-      <tr><td>Slash commands</td><td class="s miss">❌</td><td class="s full">✅</td><td>Custom <code>.md</code> commands in composer (<code>/api/commands</code>)</td></tr>
-      <tr><td>Skills management</td><td class="s miss">❌</td><td class="s full">✅</td><td>List/add/delete per provider</td></tr>
+      <tr><td>Slash commands</td><td class="s full">✅</td><td class="s full">✅</td><td><code>/</code> composer autocomplete over skills + <code>.claude/commands</code>; codex <code>$</code>-skills too ➕</td></tr>
+      <tr><td>Skills management</td><td class="s miss">❌</td><td class="s full">✅</td><td>List/add/delete per provider (hub only <em>lists</em> them in autocomplete)</td></tr>
       <tr><td>TaskMaster (tasks, PRD parsing, templates)</td><td class="s miss">❌</td><td class="s full">✅</td><td>Full <code>/api/taskmaster</code> suite</td></tr>
       <tr><td>Browser-use (Playwright automation)</td><td class="s miss">❌</td><td class="s full">✅</td><td>Niche for a hub</td></tr>
       <tr><td>Plugin system + marketplace</td><td class="s miss">❌</td><td class="s full">✅</td><td>Out of scope for a static SPA</td></tr>
-      <tr><td>Token usage / context-window display</td><td class="s miss">❌</td><td class="s part">⚠️</td><td>Capability flag in core; cost dashboard is an optional plugin</td></tr>
+      <tr><td>Token usage / context-window display</td><td class="s part">⚠️</td><td class="s part">⚠️</td><td>Hub shows a codex context chip from <code>token_budget</code> frames; no claude usage display</td></tr>
       <tr><td>Notifications</td><td class="s part">⚠️ <span class="plus">➕</span></td><td class="s full">✅</td><td>Hub: chime + desktop notification, fleet-wide. CloudCLI: Web Push (VAPID), Discord, per-channel prefs</td></tr>
       <tr><td>Scheduled prompts / cron</td><td class="s miss">❌</td><td class="s part">⚠️</td><td>Optional plugin, not core</td></tr>
       <tr><td>Themes (light/dark)</td><td class="s miss">❌</td><td class="s full">✅</td><td>Hub is hardcoded dark</td></tr>
       <tr><td>Mobile / responsive + PWA</td><td class="s miss">❌</td><td class="s full">✅</td><td>Manifest, service worker, standalone mode</td></tr>
       <tr><td>URL routing / deep links</td><td class="s miss">❌</td><td class="s full">✅</td><td>Hub navigation is in-memory only</td></tr>
       <tr><td>API keys / credentials management</td><td class="s miss">❌</td><td class="s full">✅</td><td>Host-admin feature; low hub value</td></tr>
-      <tr><td>Electron desktop app</td><td class="s miss">❌</td><td class="s full">✅</td><td>Out of scope</td></tr>
+      <tr><td>Electron desktop app</td><td class="s full">✅</td><td class="s full">✅</td><td>Hub ships as a Tauri 2 desktop app (macOS + Linux)</td></tr>
     </tbody>
   </table>
 
   <h2>Agents Hub advantages (no CloudCLI equivalent)</h2>
   <div class="adv"><ul>
     <li>Multi-host aggregation: one pane of glass over N VMs, cross-host activity feed, per-host colors and status dots.</li>
+    <li>Cross-host full-text search (⌘K) fanning out to every online host.</li>
+    <li>Plan-mode toggle (Shift+Tab) with a docked plan drawer; AskUserQuestion answer cards.</li>
     <li>Sessions started elsewhere (terminal, host UI) flow in via <code>session_upserted</code> + fallback polling.</li>
     <li>Permission grants persisted per host:project and written through to <code>.claude/settings.local.json</code>.</li>
     <li>Offline/hibernating VM handling with retained last-known state and setup hints.</li>
     <li>One-click new session, drag-resizable sidebar, active-session-first ordering.</li>
   </ul></div>
 
-  <h2>TODO — path to feature parity</h2>
-  <p>Ordered by value ÷ effort. <span class="tag api">API ready</span> = frontend-only work against existing host endpoints.</p>
-
-  <h3>P1 — High value, host API already exists</h3>
-  <ul class="todo">
-    <li class="p1">☑ <strong>Session delete/archive + restore</strong> — <em>done 2026-07-12</em>: hover archive, per-host Archived list, restore, confirm-gated permanent delete (rename still open)</li>
-    <li class="p1">☑ <strong>True "running" indicator</strong> — <em>done 2026-07-12</em>: <code>GET /sessions/running</code> polled per host (verified live); heuristic kept as fallback</li>
-    <li class="p1">☑ <strong>Full-text conversation search</strong> — <em>done 2026-07-12</em>: ⌘K overlay, per-host SSE fan-out, streamed grouped results with highlights</li>
-    <li class="p1">☑ <strong>Image attachments in chat</strong> — <em>done 2026-07-12</em>: paste/drag-drop/button upload, <code>options.images</code>, authenticated history rendering</li>
-    <li class="p1">☑ <strong>Git panel</strong> — <em>done 2026-07-12</em>: status/diff/stage/commit + AI message/branches/fetch-pull-push-publish (history &amp; discard still open)</li>
-    <li class="p1">☐ <strong>Project management</strong> — create, rename, delete/archive+restore, git-clone with progress stream <span class="tag api">API ready</span></li>
-  </ul>
-
-  <h3>P2 — High value, more work</h3>
-  <ul class="todo">
-    <li class="p2">☐ <strong>Integrated terminal</strong> — xterm.js against the host's shell WebSocket (PTY, resize, agent CLI or plain shell). Biggest single UX gap.</li>
-    <li class="p2">☐ <strong>URL routing</strong> — deep-linkable host/project/session views, back-button support; prerequisite for PWA.</li>
-    <li class="p2">☐ <strong>Mobile/responsive layout + PWA</strong> — collapsible sidebar, manifest + service worker.</li>
-    <li class="p2">☐ <strong>Web Push notifications</strong> — subscribe to each host's VAPID push so alerts arrive with the tab closed.</li>
-    <li class="p2">☐ <strong>Token usage / context-window display</strong> — where <code>supportsTokenUsage</code> (claude/codex/opencode).</li>
-    <li class="p2">☐ <strong>Slash commands</strong> — fetch <code>/api/commands</code> per project, composer autocomplete.</li>
-    <li class="p2">☐ <strong>Session rename</strong> — investigate mechanism (plugin-based?); implement if a stable API exists.</li>
-  </ul>
-
-  <h3>P3 — Nice to have</h3>
-  <ul class="todo">
-    <li class="p3">☐ <strong>MCP server management UI</strong> — per-provider + global over <code>/:provider/mcp/servers</code>.</li>
-    <li class="p3">☐ <strong>Light theme / appearance settings.</strong></li>
-    <li class="p3">☐ <strong>KaTeX + Mermaid rendering</strong> in messages.</li>
-    <li class="p3">☐ <strong>File operations</strong> — create/rename/delete (needs shell or new host support).</li>
-    <li class="p3">☐ <strong>Voice input</strong> — mic → host <code>/api/voice</code> (needs host-side OpenAI key).</li>
-    <li class="p3">☐ <strong>Skills management UI.</strong></li>
-    <li class="p3">☐ <strong>TaskMaster integration</strong> — tasks + PRD tooling per project.</li>
-    <li class="p3">☐ <strong>Conversation compaction</strong> control, if exposed over WS.</li>
-  </ul>
-
-  <h3>Explicitly out of scope</h3>
-  <p>Plugin system/marketplace, browser-use automation, Electron build, API-key/credential admin, onboarding/git-identity setup — host-local features or ones requiring a backend the hub deliberately doesn't have.</p>
+  <h2>Planned work</h2>
+  <p>The TODO list that used to live here moved to <code>docs/backlog.md</code> — the single canonical, prioritized backlog for this workspace. This report tracks parity status only.</p>
 </main>
 </body>
 </html>
