@@ -3,6 +3,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { failedScanFilesDb } from '@/modules/database/repositories/failed-scan-files.db.js';
 import {
   buildLookupMap,
   extractFirstValidJsonlData,
@@ -36,10 +37,18 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       since ?? null
     );
 
+    // [fork-fix #2] Also retry files that previously failed to index — they
+    // are behind the scan cursor and would otherwise never be seen again.
+    const retrySet = new Set(files);
+    for (const retryPath of failedScanFilesDb.listRetryPaths(this.provider)) {
+      retrySet.add(retryPath);
+    }
+
     let processed = 0;
-    for (const filePath of files) {
+    for (const filePath of retrySet) {
       const parsed = await this.processSessionFile(filePath, nameMap);
       if (!parsed) {
+        failedScanFilesDb.recordFailure(this.provider, filePath, 'no session metadata extracted');
         continue;
       }
 
@@ -62,6 +71,7 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
         timestamps.updatedAt,
         filePath
       );
+      failedScanFilesDb.clearFailure(filePath);
       processed += 1;
     }
 
@@ -79,9 +89,12 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
     const nameMap = await buildLookupMap(path.join(this.codexHome, 'session_index.jsonl'), 'id', 'thread_name');
     const parsed = await this.processSessionFile(filePath, nameMap);
     if (!parsed) {
+      // [fork-fix #2] Watcher-triggered failures join the retry queue too.
+      failedScanFilesDb.recordFailure(this.provider, filePath, 'no session metadata extracted');
       return null;
     }
 
+    failedScanFilesDb.clearFailure(filePath);
     const timestamps = await readFileTimestamps(filePath);
     return sessionsDb.createSession(
       parsed.sessionId,

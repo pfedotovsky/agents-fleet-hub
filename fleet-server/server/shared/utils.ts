@@ -1153,8 +1153,11 @@ export async function findFilesRecursivelyCreatedAfter(
         continue;
       }
 
+      // [fork-fix #2] Compare against both birthtime and mtime. Upstream
+      // used birthtime alone, so a file skipped once (e.g. a parse failure)
+      // was permanently behind the cursor no matter how often it changed.
       const fileStat = await stat(fullPath);
-      if (fileStat.birthtime > lastScanAt) {
+      if (fileStat.birthtime > lastScanAt || fileStat.mtime > lastScanAt) {
         fileList.push(fullPath);
       }
     }

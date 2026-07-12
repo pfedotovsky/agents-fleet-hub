@@ -126,6 +126,20 @@ CREATE TABLE IF NOT EXISTS scan_state (
 );
 `;
 
+// [fork-fix #2] Transcript files that failed to index (parse failure, or a
+// brand-new file whose first lines carry no session metadata yet). Upstream's
+// birthtime-cursor scan skipped such files forever; this table gives every
+// full scan a bounded retry list.
+export const FAILED_SCAN_FILES_SQL = `
+CREATE TABLE IF NOT EXISTS failed_scan_files (
+  path TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT NULL,
+  last_attempt_at TIMESTAMP NULL
+);
+`;
+
 export const APP_CONFIG_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS app_config (
     key TEXT PRIMARY KEY,
@@ -175,6 +189,7 @@ CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id);
 -- Creating it here can fail on upgraded installs where the legacy sessions table has no project_path.
 
 ${LAST_SCANNED_AT_SQL}
+${FAILED_SCAN_FILES_SQL}
 
 ${APP_CONFIG_TABLE_SCHEMA_SQL}
 `;
