@@ -140,6 +140,22 @@ CREATE TABLE IF NOT EXISTS failed_scan_files (
 );
 `;
 
+// [fork-fix #4/#5] Per-session chat option persistence. Upstream rebuilt SDK
+// options from each chat.send payload and kept "always allow" grants only in
+// the in-flight query's memory, forcing every client to persist and re-send
+// settings itself. This table makes the server the source of truth; incoming
+// chat.send options still win over stored values.
+export const SESSION_SETTINGS_SQL = `
+CREATE TABLE IF NOT EXISTS session_settings (
+  session_id TEXT PRIMARY KEY,
+  permission_mode TEXT NULL,
+  allowed_tools TEXT NULL,
+  disallowed_tools TEXT NULL,
+  skip_permissions INTEGER NOT NULL DEFAULT 0,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
 export const APP_CONFIG_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS app_config (
     key TEXT PRIMARY KEY,
@@ -190,6 +206,7 @@ CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id);
 
 ${LAST_SCANNED_AT_SQL}
 ${FAILED_SCAN_FILES_SQL}
+${SESSION_SETTINGS_SQL}
 
 ${APP_CONFIG_TABLE_SCHEMA_SQL}
 `;

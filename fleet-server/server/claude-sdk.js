@@ -30,6 +30,7 @@ import {
   notifyUserIfEnabled
 } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
+import { sessionSettingsDb } from './modules/database/repositories/session-settings.db.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { createCompleteMessage, createNormalizedMessage } from './shared/utils.js';
 
@@ -589,6 +590,16 @@ async function queryClaudeSDK(command, options = {}, ws) {
           }
           if (Array.isArray(sdkOptions.disallowedTools)) {
             sdkOptions.disallowedTools = sdkOptions.disallowedTools.filter(entry => entry !== decision.rememberEntry);
+          }
+          // [fork-fix #4/#5] Upstream kept rememberEntry only in the in-flight
+          // query's memory; persist it so the grant survives this run and is
+          // visible to every client.
+          if (options.appSessionId) {
+            try {
+              sessionSettingsDb.appendAllowedTool(options.appSessionId, decision.rememberEntry);
+            } catch (persistError) {
+              console.warn('[Claude SDK] Could not persist rememberEntry grant:', persistError?.message || persistError);
+            }
           }
         }
         return { behavior: 'allow', updatedInput: decision.updatedInput ?? input };

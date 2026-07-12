@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { WebSocket } from 'ws';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { sessionSettingsDb } from '@/modules/database/repositories/session-settings.db.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import { getGlobalImageAssetsDir, normalizeImageDescriptors } from '@/shared/image-attachments.js';
@@ -189,12 +190,47 @@ async function handleChatSend(
   const clientOptions = (data.options ?? {}) as AnyRecord;
   const command = typeof data.content === 'string' ? data.content : '';
 
+  // [fork-fix #4/#5] Merge persisted per-session settings under the incoming
+  // options (client wins on conflicts, tool lists are unioned) and persist
+  // the merged result, so grants and modes survive across queries and
+  // clients instead of living only in each client's own storage.
+  const persistedSettings = sessionSettingsDb.getSettings(sessionId);
+  const clientToolsSettings = (clientOptions.toolsSettings ?? {}) as AnyRecord;
+  const mergedToolsSettings = {
+    allowedTools: Array.from(new Set([
+      ...(persistedSettings?.allowedTools ?? []),
+      ...(Array.isArray(clientToolsSettings.allowedTools) ? clientToolsSettings.allowedTools : []),
+    ])),
+    disallowedTools: Array.from(new Set([
+      ...(persistedSettings?.disallowedTools ?? []),
+      ...(Array.isArray(clientToolsSettings.disallowedTools) ? clientToolsSettings.disallowedTools : []),
+    ])),
+    skipPermissions: Boolean(
+      clientToolsSettings.skipPermissions ?? persistedSettings?.skipPermissions ?? false
+    ),
+  };
+  const mergedPermissionMode =
+    (typeof clientOptions.permissionMode === 'string' ? clientOptions.permissionMode : null) ??
+    persistedSettings?.permissionMode ??
+    null;
+  sessionSettingsDb.saveSettings(sessionId, {
+    permissionMode: mergedPermissionMode,
+    allowedTools: mergedToolsSettings.allowedTools,
+    disallowedTools: mergedToolsSettings.disallowedTools,
+    skipPermissions: mergedToolsSettings.skipPermissions,
+  });
+
   // The provider runtimes receive the provider-native session id (that is the
   // id their CLI/SDK understands for resume). Brand-new sessions have no
   // provider id yet, so the runtime starts fresh and announces one, which the
   // gateway writer captures and maps back to the app session id.
   const runtimeOptions: AnyRecord = {
     ...clientOptions,
+    permissionMode: mergedPermissionMode ?? undefined,
+    toolsSettings: mergedToolsSettings,
+    // Lets runtimes persist mid-run grants (rememberEntry) under the stable
+    // app-facing session id.
+    appSessionId: sessionId,
     // Image attachments are re-validated server-side: only files inside the
     // global upload store may reach the provider runtimes' file reads.
     images: filterImagesToUploadStore(clientOptions.images),
