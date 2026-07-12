@@ -97,6 +97,9 @@ export class ChatSocket {
     allow: boolean,
     rememberEntry?: string,
     message?: string,
+    // Replaces the tool's input on approval (SDK canUseTool `updatedInput`) —
+    // how AskUserQuestion answers get back to the agent.
+    updatedInput?: unknown,
   ): boolean {
     return this.sendJson({
       type: 'chat.permission-response',
@@ -104,6 +107,7 @@ export class ChatSocket {
       allow,
       ...(rememberEntry ? { rememberEntry } : {}),
       ...(message ? { message } : {}),
+      ...(updatedInput !== undefined ? { updatedInput } : {}),
     })
   }
 

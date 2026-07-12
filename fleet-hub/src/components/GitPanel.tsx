@@ -12,6 +12,7 @@ import {
   RefreshCw,
   Sparkles,
   TriangleAlert,
+  X,
 } from 'lucide-react'
 import type { GitBranches, GitRemoteStatus, GitStatus, HostRuntime, Project } from '../types'
 import {
@@ -37,6 +38,8 @@ interface Props {
   hostColorIdx: number
   project: Project
   onBack: () => void
+  /** Rendered as a side panel next to a chat: close icon, narrower file list. */
+  embedded?: boolean
 }
 
 type FileGroup = 'staged' | 'changes' | 'untracked'
@@ -76,7 +79,7 @@ const GROUP_LABELS: Record<FileGroup, string> = {
   untracked: 'Untracked',
 }
 
-export function GitPanel({ runtime, hostColorIdx, project, onBack }: Props) {
+export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: Props) {
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [remote, setRemote] = useState<GitRemoteStatus | null>(null)
   const [branches, setBranches] = useState<GitBranches | null>(null)
@@ -235,10 +238,10 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack }: Props) {
       <button
         type="button"
         onClick={onBack}
-        title="Back to project"
+        title={embedded ? 'Close panel' : 'Back to project'}
         className="shrink-0 rounded-md p-1.5 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
       >
-        <ArrowLeft size={16} />
+        {embedded ? <X size={16} /> : <ArrowLeft size={16} />}
       </button>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-[11px] text-ink-500">
@@ -296,7 +299,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack }: Props) {
       {header}
       <div className="flex min-h-0 flex-1">
         {/* Left pane: branch, remote, changed files, commit box */}
-        <div className="flex w-80 shrink-0 flex-col border-r border-ink-800/80">
+        <div className={`flex ${embedded ? 'w-64' : 'w-80'} shrink-0 flex-col border-r border-ink-800/80`}>
           <div className="flex flex-col gap-2 border-b border-ink-800/60 px-3 py-2.5">
             <div className="flex items-center gap-1.5">
               <GitBranch size={13} className="shrink-0 text-ink-500" />

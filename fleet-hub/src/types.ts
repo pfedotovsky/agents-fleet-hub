@@ -118,6 +118,19 @@ export interface PermissionRequest {
   input?: unknown
 }
 
+export interface AskUserQuestionOption {
+  label: string
+  description?: string
+}
+
+/** One question from an AskUserQuestion permission request (`input.questions`). */
+export interface AskUserQuestionSpec {
+  question: string
+  header: string
+  options: AskUserQuestionOption[]
+  multiSelect: boolean
+}
+
 /** Any frame arriving on the chat WebSocket — a NormalizedMessage or a gateway event. */
 export interface ChatEvent extends NormalizedMessage {
   seq?: number

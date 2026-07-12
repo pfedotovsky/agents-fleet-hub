@@ -8,8 +8,11 @@ import {
   ClipboardList,
   ExternalLink,
   File,
+  FolderTree,
+  GitBranch,
   ImagePlus,
   LoaderCircle,
+  MessageCircleQuestion,
   ShieldQuestion,
   Sparkles,
   SquareSlash,
@@ -17,6 +20,7 @@ import {
   X,
 } from 'lucide-react'
 import type {
+  AskUserQuestionSpec,
   ChatEvent,
   FleetSession,
   ModelOption,
@@ -35,6 +39,7 @@ import {
 } from '../lib/api'
 import { ChatSocket } from '../lib/chatSocket'
 import type { SocketState } from '../lib/chatSocket'
+import type { ChatPanelKind } from '../lib/storage'
 import {
   addAllowedTool,
   getToken,
@@ -139,6 +144,178 @@ function PlanApprovalCard({
           className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:bg-ink-800"
         >
           <X size={12} /> Revise
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * AskUserQuestion also arrives as a permission_request (the server keeps it in
+ * TOOLS_REQUIRING_INTERACTION alongside ExitPlanMode, with no approval
+ * timeout). Instead of allow/deny it needs the user's answers, returned via
+ * `updatedInput` — see respondQuestion.
+ */
+function isQuestionRequest(request: PermissionRequest): boolean {
+  return request.toolName === 'AskUserQuestion'
+}
+
+/** Defensive parse of AskUserQuestion input; [] means "not the shape we know". */
+function parseQuestions(input: unknown): AskUserQuestionSpec[] {
+  const questions = (input as { questions?: unknown } | null | undefined)?.questions
+  if (!Array.isArray(questions)) return []
+  return questions.flatMap((raw): AskUserQuestionSpec[] => {
+    if (!raw || typeof raw !== 'object') return []
+    const { question, header, options, multiSelect } = raw as Record<string, unknown>
+    if (typeof question !== 'string' || !Array.isArray(options)) return []
+    const parsedOptions = options.flatMap((option) => {
+      if (!option || typeof option !== 'object') return []
+      const { label, description } = option as Record<string, unknown>
+      return typeof label === 'string'
+        ? [{ label, description: typeof description === 'string' ? description : undefined }]
+        : []
+    })
+    if (parsedOptions.length === 0) return []
+    return [
+      {
+        question,
+        header: typeof header === 'string' ? header : '',
+        options: parsedOptions,
+        multiSelect: Boolean(multiSelect),
+      },
+    ]
+  })
+}
+
+function QuestionCard({
+  request,
+  questions,
+  onAnswer,
+}: {
+  request: PermissionRequest
+  questions: AskUserQuestionSpec[]
+  onAnswer: (requestId: string, answers: Record<string, string> | null) => void
+}) {
+  const [selected, setSelected] = useState<string[][]>(() => questions.map(() => []))
+  const [other, setOther] = useState<string[]>(() => questions.map(() => ''))
+  // A lone single-select question answers straight from the option click.
+  const immediate = questions.length === 1 && !questions[0].multiSelect
+
+  const answerFor = (index: number): string => {
+    const parts = questions[index].options
+      .map((option) => option.label)
+      .filter((label) => selected[index].includes(label))
+    const custom = other[index].trim()
+    if (custom) parts.push(custom)
+    // Multi-select answers are comma-joined into one string — the shape the
+    // SDK documents for AskUserQuestion `answers` values.
+    return parts.join(', ')
+  }
+  const complete = questions.every((_, index) => answerFor(index) !== '')
+
+  function pick(index: number, label: string) {
+    if (immediate) {
+      onAnswer(request.requestId, { [questions[0].question]: label })
+      return
+    }
+    setSelected((prev) =>
+      prev.map((labels, i) => {
+        if (i !== index) return labels
+        if (questions[i].multiSelect) {
+          return labels.includes(label) ? labels.filter((l) => l !== label) : [...labels, label]
+        }
+        return labels.includes(label) ? [] : [label]
+      }),
+    )
+  }
+
+  function submit() {
+    if (!complete) return
+    onAnswer(
+      request.requestId,
+      Object.fromEntries(questions.map((q, index) => [q.question, answerFor(index)])),
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3">
+      <div className="mb-2 flex items-center gap-2 text-xs font-medium text-sky-300">
+        <MessageCircleQuestion size={14} />
+        The agent has a question
+      </div>
+      <div className="flex flex-col gap-4">
+        {questions.map((q, index) => (
+          <div key={`${index}:${q.question}`}>
+            <div className="mb-2 flex items-start gap-2">
+              {q.header && (
+                <span className="mt-0.5 shrink-0 rounded-full border border-sky-500/40 px-2 py-px text-[10px] uppercase tracking-wide text-sky-300">
+                  {q.header}
+                </span>
+              )}
+              <p className="text-[13px] text-ink-100">
+                {q.question}
+                {q.multiSelect && (
+                  <span className="ml-1 text-xs text-ink-500">(select all that apply)</span>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              {q.options.map((option) => {
+                const active = selected[index].includes(option.label)
+                return (
+                  <button
+                    key={option.label}
+                    type="button"
+                    onClick={() => pick(index, option.label)}
+                    className={`rounded-md border px-3 py-2 text-left transition-colors ${
+                      active ? 'border-sky-400/70 bg-sky-500/15' : 'border-ink-700 hover:bg-ink-800'
+                    }`}
+                  >
+                    <span
+                      className={`text-[13px] font-medium ${active ? 'text-sky-200' : 'text-ink-200'}`}
+                    >
+                      {option.label}
+                    </span>
+                    {option.description && (
+                      <span className="mt-0.5 block text-xs text-ink-500">{option.description}</span>
+                    )}
+                  </button>
+                )
+              })}
+              <input
+                type="text"
+                value={other[index]}
+                onChange={(event) =>
+                  setOther((prev) => prev.map((v, i) => (i === index ? event.target.value : v)))
+                }
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && complete) {
+                    event.preventDefault()
+                    submit()
+                  }
+                }}
+                placeholder="Other…"
+                className="rounded-md border border-ink-700 bg-transparent px-3 py-2 text-[13px] text-ink-100 outline-none placeholder:text-ink-600 focus:border-sky-400/60"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!complete}
+          className="inline-flex items-center gap-1 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-sky-500 disabled:opacity-40"
+        >
+          <Check size={12} /> Answer
+        </button>
+        <button
+          type="button"
+          onClick={() => onAnswer(request.requestId, null)}
+          className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:bg-ink-800"
+        >
+          <X size={12} /> Dismiss
         </button>
       </div>
     </div>
@@ -257,9 +434,13 @@ function CompletionMenu({
 interface Props {
   target: FleetSession
   onBack: () => void
+  /** Which utility panel is open next to this chat (files / git), if any. */
+  panel?: ChatPanelKind | null
+  /** Toggles the side panel; absent when the project is no longer available. */
+  onTogglePanel?: (panel: ChatPanelKind) => void
 }
 
-export function ChatPane({ target, onBack }: Props) {
+export function ChatPane({ target, onBack, panel, onTogglePanel }: Props) {
   const sessionId = target.session.id
   const [messages, setMessages] = useState<NormalizedMessage[]>([])
   const [hasMore, setHasMore] = useState(false)
@@ -479,6 +660,13 @@ export function ChatPane({ target, onBack }: Props) {
                   'permission',
                   `${target.projectName} — plan ready`,
                   'The agent finished planning and is waiting for your review.',
+                  `perm:${sessionId}`,
+                )
+              } else if (isQuestionRequest(request)) {
+                notify(
+                  'permission',
+                  `${target.projectName} — question`,
+                  'The agent has a question for you.',
                   `perm:${sessionId}`,
                 )
               } else {
@@ -806,6 +994,32 @@ export function ChatPane({ target, onBack }: Props) {
   }
 
   /**
+   * AskUserQuestion answers go back as `updatedInput`: the original input plus
+   * `answers` keyed by question text (the shape the SDK's AskUserQuestionInput
+   * defines) — the server forwards it into canUseTool's allow result. null
+   * (Dismiss) denies with a message so the agent knows to proceed on its own.
+   */
+  function respondQuestion(requestId: string, answers: Record<string, string> | null) {
+    if (answers === null) {
+      socketRef.current?.respondPermission(
+        requestId,
+        false,
+        undefined,
+        'User dismissed the questions without answering',
+      )
+    } else {
+      const request = permissions.find((p) => p.requestId === requestId)
+      const base =
+        request?.input && typeof request.input === 'object' ? (request.input as object) : {}
+      socketRef.current?.respondPermission(requestId, true, undefined, undefined, {
+        ...base,
+        answers,
+      })
+    }
+    setPermissions((prev) => prev.filter((p) => p.requestId !== requestId))
+  }
+
+  /**
    * Plan review decision. On approval the running query exits plan mode by
    * itself, but the server rebuilds SDK options from our options on every
    * chat.send — so the hub must also drop 'plan' locally or the next message
@@ -903,6 +1117,30 @@ export function ChatPane({ target, onBack }: Props) {
           </h2>
         </div>
         <ProviderBadge provider={target.session.provider} />
+        {onTogglePanel && (
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button
+              type="button"
+              onClick={() => onTogglePanel('files')}
+              title="Project files"
+              className={`rounded-md p-1.5 transition-colors hover:bg-ink-800 ${
+                panel === 'files' ? 'bg-ink-800 text-brass-300' : 'text-ink-500 hover:text-ink-200'
+              }`}
+            >
+              <FolderTree size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onTogglePanel('git')}
+              title="Source control"
+              className={`rounded-md p-1.5 transition-colors hover:bg-ink-800 ${
+                panel === 'git' ? 'bg-ink-800 text-brass-300' : 'text-ink-500 hover:text-ink-200'
+              }`}
+            >
+              <GitBranch size={15} />
+            </button>
+          </div>
+        )}
         <a
           href={target.href}
           target="_blank"
@@ -962,13 +1200,28 @@ export function ChatPane({ target, onBack }: Props) {
                 imageSource={{ baseUrl: target.baseUrl, hostId: target.hostId }}
               />
             ))}
-            {permissions.map((request) =>
-              isPlanRequest(request) ? (
-                <PlanApprovalCard key={request.requestId} request={request} onDecide={respondPlan} />
-              ) : (
+            {permissions.map((request) => {
+              if (isPlanRequest(request)) {
+                return (
+                  <PlanApprovalCard key={request.requestId} request={request} onDecide={respondPlan} />
+                )
+              }
+              // Unparseable question input falls through to the generic card.
+              const questions = isQuestionRequest(request) ? parseQuestions(request.input) : []
+              if (questions.length > 0) {
+                return (
+                  <QuestionCard
+                    key={request.requestId}
+                    request={request}
+                    questions={questions}
+                    onAnswer={respondQuestion}
+                  />
+                )
+              }
+              return (
                 <PermissionCard key={request.requestId} request={request} onRespond={respondPermission} />
-              ),
-            )}
+              )
+            })}
             {processing && permissions.length === 0 && (
               <div className="flex items-center gap-2 text-xs text-ink-500">
                 <LoaderCircle size={12} className="animate-spin" /> working…

@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, LoaderCircle, RefreshCw, Save, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, LoaderCircle, RefreshCw, Save, TriangleAlert, X } from 'lucide-react'
 import type { FileNode, HostRuntime, Project } from '../types'
 import { AuthError, getFileTree, readFile, saveFile } from '../lib/api'
 import { getToken, saveToken } from '../lib/storage'
@@ -13,9 +13,11 @@ interface Props {
   hostColorIdx: number
   project: Project
   onBack: () => void
+  /** Rendered as a side panel next to a chat: close icon, narrower tree. */
+  embedded?: boolean
 }
 
-export function FileBrowser({ runtime, hostColorIdx, project, onBack }: Props) {
+export function FileBrowser({ runtime, hostColorIdx, project, onBack, embedded }: Props) {
   const [tree, setTree] = useState<FileNode[]>([])
   const [treeLoading, setTreeLoading] = useState(true)
   const [treeError, setTreeError] = useState<string | null>(null)
@@ -113,10 +115,10 @@ export function FileBrowser({ runtime, hostColorIdx, project, onBack }: Props) {
         <button
           type="button"
           onClick={onBack}
-          title="Back to project"
+          title={embedded ? 'Close panel' : 'Back to project'}
           className="shrink-0 rounded-md p-1.5 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
         >
-          <ArrowLeft size={16} />
+          {embedded ? <X size={16} /> : <ArrowLeft size={16} />}
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 text-[11px] text-ink-500">
@@ -143,7 +145,7 @@ export function FileBrowser({ runtime, hostColorIdx, project, onBack }: Props) {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-64 shrink-0 flex-col border-r border-ink-800/80">
+        <div className={`flex ${embedded ? 'w-52' : 'w-64'} shrink-0 flex-col border-r border-ink-800/80`}>
           <div className="flex items-center justify-between px-2 py-1.5">
             <span className="text-[11px] font-medium uppercase tracking-wider text-ink-500">
               Explorer

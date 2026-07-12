@@ -1,8 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Server, X } from 'lucide-react'
 import type { FleetSession, SessionSummary } from './types'
 import { createSession } from './lib/api'
-import { getToken, saveToken } from './lib/storage'
+import type { ChatPanelKind } from './lib/storage'
+import {
+  CHAT_PANEL_MIN_WIDTH,
+  getToken,
+  loadChatPanel,
+  saveChatPanel,
+  saveToken,
+} from './lib/storage'
 import { useFleet } from './hooks/useFleet'
 import { Sidebar } from './components/Sidebar'
 import { SessionList } from './components/SessionList'
@@ -30,6 +37,36 @@ export default function App() {
   const [view, setView] = useState<View>({ kind: 'feed' })
   const [creatingKey, setCreatingKey] = useState<string | null>(null)
   const [createError, setCreateError] = useState<string | null>(null)
+  // Cursor-style utility panel docked to the right of a chat.
+  const [chatPanel, setChatPanel] = useState<ChatPanelKind | null>(() => loadChatPanel().kind)
+  const [chatPanelWidth, setChatPanelWidth] = useState(() => loadChatPanel().width)
+  const chatPanelWidthRef = useRef(chatPanelWidth)
+  chatPanelWidthRef.current = chatPanelWidth
+
+  const toggleChatPanel = (panel: ChatPanelKind) => {
+    setChatPanel((current) => {
+      const next = current === panel ? null : panel
+      saveChatPanel({ kind: next, width: chatPanelWidthRef.current })
+      return next
+    })
+  }
+
+  function startChatPanelResize(event: React.PointerEvent) {
+    event.preventDefault()
+    const onMove = (move: PointerEvent) => {
+      const max = Math.max(CHAT_PANEL_MIN_WIDTH, window.innerWidth * 0.7)
+      const next = Math.min(max, Math.max(CHAT_PANEL_MIN_WIDTH, window.innerWidth - move.clientX))
+      chatPanelWidthRef.current = next
+      setChatPanelWidth(next)
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      saveChatPanel({ kind: chatPanel, width: chatPanelWidthRef.current })
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -162,7 +199,39 @@ export default function App() {
       )
     }
     if (view.kind === 'chat') {
-      return <ChatPane key={view.target.key} target={view.target} onBack={() => setView(view.from)} />
+      const { hostIndex, runtime, project } = findProject(view.target.hostId, view.target.projectId)
+      const panelAvailable = Boolean(runtime && project)
+      const PanelComponent = chatPanel === 'files' ? FileBrowser : GitPanel
+      return (
+        <div className="flex min-h-0 min-w-0 flex-1">
+          <ChatPane
+            key={view.target.key}
+            target={view.target}
+            onBack={() => setView(view.from)}
+            panel={panelAvailable ? chatPanel : null}
+            onTogglePanel={panelAvailable ? toggleChatPanel : undefined}
+          />
+          {panelAvailable && chatPanel && runtime && project && (
+            <div className="relative flex shrink-0" style={{ width: chatPanelWidth }}>
+              <div
+                onPointerDown={startChatPanelResize}
+                title="Drag to resize"
+                className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize transition-colors hover:bg-ink-700/50"
+              />
+              <aside className="flex min-w-0 flex-1 flex-col border-l border-ink-800/80">
+                <PanelComponent
+                  key={`${chatPanel}:${view.target.hostId}:${view.target.projectId}`}
+                  runtime={runtime}
+                  hostColorIdx={hostIndex}
+                  project={project}
+                  onBack={() => toggleChatPanel(chatPanel)}
+                  embedded
+                />
+              </aside>
+            </div>
+          )}
+        </div>
+      )
     }
     if (view.kind === 'files' || view.kind === 'git') {
       const { hostIndex, runtime, project } = findProject(view.hostId, view.projectId)

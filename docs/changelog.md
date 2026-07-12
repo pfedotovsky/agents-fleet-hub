@@ -7,6 +7,15 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-07-12
 
 ### Added
+- **Chat side panels (files & git)**: Cursor/Codex-style instant access to the
+  project's file system and source control straight from a chat. Two toggle
+  buttons in the chat header (folder tree / git branch icons) dock the existing
+  `FileBrowser` or `GitPanel` to the right of the conversation as a resizable
+  panel (drag the left edge; min 480px, up to 70% of the window). The panels
+  gained an `embedded` mode (close icon instead of back-navigation, narrower
+  left column); panel choice and width persist in localStorage
+  (`fleethub.v1.chatPanel`). The full-screen views via the project pane are
+  unchanged.
 - **Desktop app (Tauri 2)**: `fleet-hub/src-tauri/` wraps the SPA as a native
   app ("Agents Hub", identifier `io.github.pfedotovsky.agents-hub`). No Rust
   logic beyond the stock shell — the frontend is unchanged and still talks to
@@ -22,8 +31,8 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 - **Homebrew tap**: `pfedotovsky/homebrew-tap` with `Casks/agents-hub.rb` —
   `brew install --cask pfedotovsky/tap/agents-hub` (v0.1.0 released and
   verified end-to-end). Release bump = update `version` + `sha256` in the cask.
-- Version bumped to 0.1.1 (`package.json`, `tauri.conf.json`, `Cargo.toml`) —
-  not yet tagged/released.
+- Version bumped to 0.1.2 (`package.json`, `tauri.conf.json`, `Cargo.toml`),
+  tagged `v0.1.2` — 0.1.1 was never tagged, so this release rolls up both.
 - P1 feature-parity batch (all verified live against CloudCLI 1.36.1 on
   localhost:3001):
   - **True running indicator**: each 12s fleet poll now also fetches
@@ -64,6 +73,23 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
     old/new mode). Handles the API quirk of HTTP 200 + `{error}` bodies and
     shows a friendly not-a-repo state. (`components/GitPanel.tsx`,
     `lib/api.ts` git section)
+- AskUserQuestion support (UX backlog #1): the agent's questions no longer
+  land as a generic allow/deny prompt. `AskUserQuestion` permission requests
+  (interactive server-side, like ExitPlanMode) render a question card — header
+  chip, question text, one button per option with its description, multi-select
+  toggling, and a free-text "Other" input per question; multiple questions in
+  one request stack in a single card with a shared Answer button. A lone
+  single-select question answers straight from the option click. Answers
+  return through `chat.permission-response` as `updatedInput` — the original
+  input plus `answers` keyed by question text, multi-select labels
+  comma-joined (the shape the agent SDK's `AskUserQuestionInput` defines;
+  verified from the SDK bundled with CloudCLI 1.36.1 and live end-to-end:
+  single-select, multi-select, and free-text answers all echoed back exactly).
+  Dismiss denies with "User dismissed the questions without answering";
+  malformed question input falls back to the generic permission card, and the
+  desktop notification says "question" instead of "wants to use
+  AskUserQuestion". (`ChatPane.tsx` `QuestionCard`, `lib/chatSocket.ts`,
+  `types.ts`)
 - Plan mode support: `ExitPlanMode` tool calls now render as an
   "Implementation plan" markdown card (indigo, `input.plan`, success ack
   hidden), and its permission request — which the server always routes to the
@@ -108,6 +134,15 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   blocks 12.5px → 13.5px, markdown tables 12px → 13px, chat input 14px →
   15px. (`ChatPane.tsx`, `Messages.tsx`, `ToolCall.tsx`, `Markdown.tsx`,
   `Diff.tsx`)
+
+### Fixed
+- Chat unscrollable with the composer pushed off-screen: the wrapper div the
+  side-panel feature added around `ChatPane` in `App.tsx` (`flex min-w-0
+  flex-1`) sat in the column-flex `<main>` without `min-h-0`, so its
+  `min-height: auto` let it grow to the full height of the message history
+  instead of the viewport — the outer `h-screen overflow-hidden` then clipped
+  everything below, hiding the composer and killing the message list's
+  scrollbar. Added `min-h-0` to the wrapper.
 
 ## 2026-07-11
 

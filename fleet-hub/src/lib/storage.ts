@@ -9,6 +9,7 @@ const PERMISSIONS_KEY = 'fleethub.v1.permissions'
 const PERMISSION_MODES_KEY = 'fleethub.v1.permissionModes'
 const SIDEBAR_WIDTH_KEY = 'fleethub.v1.sidebarWidth'
 const DRAFTS_KEY = 'fleethub.v1.drafts'
+const CHAT_PANEL_KEY = 'fleethub.v1.chatPanel'
 
 export const SIDEBAR_MIN_WIDTH = 200
 export const SIDEBAR_MAX_WIDTH = 480
@@ -127,6 +128,32 @@ export function savePermissionMode(hostId: string, mode: PermissionMode): void {
   const all = readJson<Record<string, PermissionMode>>(PERMISSION_MODES_KEY, {})
   all[hostId] = mode
   localStorage.setItem(PERMISSION_MODES_KEY, JSON.stringify(all))
+}
+
+/** The chat's right-hand utility panel (files / git), Cursor-style. */
+export type ChatPanelKind = 'files' | 'git'
+
+export const CHAT_PANEL_MIN_WIDTH = 480
+const CHAT_PANEL_DEFAULT_WIDTH = 620
+
+export interface ChatPanelState {
+  kind: ChatPanelKind | null
+  width: number
+}
+
+export function loadChatPanel(): ChatPanelState {
+  const state = readJson<Partial<ChatPanelState>>(CHAT_PANEL_KEY, {})
+  return {
+    kind: state.kind === 'files' || state.kind === 'git' ? state.kind : null,
+    width: Math.max(
+      CHAT_PANEL_MIN_WIDTH,
+      typeof state.width === 'number' ? state.width : CHAT_PANEL_DEFAULT_WIDTH,
+    ),
+  }
+}
+
+export function saveChatPanel(state: ChatPanelState): void {
+  localStorage.setItem(CHAT_PANEL_KEY, JSON.stringify(state))
 }
 
 export function loadSidebarWidth(): number {
