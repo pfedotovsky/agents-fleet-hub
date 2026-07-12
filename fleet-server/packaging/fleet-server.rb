@@ -10,26 +10,35 @@ class FleetServer < Formula
   on_macos do
     on_arm do
       url "https://github.com/pfedotovsky/agents-fleet-hub/releases/download/server-v#{version}/fleet-server-#{version}-darwin-arm64.tar.gz"
-      sha256 "REPLACE_WITH_DARWIN_ARM64_SHA256"
+      sha256 "946d367d6adf48cfffc3e3ce7b87dbd4d0918ee2a89cc4455977462035737d64"
     end
   end
 
   on_linux do
     on_intel do
       url "https://github.com/pfedotovsky/agents-fleet-hub/releases/download/server-v#{version}/fleet-server-#{version}-linux-x64.tar.gz"
-      sha256 "REPLACE_WITH_LINUX_X64_SHA256"
+      sha256 "3b57fcdf7ea10c7b29538ac5a5092d2d2236cd8899f866581d650826b9043912"
     end
     on_arm do
       url "https://github.com/pfedotovsky/agents-fleet-hub/releases/download/server-v#{version}/fleet-server-#{version}-linux-arm64.tar.gz"
-      sha256 "REPLACE_WITH_LINUX_ARM64_SHA256"
+      sha256 "bb9b7c69fa46166798a899a0312e636f31f509d6bc979d5871946ec527f90b49"
     end
   end
-
-  recommends "ripgrep" # enables session search
 
   def install
     bin.install "fleet-server"
     doc.install "LICENSE", "NOTICE", "THIRD-PARTY-NOTICES.md"
+  end
+
+  def caveats
+    <<~EOS
+      Optional: install ripgrep to enable session search:
+        brew install ripgrep
+
+      Start on port 3011 (data in ~/.fleet-server):
+        brew services start fleet-server
+      Then add http://<host>:3011 as a host in Agents Hub.
+    EOS
   end
 
   service do
