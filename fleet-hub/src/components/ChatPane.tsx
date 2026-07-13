@@ -95,8 +95,8 @@ interface PendingImage {
 // composer (Shift+Tab), not a permission mode — see the planMode state.
 // Codex has no interactive approvals; the server remaps the same values onto
 // its sandbox instead (default → workspace-write + ask for untrusted,
-// acceptEdits → workspace-write + never ask, bypass → danger-full-access),
-// hence the second label set.
+// acceptEdits → workspace-write + never ask, bypass → danger-full-access,
+// and the plan toggle → read-only), hence the second label set.
 const PERMISSION_MODES: { value: PermissionMode; label: string; codexLabel: string }[] = [
   { value: 'default', label: 'Ask for permissions', codexLabel: 'Sandboxed · ask untrusted' },
   { value: 'acceptEdits', label: 'Accept edits', codexLabel: 'Sandboxed · never ask' },
@@ -436,8 +436,11 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
   const [sessionId, setSessionId] = useState(target.session.id)
   const [provider, setProvider] = useState<Provider>(target.session.provider)
   const isDraft = sessionId === ''
-  // Codex runs sandboxed with no interactive approvals or plan mode, so the
-  // claude-specific composer affordances are hidden/remapped for it.
+  // Codex runs sandboxed with no interactive approvals, so the approval-style
+  // composer affordances are hidden/remapped for it. Plan mode IS supported:
+  // the server maps it to Codex's read-only sandbox and, since Codex emits no
+  // ExitPlanMode request, the hub shows a lightweight "plan ready" Build card
+  // instead of the Claude PlanPanel.
   const isCodex = provider === 'codex'
   const [messages, setMessages] = useState<NormalizedMessage[]>([])
   const [hasMore, setHasMore] = useState(false)
@@ -460,6 +463,10 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
       loadPermissionMode(target.hostId, target.projectPath) === 'plan',
   )
   const [planPanelOpen, setPlanPanelOpen] = useState(true)
+  // Codex has no ExitPlanMode request, so a completed plan-mode run flips this
+  // to surface the "plan ready" Build card. Cleared when the user sends, builds,
+  // or leaves plan mode. See the buildFromPlan / complete-event handlers.
+  const [codexPlanReady, setCodexPlanReady] = useState(false)
   const [allowedTools, setAllowedTools] = useState<string[]>(
     () => loadPermissions(target.hostId, target.projectPath).allowedTools ?? [],
   )
@@ -500,6 +507,12 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
   messagesRef.current = messages
   const processingRef = useRef(false)
   processingRef.current = processing
+  // Read inside handleEvent (a stable useCallback) without widening its deps —
+  // adding planMode/provider there would tear down and recreate the socket.
+  const planModeRef = useRef(planMode)
+  planModeRef.current = planMode
+  const isCodexRef = useRef(isCodex)
+  isCodexRef.current = isCodex
   const loadedOlderRef = useRef(false)
   loadedOlderRef.current = loadedOlder
   const upsertTimer = useRef<number | undefined>(undefined)
@@ -620,10 +633,18 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
       try {
         const page = await fetchPage(0)
         if (replace) {
-          seenIds.current = new Set(
-            page.messages.filter((m) => m.id).map((m) => m.id as string),
+          // Error bubbles are streamed live but never written to the provider's
+          // on-disk transcript (Codex's synthetic "no output"/turn-failed
+          // messages, protocol errors), so replacing with persisted history
+          // would drop them — the error flashes and vanishes on run completion.
+          // Carry any displayed error the fetched page doesn't cover forward so
+          // it stays readable; it's the run's terminal event, hence appended.
+          const carriedErrors = messagesRef.current.filter(
+            (m) => m.kind === 'error' && !page.messages.some((p) => p.id === m.id),
           )
-          setMessages(page.messages)
+          const next = [...page.messages, ...carriedErrors]
+          seenIds.current = new Set(next.filter((m) => m.id).map((m) => m.id as string))
+          setMessages(next)
           setHasMore(page.hasMore)
           scrollToBottom(true)
           return
@@ -685,6 +706,10 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
           setProcessing(false)
           setPermissions([])
           ackedRunSeq.current = 0
+          // Codex ran read-only under the plan toggle and just delivered a plan
+          // (its final agent_message). Surface the Build card so the user can
+          // approve it — Codex emits no ExitPlanMode request to drive PlanPanel.
+          if (isCodexRef.current && planModeRef.current) setCodexPlanReady(true)
           // True-up from persisted history once the transcript flushes: replaces
           // live-stream ids with canonical ones (unless older pages are loaded).
           window.setTimeout(() => void mergeNewest(!loadedOlderRef.current), 800)
@@ -791,6 +816,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
       setProcessing(false)
       setLoadedOlder(false)
       setTokenBudget(null)
+      setCodexPlanReady(false)
       // A draft has no transcript to fetch — don't sit in a loading state.
       setLoading(sessionId !== '')
 
@@ -1065,6 +1091,9 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
     const text = input.trim()
     const socket = socketRef.current
     if (!text || processing || !socket) return
+    // Any manual send supersedes a pending plan-ready card (the user is either
+    // refining the plan — still in plan mode — or moving on).
+    setCodexPlanReady(false)
     if (pendingImages.some((chip) => chip.status === 'uploading')) {
       setBanner('Images are still uploading…')
       return
@@ -1073,11 +1102,12 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
       (chip): chip is PendingImage & { path: string } => chip.status === 'ready' && !!chip.path,
     )
     const options: Parameters<ChatSocket['sendChat']>[2] = {}
-    // The plan toggle wins over the select while it's on; the select's choice
-    // is untouched and applies again once the toggle goes off. Codex never
-    // sends 'plan' (the server would silently treat it as default).
-    if (planMode && !isCodex) options.permissionMode = 'plan'
-    else if (permissionMode !== 'default') options.permissionMode = permissionMode
+    // Always send an explicit mode. The server persists the last permissionMode
+    // and falls back to it when the client omits one, so omitting 'default'
+    // after a plan-mode send would silently re-enter plan mode on the next turn
+    // (Codex, which has no ExitPlanMode reset, would be stuck read-only). The
+    // plan toggle wins over the select while it's on, for both providers.
+    options.permissionMode = planMode ? 'plan' : permissionMode
     if (model) options.model = model
     if (effort) options.effort = effort
     // Codex ignores toolsSettings entirely — its gating is the sandbox mode.
@@ -1210,10 +1240,50 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
   }
 
   function togglePlanMode() {
-    if (isCodex) return
     const next = !planMode
     setPlanMode(next)
     savePlanMode(target.hostId, next)
+    // Leaving plan mode dismisses any pending Codex plan-ready card.
+    if (!next) setCodexPlanReady(false)
+  }
+
+  /**
+   * Codex's answer to the Claude PlanPanel "Approve & build": leave plan mode
+   * (so the resumed thread gets a writable sandbox) and send a canned go-ahead.
+   * The plan itself is already in the transcript as Codex's last message, so
+   * the follow-up runs with it in context. Never hit from a draft — the card
+   * only appears after a completed run on a real session.
+   */
+  function buildFromPlan() {
+    const socket = socketRef.current
+    if (!socket || processing) return
+    setPlanMode(false)
+    savePlanMode(target.hostId, false)
+    setCodexPlanReady(false)
+    const text = 'The plan looks good — go ahead and implement it.'
+    const options: Parameters<ChatSocket['sendChat']>[2] = {}
+    // Plan is off now, so build with the composer's selected permission mode.
+    options.permissionMode = permissionMode
+    if (model) options.model = model
+    if (effort) options.effort = effort
+    if (!socket.sendChat(sessionId, text, options)) {
+      setBanner('Not connected to the host — reconnecting…')
+      return
+    }
+    setBanner(null)
+    localCounter.current += 1
+    appendMessage({
+      id: `local_${localCounter.current}`,
+      sessionId,
+      timestamp: new Date().toISOString(),
+      provider,
+      kind: 'text',
+      role: 'user',
+      content: text,
+    })
+    setProcessing(true)
+    ackedRunSeq.current = 0
+    scrollToBottom(false)
   }
 
   /**
@@ -1448,6 +1518,34 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                 <PermissionCard key={request.requestId} request={request} onRespond={respondPermission} />
               )
             })}
+            {isCodex && codexPlanReady && !processing && (
+              <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/5 px-3 py-2.5">
+                <div className="flex items-center gap-2 text-xs font-medium text-indigo-300">
+                  <ClipboardList size={14} />
+                  Plan ready — review it above
+                </div>
+                <p className="mt-1 text-[11px] text-ink-500">
+                  Codex explored read-only and proposed a plan. Build to leave plan mode and
+                  have it implement, or keep planning to refine.
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={buildFromPlan}
+                    className="inline-flex items-center gap-1 rounded-md bg-indigo-500/90 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-indigo-500"
+                  >
+                    Build
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCodexPlanReady(false)}
+                    className="rounded-md border border-ink-800 px-2.5 py-1 text-[11px] text-ink-400 transition-colors hover:border-ink-700 hover:text-ink-200"
+                  >
+                    Keep planning
+                  </button>
+                </div>
+              </div>
+            )}
             {processing && permissions.length === 0 && (
               <div className="flex items-center gap-2 text-xs text-ink-500">
                 <LoaderCircle size={12} className="animate-spin" /> working…
@@ -1636,21 +1734,19 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                 })}
               </div>
             )}
-            {!isCodex && (
-              <button
-                type="button"
-                onClick={togglePlanMode}
-                aria-pressed={planMode}
-                title="Plan mode — the agent researches and proposes a plan before making changes (Shift+Tab)"
-                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
-                  planMode
-                    ? 'border-indigo-500/60 bg-indigo-500/15 text-indigo-300'
-                    : 'border-ink-800 text-ink-500 hover:border-ink-700 hover:text-ink-300'
-                }`}
-              >
-                <ClipboardList size={11} /> Plan
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={togglePlanMode}
+              aria-pressed={planMode}
+              title="Plan mode — the agent researches and proposes a plan before making changes (Shift+Tab)"
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                planMode
+                  ? 'border-indigo-500/60 bg-indigo-500/15 text-indigo-300'
+                  : 'border-ink-800 text-ink-500 hover:border-ink-700 hover:text-ink-300'
+              }`}
+            >
+              <ClipboardList size={11} /> Plan
+            </button>
             <select
               value={permissionMode}
               onChange={(event) => {
@@ -1697,7 +1793,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
             )}
             <span className="ml-auto hidden sm:inline">
               Enter to send · Shift+Enter for a new line
-              {!isCodex && ' · Shift+Tab to toggle Plan'}
+              {' · Shift+Tab to toggle Plan'}
             </span>
           </div>
         </div>

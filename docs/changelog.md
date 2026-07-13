@@ -7,6 +7,19 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-07-14
 
 ### Fixed
+- **Codex transcript no longer duplicates on reconciliation.** Codex rollout
+  entries carry no per-message uuid, so fleet-server was minting a random id on
+  every history read; the hub de-duplicates by id, so each reconciliation
+  (`session_upserted`, the 15s poll, the post-run merge) treated the whole
+  transcript as new and re-appended it — a message flashed 2–3× before the
+  complete-time replace wiped it. fleet-server now derives a deterministic
+  content-hash id for Codex history entries (`[fork-fix #17]`), and also strips
+  the injected plan-mode preamble from persisted user turns on read.
+- **Codex error messages no longer flash and vanish.** Error bubbles (Codex's
+  synthetic "no output"/turn-failed messages, protocol errors) are streamed
+  live but never written to the provider's on-disk transcript, so the hub's
+  post-run history replace dropped them. `mergeNewest` now carries a displayed
+  error forward across the replace so it stays readable (fleet-hub).
 - **Host-side auth setup for remote-first installs.** fleet-server now has
   `fleet-server auth status|check|setup`; `auth setup` creates the first
   username/password locally or upgrades the loopback-only `local` account
@@ -46,6 +59,24 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   (`brew services restart fleet-server`).
 
 ### Added
+- **Plan mode for Codex.** The composer's Plan toggle (and Shift+Tab) now
+  works for Codex, not just Claude. Server side, `permissionMode: 'plan'`
+  maps to Codex's native `read-only` sandbox (`approvalPolicy: 'never'`) and a
+  planning preamble is prepended to the prompt on every plan-mode turn (the
+  SDK has no per-turn system-prompt channel), so Codex researches read-only
+  and proposes a plan without touching disk. Because Codex emits no
+  `ExitPlanMode` request to drive `PlanPanel`, a completed plan-mode run shows
+  a lightweight "plan ready" **Build** card in the transcript — Build leaves
+  plan mode and sends a go-ahead so the same thread resumes with a writable
+  sandbox, with the plan already in context. Files: `server/openai-codex.js`
+  (`mapPermissionModeToCodexOptions` + `CODEX_PLAN_PREAMBLE`),
+  `provider-capabilities.service.ts` (codex `permissionModes` gains `plan`),
+  `fleet-hub/src/components/ChatPane.tsx`.
+- **Permission-mode persistence fix.** The hub now always sends an explicit
+  `permissionMode` on `chat.send` (previously it omitted `'default'`). The
+  server persists the last mode and falls back to it when omitted, so after a
+  plan-mode send a subsequent default send would silently re-enter plan mode —
+  harmless-looking for Claude, but it left Codex stuck read-only forever.
 - **Loopback-shadowing guard + `/health` instance identity (fleet-server
   0.1.4).** Root-caused from a live incident: Cursor Remote auto-forwarded a
   remote fleet-server's port 3011 to `127.0.0.1` on the dev machine; the
