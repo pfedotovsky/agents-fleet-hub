@@ -82,6 +82,34 @@ brand-new host prompts you to create its single account; after that only the
 JWT is stored (in the hub, never the password). Projects and sessions from
 that host appear immediately.
 
+### Updating fleet-server
+
+Check what a host is running (the `version` field of the public health
+endpoint; `instanceId`/`hostname`/`dataDir` also identify *which* server is
+answering — useful when a port is forwarded):
+
+```bash
+curl http://localhost:3011/health
+```
+
+Then upgrade, matching how you installed it. **On both paths the service must
+be restarted** — replacing the binary does not restart a running service, so
+the old version keeps serving until you do:
+
+```bash
+# Homebrew
+brew update && brew upgrade fleet-server
+brew services restart fleet-server        # required — old binary runs until restart
+
+# install.sh — just re-run the installer; --service reinstalls + restarts the unit
+curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh -s -- --service
+```
+
+Confirm it took by re-checking `/health` (`version` should be the new one, and
+`instanceId` will have changed because the process restarted). Data in
+`~/.fleet-server` is untouched by an upgrade. Maintainers cutting a new server
+release follow [`docs/releasing.md`](docs/releasing.md).
+
 ## Development
 
 To hack on the hub UI, run the Vite dev server from `fleet-hub/` (Node.js
