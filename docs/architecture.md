@@ -205,7 +205,9 @@ fork-vs-workaround considerations.
 - Deep links into a host's own UI require having signed into that host's page
   once — its frontend keeps its JWT in *its own origin's* localStorage
   (`auth-token`) with no URL-token handoff, so the hub cannot authenticate it.
-- Some VMs are IPv6-only: CloudCLI must then be launched with `HOST=:: cloudcli`.
+- Some VMs expose only IPv6 through their public hostname. CloudCLI must then
+  be launched with `HOST=:: cloudcli`; fleet-server defaults to `HOST=::` and
+  falls back to `0.0.0.0` only when the OS cannot bind IPv6.
 - **Sessions can be permanently "lost" by a U+2028 in a message**
   ([siteboon/claudecodeui#1002](https://github.com/siteboon/claudecodeui/issues/1002),
   reported by us 2026-07-11): CloudCLI's indexer reads transcript JSONL with

@@ -3,6 +3,9 @@
 
   cp io.github.pfedotovsky.fleet-server.plist ~/Library/LaunchAgents/
   launchctl load -w ~/Library/LaunchAgents/io.github.pfedotovsky.fleet-server.plist
+
+  HOST is intentionally unset by default: fleet-server binds :: and falls back
+  to 0.0.0.0 if IPv6 is unavailable. Add HOST only to pin the bind address.
 -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">

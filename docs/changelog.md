@@ -4,6 +4,24 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-07-14
+
+### Released
+- **fleet-server 0.1.5** — tag `server-v0.1.5`; IPv6-first bind for remote VM
+  hostnames (see Fixed). Upgrade with `brew upgrade fleet-server` and restart
+  the service (`brew services restart fleet-server`), or rerun `install.sh
+  --service`.
+
+### Fixed
+- **fleet-server IPv6 binding for remote VM hostnames.** fleet-server now
+  defaults to the IPv6 wildcard bind (`HOST=::`) so public IPv6-only DNS names
+  are reachable without per-host service edits. If the OS cannot bind IPv6 and
+  `HOST` was not explicitly set, startup falls back to `0.0.0.0`. The
+  installer-generated services now leave `HOST` unset by default so that
+  runtime fallback remains available, and the Linux installer path restarts
+  the user unit after rewriting it; static service templates and docs were
+  updated to match.
+
 ## 2026-07-13
 
 ### Released

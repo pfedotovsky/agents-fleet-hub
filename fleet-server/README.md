@@ -17,7 +17,7 @@ Section 7 additional terms — see [`LICENSE`](LICENSE), [`NOTICE`](NOTICE),
 
 Install **and start a persistent service** in one command — `--service`
 generates and loads a launchd agent (macOS) or systemd user unit (Linux),
-auto-detects IPv6-only hosts (`HOST=::`), and verifies `/health`:
+uses the server's IPv6-first wildcard bind, and verifies `/health`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh -s -- --service
@@ -43,8 +43,8 @@ Then add `http://<host>:3011` as a host in Agents Hub — the first connect
 walks you through account creation.
 
 ```bash
-fleet-server                 # port 3011, data in ~/.fleet-server
-HOST=:: fleet-server         # IPv6-only VMs
+fleet-server                 # port 3011, HOST=:: by default, data in ~/.fleet-server
+HOST=0.0.0.0 fleet-server    # force IPv4-only binding if needed
 fleet-server status          # config + data locations
 ```
 
@@ -61,7 +61,7 @@ prefer to install them by hand.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SERVER_PORT` | `3011` | Listen port (upstream CloudCLI uses 3001, so both can run side by side) |
-| `HOST` | `0.0.0.0` | Bind address; use `::` on IPv6-only hosts |
+| `HOST` | `::` | Bind address; default falls back to `0.0.0.0` if IPv6 is unavailable |
 | `FLEET_SERVER_HOME` | `~/.fleet-server` | Data directory (`auth.db`, `local-server.json`, `.env`) |
 | `DATABASE_PATH` | `$FLEET_SERVER_HOME/auth.db` | SQLite database location |
 | `CLAUDE_CLI_PATH` | `claude` on PATH | Claude Code binary used for chats |

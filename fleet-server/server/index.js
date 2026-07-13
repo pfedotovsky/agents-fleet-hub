@@ -1309,8 +1309,8 @@ async function getFileTree(dirPath, maxDepth = 3, currentDepth = 0, showHidden =
 // Port 3011 (upstream CloudCLI defaults to 3001) so both servers can run
 // side by side on a host during migration.
 const SERVER_PORT = process.env.SERVER_PORT || 3011;
-const HOST = process.env.HOST || '0.0.0.0';
-const DISPLAY_HOST = getConnectableHost(HOST);
+let HOST = process.env.HOST || '::';
+let DISPLAY_HOST = getConnectableHost(HOST);
 const FLEET_SERVER_HOME = process.env.FLEET_SERVER_HOME || path.join(os.homedir(), '.fleet-server');
 const LOCAL_SERVER_MARKER_PATH = path.join(FLEET_SERVER_HOME, 'local-server.json');
 
@@ -1346,6 +1346,28 @@ async function removeLocalServerMarker() {
     }
 }
 
+function listenOnHost(host) {
+    return new Promise((resolve, reject) => {
+        const onError = (error) => {
+            server.off('listening', onListening);
+            reject(error);
+        };
+        const onListening = () => {
+            server.off('error', onError);
+            resolve();
+        };
+
+        server.once('error', onError);
+        server.listen(SERVER_PORT, host, onListening);
+    });
+}
+
+function shouldFallbackToIpv4(error) {
+    return !process.env.HOST
+        && HOST === '::'
+        && (error?.code === 'EAFNOSUPPORT' || error?.code === 'EADDRNOTAVAIL');
+}
+
 // Initialize database and start server
 let loopbackGuard = null;
 
@@ -1358,38 +1380,48 @@ async function startServer() {
         console.log(`${c.info('[INFO]')} Using Claude Agents SDK for Claude integration`);
         console.log('');
 
-        server.listen(SERVER_PORT, HOST, async () => {
-            await writeLocalServerMarker().catch((error) => {
-                console.warn('[WARN] Could not write local server marker:', error.message);
-            });
-
-            // Occupy the loopback addresses and self-probe /health so a port
-            // forward (Cursor/VS Code Remote) or stray instance cannot
-            // silently take over localhost:PORT. Only relevant for wildcard
-            // binds — an explicit HOST already pins the address.
-            if (isWildcardHost(HOST)) {
-                loopbackGuard = startLoopbackGuard({
-                    app,
-                    mainServer: server,
-                    port: Number.parseInt(String(SERVER_PORT), 10),
-                    instanceId: INSTANCE_ID,
-                });
+        try {
+            await listenOnHost(HOST);
+        } catch (error) {
+            if (!shouldFallbackToIpv4(error)) {
+                throw error;
             }
+            console.warn('[WARN] Could not bind IPv6 wildcard HOST=::; falling back to HOST=0.0.0.0:', error.message);
+            HOST = '0.0.0.0';
+            DISPLAY_HOST = getConnectableHost(HOST);
+            await listenOnHost(HOST);
+        }
 
-            console.log('');
-            console.log(c.dim('═'.repeat(63)));
-            console.log(`  ${c.bright(`${PRODUCT_NAME} ${RUNNING_VERSION} - Ready`)}`);
-            console.log(c.dim('═'.repeat(63)));
-            console.log('');
-            console.log(`${c.info('[INFO]')} Server URL:  ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
-            console.log(`${c.tip('[TIP]')}  Run "${PRODUCT_NAME} status" for full configuration details`);
-            console.log('');
-
-            // Start watching the projects folder for changes
-            await initializeSessionsWatcher();
+        await writeLocalServerMarker().catch((error) => {
+            console.warn('[WARN] Could not write local server marker:', error.message);
         });
 
+        // Occupy the loopback addresses and self-probe /health so a port
+        // forward (Cursor/VS Code Remote) or stray instance cannot
+        // silently take over localhost:PORT. Only relevant for wildcard
+        // binds — an explicit HOST already pins the address.
+        if (isWildcardHost(HOST)) {
+            loopbackGuard = startLoopbackGuard({
+                app,
+                mainServer: server,
+                port: Number.parseInt(String(SERVER_PORT), 10),
+                instanceId: INSTANCE_ID,
+            });
+        }
+
+        console.log('');
+        console.log(c.dim('═'.repeat(63)));
+        console.log(`  ${c.bright(`${PRODUCT_NAME} ${RUNNING_VERSION} - Ready`)}`);
+        console.log(c.dim('═'.repeat(63)));
+        console.log('');
+        console.log(`${c.info('[INFO]')} Server URL:  ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
+        console.log(`${c.tip('[TIP]')}  Run "${PRODUCT_NAME} status" for full configuration details`);
+        console.log('');
+
         await closeSessionsWatcher();
+        // Start watching the projects folder for changes
+        await initializeSessionsWatcher();
+
         const shutdownRuntimeServices = async () => {
             loopbackGuard?.close();
             try {

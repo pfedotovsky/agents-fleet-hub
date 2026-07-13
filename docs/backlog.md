@@ -38,8 +38,9 @@ for agents:
   surfaced in the hub, or an opt-in periodic upgrade, so a fleet doesn't
   drift.
 - [ ] **Remote reachability helper** — the hardest part for remote VMs is
-  networking (bind address, firewall, TLS). Provide a documented one-liner
-  tunnel and/or a hub-side "paste this on the VM" snippet. Details:
+  networking (firewall, TLS, tunnel/VPN). The fleet-server bind default is now
+  IPv6-first, so the remaining work is a documented one-liner tunnel and/or a
+  hub-side "paste this on the VM" snippet. Details:
   `docs/installation-simplicity.md`.
 - [ ] **macOS signing + notarization** — get an Apple Developer ID and set
   the `APPLE_*` repo secrets; `release.yml` already activates signing when

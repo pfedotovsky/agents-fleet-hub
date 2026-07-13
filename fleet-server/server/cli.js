@@ -58,7 +58,7 @@ function showStatus() {
 
     console.log(`\n${c.info('[INFO]')} Configuration:`);
     console.log(`       SERVER_PORT: ${c.bright(process.env.SERVER_PORT || process.env.PORT || '3011')} ${c.dim(process.env.SERVER_PORT || process.env.PORT ? '' : '(default)')}`);
-    console.log(`       HOST: ${c.dim(process.env.HOST || '0.0.0.0 (default)')}`);
+    console.log(`       HOST: ${c.dim(process.env.HOST || ':: (default, falls back to 0.0.0.0 if IPv6 is unavailable)')}`);
     console.log(`       DATABASE_PATH: ${c.dim(process.env.DATABASE_PATH || '(using default location)')}`);
     console.log(`       CLAUDE_CLI_PATH: ${c.dim(process.env.CLAUDE_CLI_PATH || 'claude (default)')}`);
     console.log(`       CODEX_CLI_PATH: ${c.dim(process.env.CODEX_CLI_PATH || 'codex (default)')}`);
@@ -79,7 +79,7 @@ function showStatus() {
     console.log('\n' + c.dim('═'.repeat(60)));
     console.log(`\n${c.tip('[TIP]')} Hints:`);
     console.log(`      ${c.dim('>')} Use ${c.bright('fleet-server --port 8080')} to run on a custom port`);
-    console.log(`      ${c.dim('>')} Use ${c.bright('HOST=:: fleet-server')} on IPv6-only hosts`);
+    console.log(`      ${c.dim('>')} Use ${c.bright('HOST=0.0.0.0 fleet-server')} only if you need to force IPv4 binding`);
     console.log(`      ${c.dim('>')} Run ${c.bright('fleet-server help')} for all options\n`);
 }
 
@@ -105,7 +105,7 @@ Options:
 
 Environment Variables:
   SERVER_PORT         Set server port (default: 3011)
-  HOST                Bind address (default: 0.0.0.0; use :: for IPv6-only hosts)
+  HOST                Bind address (default: ::, falls back to 0.0.0.0 if IPv6 is unavailable)
   DATABASE_PATH       Set custom database location
   FLEET_SERVER_HOME   Data directory (default: ~/.fleet-server)
   CLAUDE_CLI_PATH     Set custom Claude CLI path

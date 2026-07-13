@@ -41,7 +41,7 @@ that installs *and* starts a persistent service on `:3011`:
 
 ```bash
 # without Homebrew — installs the binary + a launchd/systemd service
-# (auto-detects IPv6-only hosts and sets HOST=::)
+# (IPv6-first bind by default, with IPv4 fallback when needed)
 curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh -s -- --service
 
 # or with Homebrew (macOS/Linux)
@@ -56,11 +56,11 @@ just want the binary without a background service. See
 `--host` flags, and migrating an existing CloudCLI host. (Hosts still running
 stock CloudCLI on :3001 keep working too.)
 
-**Remote hosts:** make the port reachable — bind all interfaces
-(`HOST=:: fleet-server`, or `SERVER_PORT`/reverse proxy) and open the
-firewall, or reach it over a VPN/SSH tunnel. Anyone who can reach the port +
-sign in can run code as that user, so don't expose it on the open internet
-without TLS in front.
+**Remote hosts:** make the port reachable — fleet-server binds all interfaces
+with IPv6-first defaults (`HOST=::`, falling back to `0.0.0.0` only when IPv6
+is unavailable), then open the firewall or reach it over a VPN/SSH tunnel.
+Anyone who can reach the port + sign in can run code as that user, so don't
+expose it on the open internet without TLS in front.
 
 ### 2. On your machine — the hub
 

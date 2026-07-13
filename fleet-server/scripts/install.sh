@@ -10,7 +10,7 @@
 #   --service        install and start a persistent service (launchd on macOS,
 #                    systemd user unit + linger on Linux), then verify /health
 #   --port <n>       service port (default 3011)
-#   --host <addr>    bind address; auto-detected as :: on IPv6-only hosts
+#   --host <addr>    bind address (default ::; fallback is built into the binary)
 #
 # Optional host dependency: ripgrep (`rg`) enables session search.
 set -eu
@@ -92,35 +92,29 @@ echo ""
 "$BIN" version
 echo ""
 
-# ── IPv6-only detection ──────────────────────────────────────────────
-# If the host has no non-loopback IPv4 address, bind :: so the server is
-# reachable at all (mirrors the HOST=:: workaround CloudCLI needs on such VMs).
+# ── Bind address ─────────────────────────────────────────────────────
+# Leave HOST unset by default: the fleet-server binary binds :: and falls back
+# to 0.0.0.0 if IPv6 is unavailable. --host / FLEET_SERVER_HOST still pins it.
 detect_host() {
-  if [ -n "$SERVER_HOST" ]; then
-    printf '%s' "$SERVER_HOST"
-    return
-  fi
-  ipv4=""
-  if command -v ip >/dev/null 2>&1; then
-    ipv4=$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | head -1)
-  elif command -v ifconfig >/dev/null 2>&1; then
-    ipv4=$(ifconfig 2>/dev/null | awk '/inet /{print $2}' | grep -v '^127\.' | head -1)
-  fi
-  if [ -z "$ipv4" ]; then
-    printf '::'
-  else
-    printf '0.0.0.0'
-  fi
+  printf '%s' "$SERVER_HOST"
 }
 
 verify_health() {
-  probe_host="127.0.0.1"
+  if [ "$SERVER_HOST_RESOLVED" = "0.0.0.0" ]; then
+    probe_urls="http://127.0.0.1:${SERVER_PORT}/health"
+  elif [ "$SERVER_HOST_RESOLVED" = "::" ]; then
+    probe_urls="http://[::1]:${SERVER_PORT}/health"
+  else
+    probe_urls="http://[::1]:${SERVER_PORT}/health http://127.0.0.1:${SERVER_PORT}/health"
+  fi
   n=0
   while [ "$n" -lt 15 ]; do
-    if curl -fsS "http://${probe_host}:${SERVER_PORT}/health" >/dev/null 2>&1; then
-      echo "Health check OK: http://${probe_host}:${SERVER_PORT}/health"
-      return 0
-    fi
+    for probe_url in $probe_urls; do
+      if curl -fsS "$probe_url" >/dev/null 2>&1; then
+        echo "Health check OK: ${probe_url}"
+        return 0
+      fi
+    done
     n=$((n + 1))
     sleep 1
   done
@@ -135,7 +129,7 @@ install_launchd() {
   mkdir -p "$HOME/Library/LaunchAgents" "$logdir"
 
   host_entry=""
-  if [ "$SERVER_HOST_RESOLVED" != "0.0.0.0" ]; then
+  if [ -n "$SERVER_HOST_RESOLVED" ]; then
     host_entry="    <key>HOST</key>
     <string>${SERVER_HOST_RESOLVED}</string>
 "
@@ -189,7 +183,7 @@ install_systemd() {
   mkdir -p "$unitdir"
 
   host_line=""
-  if [ "$SERVER_HOST_RESOLVED" != "0.0.0.0" ]; then
+  if [ -n "$SERVER_HOST_RESOLVED" ]; then
     host_line="Environment=HOST=${SERVER_HOST_RESOLVED}
 "
   fi
@@ -210,7 +204,8 @@ WantedBy=default.target
 EOF
 
   systemctl --user daemon-reload
-  systemctl --user enable --now fleet-server
+  systemctl --user enable fleet-server
+  systemctl --user restart fleet-server
   # Keep the service running after logout (best-effort; needs privileges).
   loginctl enable-linger "$(id -un)" >/dev/null 2>&1 || \
     echo "Note: run 'sudo loginctl enable-linger $(id -un)' to keep the server running after logout."
@@ -220,7 +215,11 @@ EOF
 
 if [ "$SERVICE" -eq 1 ]; then
   SERVER_HOST_RESOLVED=$(detect_host)
-  echo "Setting up service on port ${SERVER_PORT} (HOST=${SERVER_HOST_RESOLVED})..."
+  if [ -n "$SERVER_HOST_RESOLVED" ]; then
+    echo "Setting up service on port ${SERVER_PORT} (HOST=${SERVER_HOST_RESOLVED})..."
+  else
+    echo "Setting up service on port ${SERVER_PORT} (HOST default: :: with IPv4 fallback)..."
+  fi
   if [ "$platform" = "darwin" ]; then
     install_launchd
   else
@@ -233,8 +232,8 @@ if [ "$SERVICE" -eq 1 ]; then
   echo "Add http://<this-host>:${SERVER_PORT} in Agents Hub (localhost for this machine)."
 else
   echo "fleet-server installed. Start it with:"
-  echo "  fleet-server                # port ${SERVER_PORT}, data in ~/.fleet-server"
-  echo "  HOST=:: fleet-server        # IPv6-only hosts"
+  echo "  fleet-server                # port ${SERVER_PORT}, HOST=:: by default with IPv4 fallback"
+  echo "  HOST=0.0.0.0 fleet-server   # force IPv4-only binding if needed"
   echo ""
   echo "Or install a persistent service by re-running with --service:"
   echo "  curl -fsSL https://raw.githubusercontent.com/${REPO}/main/fleet-server/scripts/install.sh | sh -s -- --service"

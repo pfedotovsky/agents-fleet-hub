@@ -12,8 +12,10 @@ be as simple as possible — **one command per host** for the server and
 > (`../fleet-server/`) is now the intended host install: one `curl | sh` (or
 > brew formula), a single compiled binary, **no Node.js/npm on the host**,
 > data in `~/.fleet-server` with automatic adoption of an existing
-> `~/.cloudcli/auth.db`, port 3011 for side-by-side migration. The Codex
-> auth/version hand-patches described below are fixed in the fork itself.
+> `~/.cloudcli/auth.db`, port 3011 for side-by-side migration, and IPv6-first
+> binding by default (`HOST=::`, with runtime fallback to `0.0.0.0` if IPv6 is
+> unavailable). The Codex auth/version hand-patches described below are fixed
+> in the fork itself.
 > The sections below remain accurate for hosts still on stock CloudCLI.
 
 Written 2026-07-12 after auditing the actual install paths. Facts below are
