@@ -82,6 +82,34 @@ brand-new host prompts you to create its single account; after that only the
 JWT is stored (in the hub, never the password). Projects and sessions from
 that host appear immediately.
 
+## Development
+
+To hack on the hub UI, run the Vite dev server from `fleet-hub/` (Node.js
+required; the URL only works while this command is running):
+
+```bash
+cd fleet-hub
+npm install
+npm run dev     # → http://localhost:5173
+```
+
+You still need a fleet-server (or stock CloudCLI) to talk to — the installed
+service on `:3011` works fine, or run one from source with
+[Bun](https://bun.sh):
+
+```bash
+cd fleet-server
+bun install
+bun run dev     # server on :3011
+bun test server # run the test suite
+```
+
+To develop the desktop (Tauri) shell instead of the browser build, use
+`npm run tauri dev` in `fleet-hub/` (needs Rust). More detail in
+[`fleet-hub/README.md`](fleet-hub/README.md) and
+[`fleet-server/README.md`](fleet-server/README.md); the release process is in
+[`docs/releasing.md`](docs/releasing.md).
+
 ## Toward one-click
 
 Already done: **`install.sh --service`** installs and starts a persistent
