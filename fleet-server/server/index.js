@@ -5,6 +5,7 @@ import fs, { promises as fsPromises } from 'fs';
 import path from 'path';
 import os from 'os';
 import http from 'http';
+import { randomUUID } from 'crypto';
 
 // Modified from CloudCLI 1.36.1 — see NOTICE. fleet-server keeps the API
 // surface consumed by Agents Hub plus the /shell terminal; cursor/opencode
@@ -41,6 +42,7 @@ import {
     extractUrlsFromText,
     shouldAutoOpenUrlFromOutput,
 } from './utils/url-detection.js';
+import { isWildcardHost, startLoopbackGuard } from './services/loopback-guard.js';
 import gitRoutes from './routes/git.js';
 import authRoutes from './routes/auth.js';
 import commandsRoutes from './routes/commands.js';
@@ -53,6 +55,10 @@ import { IS_PLATFORM } from './constants/config.js';
 import { c } from './utils/colors.js';
 
 const RUNNING_VERSION = VERSION;
+// Minted once per process so /health identifies WHICH instance is answering —
+// otherwise a loopback-shadowing instance (see services/loopback-guard.js) is
+// indistinguishable from this one.
+const INSTANCE_ID = randomUUID();
 const MAX_FILE_UPLOAD_SIZE_MB = 200;
 const MAX_FILE_UPLOAD_SIZE_BYTES = MAX_FILE_UPLOAD_SIZE_MB * 1024 * 1024;
 const MAX_FILE_UPLOAD_COUNT = 20;
@@ -118,12 +124,21 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Public health check endpoint (no authentication required)
+// Public health check endpoint (no authentication required).
+// instanceId/pid/hostname/dataDir identify WHICH instance answered, so
+// clients and the loopback self-probe can detect port shadowing (a forwarded
+// or stray server answering on this address). instanceId is random per
+// process; hostname/dataDir are deliberately exposed — this is a LAN tool and
+// the debugging value outweighs the disclosure.
 app.get('/health', (req, res) => {
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
-        version: RUNNING_VERSION
+        version: RUNNING_VERSION,
+        instanceId: INSTANCE_ID,
+        pid: process.pid,
+        hostname: os.hostname(),
+        dataDir: FLEET_SERVER_HOME,
     });
 });
 
@@ -1332,6 +1347,8 @@ async function removeLocalServerMarker() {
 }
 
 // Initialize database and start server
+let loopbackGuard = null;
+
 async function startServer() {
     try {
         // Initialize authentication database
@@ -1345,6 +1362,19 @@ async function startServer() {
             await writeLocalServerMarker().catch((error) => {
                 console.warn('[WARN] Could not write local server marker:', error.message);
             });
+
+            // Occupy the loopback addresses and self-probe /health so a port
+            // forward (Cursor/VS Code Remote) or stray instance cannot
+            // silently take over localhost:PORT. Only relevant for wildcard
+            // binds — an explicit HOST already pins the address.
+            if (isWildcardHost(HOST)) {
+                loopbackGuard = startLoopbackGuard({
+                    app,
+                    mainServer: server,
+                    port: Number.parseInt(String(SERVER_PORT), 10),
+                    instanceId: INSTANCE_ID,
+                });
+            }
 
             console.log('');
             console.log(c.dim('═'.repeat(63)));
@@ -1361,6 +1391,7 @@ async function startServer() {
 
         await closeSessionsWatcher();
         const shutdownRuntimeServices = async () => {
+            loopbackGuard?.close();
             try {
                 await removeLocalServerMarker();
             } catch (err) {
