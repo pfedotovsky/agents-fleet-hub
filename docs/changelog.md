@@ -7,6 +7,35 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-07-13
 
 ### Released
+- **fleet-server 0.1.4** — tag `server-v0.1.4`; the loopback-shadowing guard +
+  `/health` instance identity (see Added). Upgrade with
+  `brew upgrade fleet-server` and restart the service
+  (`brew services restart fleet-server`).
+
+### Added
+- **Loopback-shadowing guard + `/health` instance identity (fleet-server
+  0.1.4).** Root-caused from a live incident: Cursor Remote auto-forwarded a
+  remote fleet-server's port 3011 to `127.0.0.1` on the dev machine; the
+  specific-address bind won all `localhost` traffic over the brew service's
+  `0.0.0.0` bind (BSD/Windows bind semantics, no EADDRINUSE anywhere), so
+  Agents Hub silently showed the remote server's empty DB and a sign-in
+  prompt (different JWT secret). Defenses, in `server/services/loopback-guard.js`:
+  - The server now also binds `127.0.0.1`/`::1` explicitly (same Express app;
+    websocket upgrades forwarded to the main gateway), so later forwarders
+    get EADDRINUSE and relocate instead of hijacking localhost. On Linux the
+    guard binds conflict with our own wildcard and no-op — harmless, the
+    wildcard already blocks foreign loopback binds there.
+  - A loopback self-probe of `/health` (5 s after start, then every 60 s)
+    compares `instanceId` and logs a loud warning naming the foreign
+    instance (version/hostname/pid/dataDir) when something shadows us
+    anyway, e.g. a forward that predates startup.
+  - `/health` now returns `instanceId` (random per process), `pid`,
+    `hostname`, `dataDir` so clients and humans can tell *which* instance
+    answered. Deliberate disclosure trade-off for a LAN tool.
+  Dev-PC hygiene that pairs with this: Cursor/VS Code setting
+  `"remote.portsAttributes": {"3011": {"onAutoForward": "ignore"}}`.
+
+### Released (earlier today)
 - **Agents Hub 0.1.7 (desktop)** — tag `v0.1.7`; auto-adds a same-machine
   fleet-server on launch and connects with no login (`[fork-fix #16]`, see
   Added). Upgrade with `brew upgrade --cask agents-hub`.
