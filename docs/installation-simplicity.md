@@ -14,8 +14,10 @@ be as simple as possible — **one command per host** for the server and
 > data in `~/.fleet-server` with automatic adoption of an existing
 > `~/.cloudcli/auth.db`, port 3011 for side-by-side migration, and IPv6-first
 > binding by default (`HOST=::`, with runtime fallback to `0.0.0.0` if IPv6 is
-> unavailable). The Codex auth/version hand-patches described below are fixed
-> in the fork itself.
+> unavailable). As of 2026-07-14, remote-login credentials are set locally with
+> `fleet-server auth setup` (or `--password-stdin` for automation); the
+> installer remains install-only and does not prompt for credentials. The
+> Codex auth/version hand-patches described below are fixed in the fork itself.
 > The sections below remain accurate for hosts still on stock CloudCLI.
 
 Written 2026-07-12 after auditing the actual install paths. Facts below are

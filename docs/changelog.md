@@ -6,6 +6,21 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-14
 
+### Fixed
+- **Host-side auth setup for remote-first installs.** fleet-server now has
+  `fleet-server auth status|check|setup`; `auth setup` creates the first
+  username/password locally or upgrades the loopback-only `local` account
+  without using the public HTTP setup path. The installer stays install-only
+  and never prompts for credentials; automation can use `--password-stdin`.
+  The fleet-server `/api/auth/register` route now returns 410 and tells users
+  to run `fleet-server auth setup` on the host, so the hub cannot create a new
+  fleet-server username/password through the browser.
+- **No fleet-server browser setup path.** `GET /api/auth/status` no longer
+  advertises `needsSetup` for fleet-server; when no real password account
+  exists it returns `needsCliAuthSetup: true` for diagnostics, while the hub
+  shows sign-in only. The minimal `/` landing page points users back to Agents
+  Hub for normal use, not account creation.
+
 ### Released
 - **fleet-server 0.1.5** — tag `server-v0.1.5`; IPv6-first bind for remote VM
   hostnames (see Fixed). Upgrade with `brew upgrade fleet-server` and restart

@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // Modified from CloudCLI 1.36.1 — see NOTICE.
-// fleet-server CLI: start (default), status, help, version. Upstream's
+// fleet-server CLI: start (default), status, auth, help, version. Upstream's
 // sandbox/browser-use-mcp/update subcommands were removed with their features;
 // version/paths come from build-time constants instead of package.json lookups.
 
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import readline from 'readline/promises';
 import { VERSION, PRODUCT_NAME, UPSTREAM_ATTRIBUTION } from './shared/build-info.js';
 import { getFleetServerHome, getDefaultDatabasePath } from './load-env.js';
 
@@ -31,6 +32,161 @@ const c = {
 
 function getDatabasePath() {
     return process.env.DATABASE_PATH || getDefaultDatabasePath();
+}
+
+function hasPasswordAccount(user) {
+    return !!user?.password_hash?.startsWith('$2');
+}
+
+async function loadAuthDatabase() {
+    const { initializeDatabase, userDb, closeConnection } = await import('./modules/database/index.js');
+    await initializeDatabase();
+    return { userDb, closeConnection };
+}
+
+function validateAuthInput(username, password) {
+    if (!username || username.length < 3) {
+        throw new Error('Username must be at least 3 characters');
+    }
+    if (!password || password.length < 6) {
+        throw new Error('Password must be at least 6 characters');
+    }
+}
+
+async function promptLine(label, defaultValue = '') {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    try {
+        const suffix = defaultValue ? ` (${defaultValue})` : '';
+        const answer = await rl.question(`${label}${suffix}: `);
+        return answer.trim() || defaultValue;
+    } finally {
+        rl.close();
+    }
+}
+
+function promptHidden(label) {
+    return new Promise((resolve, reject) => {
+        const input = process.stdin;
+        const output = process.stdout;
+        if (!input.isTTY || typeof input.setRawMode !== 'function') {
+            reject(new Error('Password prompt requires a TTY. Use --password-stdin for non-interactive setup.'));
+            return;
+        }
+
+        let value = '';
+        const wasRaw = input.isRaw;
+        const cleanup = () => {
+            input.off('data', onData);
+            input.setRawMode(wasRaw);
+            input.pause();
+        };
+        const finish = () => {
+            cleanup();
+            output.write('\n');
+            resolve(value);
+        };
+        const cancel = () => {
+            cleanup();
+            output.write('\n');
+            reject(new Error('Cancelled'));
+        };
+        const onData = (chunk) => {
+            const text = String(chunk);
+            for (const char of text) {
+                if (char === '\u0003') {
+                    cancel();
+                    return;
+                }
+                if (char === '\r' || char === '\n') {
+                    finish();
+                    return;
+                }
+                if (char === '\u007f' || char === '\b') {
+                    value = value.slice(0, -1);
+                    continue;
+                }
+                value += char;
+            }
+        };
+
+        output.write(label);
+        input.setRawMode(true);
+        input.resume();
+        input.setEncoding('utf8');
+        input.on('data', onData);
+    });
+}
+
+async function readPasswordFromStdin() {
+    let input = '';
+    for await (const chunk of process.stdin) {
+        input += chunk;
+    }
+    return input.split(/\r?\n/, 1)[0];
+}
+
+async function readSetupPassword(options) {
+    if (options.passwordStdin) {
+        return readPasswordFromStdin();
+    }
+
+    const password = await promptHidden('Password: ');
+    const confirmation = await promptHidden('Confirm password: ');
+    if (password !== confirmation) {
+        throw new Error("Passwords don't match");
+    }
+    return password;
+}
+
+async function showAuthStatus({ quiet = false } = {}) {
+    const { userDb, closeConnection } = await loadAuthDatabase();
+    try {
+        const existing = userDb.getFirstUserWithHash();
+        if (hasPasswordAccount(existing)) {
+            if (!quiet) {
+                console.log(`${c.ok('[OK]')} Auth configured for user: ${c.bright(existing.username)}`);
+            }
+            return 0;
+        }
+        if (!quiet) {
+            const detail = existing
+                ? 'Only a local passwordless account exists; remote login needs setup.'
+                : 'No account exists yet.';
+            console.log(`${c.warn('[WARN]')} Auth setup required. ${detail}`);
+            console.log(`       Run ${c.bright('fleet-server auth setup')} on this host.`);
+        }
+        return 2;
+    } finally {
+        closeConnection();
+    }
+}
+
+async function setupAuth(options) {
+    const { userDb, closeConnection } = await loadAuthDatabase();
+    try {
+        const existing = userDb.getFirstUserWithHash();
+        if (hasPasswordAccount(existing)) {
+            console.log(`${c.ok('[OK]')} Auth is already configured for user: ${c.bright(existing.username)}`);
+            return 0;
+        }
+
+        const defaultUsername = existing?.username && existing.username !== 'local' ? existing.username : '';
+        const username = options.username?.trim() || await promptLine('Username', defaultUsername);
+        const password = await readSetupPassword(options);
+        validateAuthInput(username, password);
+
+        const passwordHash = await Bun.password.hash(password, { algorithm: 'bcrypt', cost: 12 });
+        if (existing) {
+            userDb.updateCredentials(existing.id, username, passwordHash);
+            console.log(`${c.ok('[OK]')} Upgraded local-only account to password login for ${c.bright(username)}.`);
+        } else {
+            userDb.createUser(username, passwordHash);
+            console.log(`${c.ok('[OK]')} Created fleet-server account for ${c.bright(username)}.`);
+        }
+        return 0;
+    } finally {
+        closeConnection();
+    }
 }
 
 function showStatus() {
@@ -94,12 +250,16 @@ Usage:
 Commands:
   start            Start the server (default)
   status           Show configuration and data locations
+  auth status      Show whether host login is configured
+  auth setup       Create or upgrade the host username/password locally
   help             Show this help information
   version          Show version information
 
 Options:
   -p, --port <port>           Set server port (default: 3011)
   --database-path <path>      Set custom database location
+  --username <name>           Username for "auth setup"
+  --password-stdin            Read "auth setup" password from stdin
   -h, --help                  Show this help information
   -v, --version               Show version information
 
@@ -115,7 +275,7 @@ Environment Variables:
 }
 
 function parseArgs(args) {
-    const parsed = { command: 'start', options: {} };
+    const parsed = { command: 'start', subcommand: null, options: {} };
 
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
@@ -128,12 +288,24 @@ function parseArgs(args) {
             parsed.options.databasePath = args[++i];
         } else if (arg.startsWith('--database-path=')) {
             parsed.options.databasePath = arg.split('=')[1];
+        } else if (arg === '--username') {
+            parsed.options.username = args[++i];
+        } else if (arg.startsWith('--username=')) {
+            parsed.options.username = arg.split('=')[1];
+        } else if (arg === '--password-stdin') {
+            parsed.options.passwordStdin = true;
+        } else if (arg === '--quiet') {
+            parsed.options.quiet = true;
         } else if (arg === '--help' || arg === '-h') {
             parsed.command = 'help';
         } else if (arg === '--version' || arg === '-v') {
             parsed.command = 'version';
         } else if (!arg.startsWith('-')) {
-            parsed.command = arg;
+            if (parsed.command === 'start') {
+                parsed.command = arg;
+            } else if (!parsed.subcommand) {
+                parsed.subcommand = arg;
+            }
         }
     }
 
@@ -142,7 +314,7 @@ function parseArgs(args) {
 
 async function main() {
     const args = process.argv.slice(2);
-    const { command, options } = parseArgs(args);
+    const { command, subcommand, options } = parseArgs(args);
 
     if (options.serverPort) {
         process.env.SERVER_PORT = options.serverPort;
@@ -161,6 +333,19 @@ async function main() {
         case 'info':
             showStatus();
             break;
+        case 'auth': {
+            const authCommand = options.quiet && !subcommand ? 'check' : subcommand || 'status';
+            if (authCommand === 'setup') {
+                process.exitCode = await setupAuth(options);
+            } else if (authCommand === 'status') {
+                process.exitCode = await showAuthStatus();
+            } else if (authCommand === 'check') {
+                process.exitCode = await showAuthStatus({ quiet: true });
+            } else {
+                throw new Error(`Unknown auth command: ${authCommand}`);
+            }
+            break;
+        }
         case 'help':
             showHelp();
             break;

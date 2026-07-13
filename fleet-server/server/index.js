@@ -172,6 +172,7 @@ app.get('/', (req, res) => {
 <div style="text-align: center">
 <h1 style="font-weight: 600">${PRODUCT_NAME} ${RUNNING_VERSION}</h1>
 <p>This host is ready to be added to <strong>Agents Hub</strong>.</p>
+<p style="color: #a1a1aa; max-width: 34rem">Open Agents Hub, add this URL as a host, then sign in. For remote access, run <code>fleet-server auth setup</code> on this host first.</p>
 <p style="color: #a1a1aa; font-size: 0.85rem">${UPSTREAM_ATTRIBUTION}</p>
 </div></body></html>`);
 });

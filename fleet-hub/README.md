@@ -35,10 +35,12 @@ than 0.1.2). Removing it in settings sticks; it won't be re-added.
 For every other host, open settings (gear in the sidebar) → add a name, its
 base URL (e.g. `http://my-vm.example.net:3001` or `http://localhost:3001`),
 and optionally a username to prefill the login form. Sign in once per host —
-on a freshly installed CloudCLI the hub offers first-time setup instead
-(creates the host's single account via `POST /api/auth/register`). Only the
-JWT is kept (localStorage), never the password, and the token slides forward
-via CloudCLI's `X-Refreshed-Token` header while the page is open.
+for remote fleet-server access, first run `fleet-server auth setup` on the
+host. On a freshly installed stock CloudCLI host, the hub still offers
+first-time setup via `POST /api/auth/register`. Only the JWT is kept
+(localStorage), never the password, and the token slides forward via
+CloudCLI's `X-Refreshed-Token` header while the page is open. fleet-server's
+own root URL is only a status page; it does not expose an account-setup UI.
 
 ## What it does
 

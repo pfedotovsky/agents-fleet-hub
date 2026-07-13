@@ -41,15 +41,25 @@ that installs *and* starts a persistent service on `:3011`:
 
 ```bash
 # without Homebrew — installs the binary + a launchd/systemd service
-# (IPv6-first bind by default, with IPv4 fallback when needed)
+# IPv6-first bind by default, with IPv4 fallback when needed
 curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh -s -- --service
 
 # or with Homebrew (macOS/Linux)
-brew install pfedotovsky/tap/fleet-server && brew services start fleet-server
+brew install pfedotovsky/tap/fleet-server
+fleet-server auth setup
+brew services start fleet-server
 ```
 
-Verify it's up: `curl http://localhost:3011/health`. Nothing else to
-configure — the account is created from the hub on first connect. Drop
+Verify it's up: `curl http://localhost:3011/health`. Opening the host URL in a
+browser only shows a small status page. For remote access, create the host
+username/password locally:
+
+```bash
+fleet-server auth setup
+```
+
+The installer does not prompt for credentials, and fleet-server does not expose
+a browser/API account-setup flow. Drop
 `--service` (or run `fleet-server` yourself instead of `brew services`) if you
 just want the binary without a background service. See
 [`fleet-server/README.md`](fleet-server/README.md) for env vars, `--port`/
@@ -78,9 +88,10 @@ http://localhost:5173).
 
 In the hub: **Settings (gear)** → add a host with its base URL
 (`http://localhost:3011`, or `http://my-vm.example.net:3011`) → sign in. A
-brand-new host prompts you to create its single account; after that only the
-JWT is stored (in the hub, never the password). Projects and sessions from
-that host appear immediately.
+remote fleet-server host must already have a local account from
+`fleet-server auth setup`; use that username/password here. Only the JWT is
+stored in the hub, never the password. Projects and sessions from that host
+appear immediately.
 
 ### Updating fleet-server
 

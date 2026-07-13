@@ -240,4 +240,6 @@ else
 fi
 
 echo ""
+echo "For remote access, run on the host: fleet-server auth setup"
+echo ""
 echo "Optional: install ripgrep to enable session search (brew install ripgrep / apt install ripgrep)."

@@ -170,17 +170,27 @@ Browser (Agents Hub SPA)
 
 - Login: `POST /api/auth/login {username,password}` → JWT. Only the JWT is
   stored (localStorage, per host); passwords never leave component state.
+- Host-side setup (fleet-server): `fleet-server auth setup` initializes the
+  local SQLite database and creates or upgrades the single account without
+  going through HTTP. The installer does not prompt for credentials;
+  automation can pipe one password line with `--password-stdin`.
 - Passwordless localhost (fleet-server only, `[fork-fix #16]`): when
   `GET /api/auth/status` reports `localAuthBypass` (server checks the TCP
   peer address is loopback; opt out with `FLEET_LOCALHOST_NO_AUTH=false`),
   the hub mints a normal JWT via `POST /api/auth/local-token` — no login
   modal. The server auto-provisions a `local` user with a sentinel (non-
-  bcrypt) hash; `register` can later upgrade it to a real username+password
-  for remote access, and `login` rejects sentinel accounts with 401.
-- First-time setup: CloudCLI is single-user; while a host has no account,
-  `GET /api/auth/status` reports `needsSetup` and the login modal switches to
-  create-account mode → `POST /api/auth/register {username,password}` → JWT
-  (allowed only while no user exists; server rules: username ≥ 3, password ≥ 6).
+  bcrypt) hash; `fleet-server auth setup` can later upgrade it to a real
+  username+password for remote access, and `login` rejects sentinel accounts
+  with 401. While no real password account exists, `GET /api/auth/status`
+  reports `needsSetup: false` plus `needsCliAuthSetup: true`, so no hub setup
+  UI is shown.
+- First-time setup (stock CloudCLI only): CloudCLI is single-user; while a
+  host has no account, `GET /api/auth/status` reports `needsSetup` and the
+  login modal switches to create-account mode →
+  `POST /api/auth/register {username,password}` → JWT (server rules: username
+  ≥ 3, password ≥ 6). fleet-server keeps the endpoint for API compatibility
+  but returns 410 instructing users to run `fleet-server auth setup` on the
+  host.
 - Sliding refresh: any authenticated response may carry `X-Refreshed-Token`;
   `fetchJson` always captures it via a callback.
 - **Both 401 and 403 mean auth failure** (CloudCLI returns 403 for a *bad*

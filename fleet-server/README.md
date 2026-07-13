@@ -36,16 +36,32 @@ Or via Homebrew (formula in `packaging/fleet-server.rb`, published through
 
 ```bash
 brew install pfedotovsky/tap/fleet-server
+fleet-server auth setup
 brew services start fleet-server
 ```
 
-Then add `http://<host>:3011` as a host in Agents Hub — the first connect
-walks you through account creation.
+Then add `http://<host>:3011` as a host in Agents Hub and sign in with the
+host account. Opening `http://<host>:3011` directly only shows a small status
+page; the server does not expose an account-setup UI. For remote access, set
+the host credentials locally first:
+
+```bash
+fleet-server auth setup
+```
+
+Other useful commands:
 
 ```bash
 fleet-server                 # port 3011, HOST=:: by default, data in ~/.fleet-server
 HOST=0.0.0.0 fleet-server    # force IPv4-only binding if needed
 fleet-server status          # config + data locations
+fleet-server auth status     # whether host login is configured
+```
+
+For automation, avoid putting the password in shell history:
+
+```bash
+printf '%s\n' "$FLEET_SERVER_PASSWORD" | fleet-server auth setup --username "$USER" --password-stdin
 ```
 
 Optional host dependency: [`ripgrep`](https://github.com/BurntSushi/ripgrep)

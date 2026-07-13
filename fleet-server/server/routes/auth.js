@@ -1,6 +1,5 @@
 import express from 'express';
 import { userDb } from '../modules/database/index.js';
-import { getConnection } from '../modules/database/connection.js';
 import {
   generateToken,
   authenticateToken,
@@ -10,14 +9,17 @@ import {
 } from '../middleware/auth.js';
 
 const router = express.Router();
-const db = getConnection();
 
 // Check auth status and setup requirements
 router.get('/status', async (req, res) => {
   try {
-    const hasUsers = await userDb.hasUsers();
+    const existing = userDb.getFirstUserWithHash();
+    const hasPasswordAccount = !!existing?.password_hash?.startsWith('$2');
     res.json({
-      needsSetup: !hasUsers,
+      // fleet-server intentionally has no browser/API account setup flow.
+      // Remote credentials must be created locally with `fleet-server auth setup`.
+      needsSetup: false,
+      needsCliAuthSetup: !hasPasswordAccount,
       isAuthenticated: false, // Will be overridden by frontend if token exists
       // [fork-fix #16] Signals a same-machine client that it can skip the
       // password and mint a token via POST /api/auth/local-token.
@@ -48,70 +50,12 @@ router.post('/local-token', (req, res) => {
   }
 });
 
-// User registration (setup) - only allowed if no users exist
-router.post('/register', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    
-    // Validate input
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required' });
-    }
-    
-    if (username.length < 3 || password.length < 6) {
-      return res.status(400).json({ error: 'Username must be at least 3 characters, password at least 6 characters' });
-    }
-    
-    // Use a transaction to prevent race conditions
-    db.prepare('BEGIN').run();
-    try {
-      // Check if users already exist (only allow one user)
-      const existing = userDb.getFirstUserWithHash();
-      // [fork-fix #16] A real account (bcrypt $2… hash) blocks re-registration.
-      // But an auto-provisioned loopback account (sentinel hash) may be upgraded
-      // here — this is how remote password login gets enabled after the server
-      // has already been used locally.
-      if (existing && existing.password_hash && existing.password_hash.startsWith('$2')) {
-        db.prepare('ROLLBACK').run();
-        return res.status(403).json({ error: 'User already exists. This is a single-user system.' });
-      }
-
-      // Hash password. Bun.password with the bcrypt algorithm produces and
-      // verifies the same $2b$ hashes as the node bcrypt module, so databases
-      // created by upstream CloudCLI keep working (see docs/bun-port-notes.md).
-      const passwordHash = await Bun.password.hash(password, { algorithm: 'bcrypt', cost: 12 });
-
-      // Upgrade the existing loopback account, or create a fresh user.
-      const user = existing
-        ? (userDb.updateCredentials(existing.id, username, passwordHash), { id: existing.id, username })
-        : userDb.createUser(username, passwordHash);
-
-      // Generate token
-      const token = generateToken(user);
-
-      db.prepare('COMMIT').run();
-
-      // Update last login (non-fatal, outside transaction)
-      userDb.updateLastLogin(user.id);
-
-      res.json({
-        success: true,
-        user: { id: user.id, username: user.username },
-        token
-      });
-    } catch (error) {
-      db.prepare('ROLLBACK').run();
-      throw error;
-    }
-    
-  } catch (error) {
-    console.error('Registration error:', error);
-    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-      res.status(409).json({ error: 'Username already exists' });
-    } else {
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  }
+// fleet-server does not expose browser/API account creation. Set or upgrade
+// the single remote-login account from the host shell instead.
+router.post('/register', (_req, res) => {
+  res.status(410).json({
+    error: 'fleet-server account setup is host-local. Run `fleet-server auth setup` on the host.',
+  });
 });
 
 // User login
