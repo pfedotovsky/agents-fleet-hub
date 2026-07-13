@@ -1,4 +1,5 @@
 import fsSync from 'node:fs';
+import { createHash } from 'node:crypto';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import { toImageAttachments } from '@/shared/image-attachments.js';
@@ -7,6 +8,52 @@ import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMess
 import { createNormalizedMessage, generateMessageId, readJsonlLines, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 
 const PROVIDER = 'codex';
+
+// Sentinel that ends CODEX_PLAN_PREAMBLE in openai-codex.js. In plan mode the
+// server prepends that block to the prompt it sends Codex, so the turn persists
+// to the rollout with the preamble baked in. Strip it back off on read so the
+// transcript shows what the user actually typed — and so the hub's optimistic
+// bubble (plain text) matches the canonical turn for de-duplication.
+const CODEX_PLAN_PREAMBLE_SENTINEL = '--- USER REQUEST BELOW ---';
+
+function stripCodexPlanPreamble(text: string): string {
+  if (typeof text !== 'string' || !text.startsWith('[PLAN MODE')) {
+    return text;
+  }
+  const idx = text.indexOf(CODEX_PLAN_PREAMBLE_SENTINEL);
+  if (idx === -1) {
+    return text;
+  }
+  return text.slice(idx + CODEX_PLAN_PREAMBLE_SENTINEL.length).replace(/^\s+/, '');
+}
+
+/**
+ * Deterministic id for a persisted Codex entry. Codex rollout lines carry no
+ * per-message uuid (unlike Claude), so falling back to a random id gave the
+ * same message a fresh id on every read — defeating the hub's id-based
+ * de-duplication and re-appending the whole transcript on each history
+ * reconciliation. A content hash keyed on the identifying fields stays stable
+ * across reads and unique across distinct messages.
+ */
+function stableCodexId(raw: AnyRecord, sessionId: string | null): string {
+  if (typeof raw.uuid === 'string' && raw.uuid) {
+    return raw.uuid;
+  }
+  const role = typeof raw.message?.role === 'string' ? raw.message.role : '';
+  const content =
+    typeof raw.message?.content === 'string'
+      ? raw.message.content
+      : JSON.stringify(raw.message?.content ?? raw.toolInput ?? raw.output ?? '');
+  const key = [
+    sessionId ?? '',
+    raw.timestamp ?? '',
+    raw.type ?? '',
+    role,
+    raw.toolCallId ?? '',
+    content,
+  ].join(' ');
+  return `codex_${createHash('sha1').update(key).digest('hex')}`;
+}
 
 type CodexHistoryResult =
   | AnyRecord[]
@@ -132,7 +179,7 @@ async function getCodexSessionMessages(
             timestamp: entry.timestamp,
             message: {
               role: 'user',
-              content: entry.payload.message,
+              content: stripCodexPlanPreamble(entry.payload.message),
             },
             images: extractCodexUserImages(entry.payload as AnyRecord),
           });
@@ -299,7 +346,7 @@ export class CodexSessionsProvider implements IProviderSessions {
    */
   private normalizeHistoryEntry(raw: AnyRecord, sessionId: string | null): NormalizedMessage[] {
     const ts = raw.timestamp || new Date().toISOString();
-    const baseId = raw.uuid || generateMessageId('codex');
+    const baseId = stableCodexId(raw, sessionId);
 
     if (raw.type === 'thinking' || raw.isReasoning) {
       const thinkingContent = typeof raw.message?.content === 'string'

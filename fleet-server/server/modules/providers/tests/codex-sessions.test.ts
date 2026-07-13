@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
+import { CodexSessionsProvider } from '@/modules/providers/list/codex/codex-sessions.provider.js';
 
 const patchHomeDir = (nextHomeDir: string) => {
   const original = os.homedir;
@@ -62,6 +63,81 @@ const writeCodexTranscript = async (
   await writeFile(filePath, `${lines.join('\n')}\n`, 'utf8');
   return filePath;
 };
+
+/**
+ * Writes a Codex rollout with a plan-mode user turn (the server bakes
+ * CODEX_PLAN_PREAMBLE into the persisted prompt) followed by an assistant
+ * reply, then returns the file path. Timestamps are fixed so ids stay
+ * deterministic across reads.
+ */
+const writePlanModeTranscript = async (
+  homeDir: string,
+  codexSessionId: string,
+  workspacePath: string,
+): Promise<string> => {
+  const sessionsDir = path.join(homeDir, '.codex', 'sessions', '2026', '07', '07');
+  await mkdir(sessionsDir, { recursive: true });
+
+  const preambledPrompt =
+    '[PLAN MODE — READ ONLY]\nYou are operating in read-only planning mode.\n\n' +
+    '--- USER REQUEST BELOW ---\n\nAdd a logout button';
+
+  const lines = [
+    JSON.stringify({ type: 'session_meta', payload: { id: codexSessionId, cwd: workspacePath } }),
+    JSON.stringify({
+      type: 'event_msg',
+      timestamp: '2026-07-07T10:00:00.000Z',
+      payload: { type: 'user_message', message: preambledPrompt },
+    }),
+    JSON.stringify({
+      type: 'response_item',
+      timestamp: '2026-07-07T10:00:01.000Z',
+      payload: {
+        type: 'message',
+        role: 'assistant',
+        content: [{ type: 'output_text', text: 'Here is the plan.' }],
+      },
+    }),
+  ];
+
+  const filePath = path.join(sessionsDir, `rollout-${codexSessionId}.jsonl`);
+  await writeFile(filePath, `${lines.join('\n')}\n`, 'utf8');
+  return filePath;
+};
+
+test('Codex history assigns stable ids across reads and strips the plan preamble', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-stable-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writePlanModeTranscript(tempRoot, 'codex-hist-1', workspacePath);
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession('codex-hist-1', 'codex', workspacePath, undefined, undefined, undefined, jsonlPath);
+
+      const provider = new CodexSessionsProvider();
+      const first = await provider.fetchHistory('codex-hist-1');
+      const second = await provider.fetchHistory('codex-hist-1');
+
+      // Same persisted messages must keep the same ids on every read — this is
+      // what lets the hub de-duplicate instead of re-appending the transcript.
+      assert.deepEqual(
+        first.messages.map((m) => m.id),
+        second.messages.map((m) => m.id),
+      );
+      assert.ok(first.messages.every((m) => m.id && !m.id.includes('undefined')));
+
+      // The plan preamble the server prepended must not leak into the transcript.
+      const userTurn = first.messages.find((m) => m.role === 'user');
+      assert.ok(userTurn, 'expected a user turn');
+      assert.equal(userTurn?.content, 'Add a logout button');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
 
 test('Codex synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-app-'));
