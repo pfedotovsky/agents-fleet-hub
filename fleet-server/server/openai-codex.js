@@ -30,6 +30,48 @@ function readUsageNumber(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+// The Codex SDK reports upstream failures by throwing, and the thrown error's
+// message can carry its entire minified bundle (multi-KB of JS source) or an
+// internal, misleading wrapper ("Claude Code returned an error result: ...").
+// Forwarding that verbatim gives the user an unreadable wall — or, when the
+// message is empty/non-string, a blank error box that reads as "nothing
+// happened". Distill any Codex error into one clear, bounded, non-empty line.
+function formatCodexError(error) {
+  const raw =
+    (typeof error?.message === 'string' && error.message) ||
+    (typeof error === 'string' && error) ||
+    '';
+
+  // The most actionable case, and the one we've actually seen in the wild: the
+  // selected model is missing or the account can't reach it. Surface it with a
+  // concrete next step regardless of how much noise surrounds it.
+  const modelIssue = raw.match(/There's an issue with the selected model[^\n]*/i);
+  if (modelIssue) {
+    return (
+      `Codex couldn't run: ${modelIssue[0].trim()} ` +
+      'Pick a different model in the composer, or check the model set in ~/.codex/config.toml.'
+    );
+  }
+
+  // Drop the internal wrapper prefix Codex sometimes prepends — it names the
+  // wrong product and adds nothing for the user.
+  const unwrapped = raw.replace(/^Claude Code returned an error result:\s*/i, '').trim();
+
+  // Take the first human-readable line: skip anything that looks like minified
+  // source (Bun code-frames like "1079 | ...", template literals, punctuation
+  // soup) so a bundled stack dump never reaches the client.
+  const looksLikeCode = (line) =>
+    /^\d+\s*\|/.test(line) || /[{};]|=>|\.repeat\(|function\s|Array\(/.test(line);
+  const firstReadable = unwrapped
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.length > 0 && line.length <= 300 && !looksLikeCode(line));
+
+  const clean = firstReadable || 'Codex failed to complete the request (no details available).';
+  const capped = clean.length > 300 ? `${clean.slice(0, 297)}…` : clean;
+  return `Codex error: ${capped}`;
+}
+
 function extractCodexTokenBudget(event) {
   const info = event?.info || event?.payload?.info || event?.usage?.info;
   const usage = info?.total_token_usage || event?.usage?.total_token_usage || event?.usage;
@@ -426,7 +468,7 @@ export async function queryCodex(command, options = {}, ws) {
       const installed = await providerAuthService.isProviderInstalled('codex');
       const errorContent = !installed
         ? 'Codex CLI is not configured. Please set up authentication first.'
-        : error.message;
+        : formatCodexError(error);
 
       sendMessage(ws, createNormalizedMessage({ kind: 'error', content: errorContent, sessionId: capturedSessionId || sessionId || null, provider: 'codex' }));
       sendMessage(ws, createCompleteMessage({
