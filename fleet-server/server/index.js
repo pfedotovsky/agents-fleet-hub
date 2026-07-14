@@ -49,6 +49,7 @@ import commandsRoutes from './routes/commands.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import { assetsRoutes } from './modules/assets/index.js';
+import { mountHub, HUB_BASE_PATH } from './hub-assets.js';
 import { initializeDatabase, projectsDb, sessionsDb } from './modules/database/index.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
 import { IS_PLATFORM } from './constants/config.js';
@@ -176,6 +177,11 @@ app.get('/', (req, res) => {
 <p style="color: #a1a1aa; font-size: 0.85rem">${UPSTREAM_ATTRIBUTION}</p>
 </div></body></html>`);
 });
+
+// Serve the Agents Hub web UI under /fleet-hub. Registered here (before the
+// catch-all "*" route below) so the sub-path wins; asset resolution is async
+// and awaited by the handlers. The promise is used only for the startup log.
+const hubReady = mountHub(app);
 
 const expandWorkspacePath = (inputPath) => {
     if (!inputPath) return inputPath;
@@ -1381,6 +1387,13 @@ async function startServer() {
         console.log(`${c.info('[INFO]')} Using Claude Agents SDK for Claude integration`);
         console.log('');
 
+        // Resolve which UI assets were found (embedded vs on-disk dev build);
+        // routes were already registered at module load. Used for the log only.
+        const hub = await hubReady.catch((error) => {
+            console.warn('[WARN] Could not resolve Agents Hub web UI assets:', error?.message || error);
+            return null;
+        });
+
         try {
             await listenOnHost(HOST);
         } catch (error) {
@@ -1416,6 +1429,9 @@ async function startServer() {
         console.log(c.dim('═'.repeat(63)));
         console.log('');
         console.log(`${c.info('[INFO]')} Server URL:  ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT)}`);
+        if (hub?.available) {
+            console.log(`${c.info('[INFO]')} Web UI:      ${c.bright('http://' + DISPLAY_HOST + ':' + SERVER_PORT + HUB_BASE_PATH + '/')}`);
+        }
         console.log(`${c.tip('[TIP]')}  Run "${PRODUCT_NAME} status" for full configuration details`);
         console.log('');
 

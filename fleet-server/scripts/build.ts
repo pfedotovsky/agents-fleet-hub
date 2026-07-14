@@ -12,6 +12,7 @@
 import { $ } from 'bun';
 import fs from 'node:fs';
 import path from 'node:path';
+import { generateHubAssets } from './generate-hub-assets.ts';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const DIST = path.join(ROOT, 'dist');
@@ -35,6 +36,10 @@ const hostTarget = `bun-${process.platform}-${process.arch === 'arm64' ? 'arm64'
 const targets = all ? RELEASE_TARGETS : [hostTarget];
 
 fs.mkdirSync(DIST, { recursive: true });
+
+// Embed the Agents Hub web UI so every compiled binary serves it at /fleet-hub.
+console.log('\n▶ Embedding Agents Hub web UI');
+generateHubAssets(path.resolve(ROOT, '../fleet-hub/dist'));
 
 for (const target of targets) {
   const shortTarget = target.replace(/^bun-/, '');
