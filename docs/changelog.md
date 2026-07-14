@@ -38,6 +38,10 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   live but never written to the provider's on-disk transcript, so the hub's
   post-run history replace dropped them. `mergeNewest` now carries a displayed
   error forward across the replace so it stays readable (fleet-hub).
+- **Protocol errors stay readable in chat.** The hub now also renders
+  `protocol_error` frames as transcript error bubbles, and the post-run
+  reconciliation carries live-only errors by stable content fingerprint so
+  non-persisted Codex failures do not disappear when history reloads.
 - **Host-side auth setup for remote-first installs.** fleet-server now has
   `fleet-server auth status|check|setup`; `auth setup` creates the first
   username/password locally or upgrades the loopback-only `local` account

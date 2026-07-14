@@ -144,6 +144,10 @@ function isQuestionRequest(request: PermissionRequest): boolean {
   return request.toolName === 'AskUserQuestion'
 }
 
+function errorFingerprint(message: NormalizedMessage): string {
+  return `${message.provider}:${message.sessionId}:${contentToText(message.content)}`
+}
+
 /** Defensive parse of AskUserQuestion input; [] means "not the shape we know". */
 function parseQuestions(input: unknown): AskUserQuestionSpec[] {
   const questions = (input as { questions?: unknown } | null | undefined)?.questions
@@ -639,8 +643,14 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
           // would drop them — the error flashes and vanishes on run completion.
           // Carry any displayed error the fetched page doesn't cover forward so
           // it stays readable; it's the run's terminal event, hence appended.
+          const persistedErrors = new Set(
+            page.messages.filter((m) => m.kind === 'error').map(errorFingerprint),
+          )
           const carriedErrors = messagesRef.current.filter(
-            (m) => m.kind === 'error' && !page.messages.some((p) => p.id === m.id),
+            (m) =>
+              m.kind === 'error' &&
+              !page.messages.some((p) => p.id === m.id) &&
+              !persistedErrors.has(errorFingerprint(m)),
           )
           const next = [...page.messages, ...carriedErrors]
           seenIds.current = new Set(next.filter((m) => m.id).map((m) => m.id as string))
@@ -760,6 +770,11 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
           return
         case 'protocol_error':
           setBanner(event.error ?? 'Protocol error')
+          appendMessage({
+            ...event,
+            kind: 'error',
+            content: event.error ?? 'Protocol error',
+          })
           if (event.code === 'RUN_IN_PROGRESS') setProcessing(true)
           return
         case 'session_upserted':
