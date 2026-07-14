@@ -25,6 +25,25 @@ import { createCompleteMessage, createNormalizedMessage } from './shared/utils.j
 
 const activeCodexSessions = new Map();
 
+// Prepended to the prompt on every plan-mode turn. The read-only sandbox is
+// the hard guarantee Codex cannot edit; this preamble shapes the turn into a
+// research-then-plan response (the SDK has no per-turn system-prompt channel,
+// so instruction has to ride in the message text).
+const CODEX_PLAN_PREAMBLE = `[PLAN MODE — READ ONLY]
+You are operating in read-only planning mode. You MUST NOT modify files, create or delete files, or run any command that changes state; the sandbox is read-only and will block writes.
+
+First, explore the relevant parts of the codebase (read files, search, inspect) to ground your understanding. Then produce a concrete, step-by-step implementation plan that covers:
+- the overall approach and key decisions/trade-offs,
+- the specific files and functions to change,
+- the ordered steps to implement it,
+- risks, edge cases, and open questions.
+
+Present the plan as your final message. Do NOT begin implementing — the user will review the plan and, in a follow-up message, tell you whether to proceed.
+
+--- USER REQUEST BELOW ---
+
+`;
+
 function readUsageNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -235,11 +254,20 @@ function transformCodexEvent(event) {
 
 /**
  * Map permission mode to Codex SDK options
- * @param {string} permissionMode - 'default', 'acceptEdits', or 'bypassPermissions'
+ * @param {string} permissionMode - 'default', 'acceptEdits', 'bypassPermissions', or 'plan'
  * @returns {object} - { sandboxMode, approvalPolicy }
  */
 function mapPermissionModeToCodexOptions(permissionMode) {
   switch (permissionMode) {
+    case 'plan':
+      // Plan mode is Codex's native "Read Only" sandbox: the model can read
+      // and run non-mutating commands but the sandbox physically blocks any
+      // write, so it can research and propose a plan without touching disk.
+      // 'never' because Codex has no channel to surface an approval prompt.
+      return {
+        sandboxMode: 'read-only',
+        approvalPolicy: 'never'
+      };
     case 'acceptEdits':
       return {
         sandboxMode: 'workspace-write',
@@ -340,9 +368,13 @@ export async function queryCodex(command, options = {}, ws) {
 
     // Execute with streaming. Turns with image attachments send structured
     // input items so Codex reads the images from their local asset paths.
+    // In plan mode the read-only sandbox already blocks writes; the preamble
+    // steers the turn toward a plan and is prepended on every plan-mode turn
+    // (there is no persistent per-turn instruction channel in the SDK).
+    const promptText = permissionMode === 'plan' ? `${CODEX_PLAN_PREAMBLE}${command}` : command;
     const turnInput = normalizeImageDescriptors(images).length > 0
-      ? buildCodexInputItems(command, images, workingDirectory)
-      : command;
+      ? buildCodexInputItems(promptText, images, workingDirectory)
+      : promptText;
     const streamedTurn = await thread.runStreamed(turnInput, {
       signal: abortController.signal
     });

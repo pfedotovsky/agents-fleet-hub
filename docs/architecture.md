@@ -80,9 +80,13 @@ Browser (Agents Hub SPA)
   `chat_subscribed{isProcessing,pendingPermissions}`, `session_upserted`,
   `protocol_error{code}`.
 - Permissions: the server rebuilds SDK options from `chat.send` options on
-  **every message** — nothing is stored per session — so the hub persists the
-  permission mode and "always allow" grants per host+project and re-sends the
-  grants as `toolsSettings.allowedTools` each send. Approving with
+  **every message**, so the hub persists the permission mode and "always
+  allow" grants per host+project and re-sends the grants as
+  `toolsSettings.allowedTools` each send. The server *does* persist the last
+  `permissionMode` and falls back to it when a `chat.send` omits one, so the
+  hub always sends an explicit mode (never omits `'default'`) — otherwise a
+  prior plan-mode send would silently re-apply and Codex, which has no
+  `ExitPlanMode` reset, would stay stuck read-only. Approving with
   `chat.permission-response {requestId, allow, rememberEntry}` additionally
   covers the rest of the in-flight run server-side. `rememberEntry` accepts
   only two shapes: a bare tool name (`Edit`) or a Bash prefix rule
@@ -130,8 +134,12 @@ Browser (Agents Hub SPA)
   differ from claude in ways the hub accounts for: no interactive approvals
   (`permission_request` never fires; `permissionMode` is remapped to a
   sandbox — default→workspace-write+ask-untrusted, acceptEdits→never-ask,
-  bypass→danger-full-access — and `'plan'` silently degrades to default, so
-  the plan toggle is hidden and the mode select is relabeled), `toolsSettings`
+  bypass→danger-full-access, and the plan toggle→`read-only` with a
+  planning preamble prepended to the prompt). The mode select is relabeled.
+  Plan mode is supported, but since Codex emits no `ExitPlanMode` request to
+  drive `PlanPanel`, a completed plan-mode run shows a lightweight "plan
+  ready" Build card in the transcript instead (Build leaves plan mode and
+  sends a go-ahead so the same thread resumes writable). `toolsSettings`
   is ignored (not sent), live `tool_use` frames carry results inline
   (`output`/`exitCode`, no `tool_result` frame; repeated ids are upserted in
   place by `appendMessage`), history serializes `toolInput` as a JSON string
@@ -228,6 +236,46 @@ fork-vs-workaround considerations.
   is intact. Recovery: escape raw `E2 80 A8` bytes to `\u2028` in the JSONL,
   rewind `scan_state.last_scanned_at` in `~/.cloudcli/auth.db` to before the
   file's creation time, then hit `GET /api/projects` to re-index.
+
+## Claude Code `--resume` visibility of Agent Hub sessions
+
+**Symptom:** sessions created through Agent Hub do not appear in the interactive
+`claude --resume` / `/resume` picker, even when run from the same project
+directory. Only sessions started by the interactive terminal show up.
+
+**Root cause — `CLAUDE_CODE_ENTRYPOINT`.** fleet-server runs Claude via the
+Agent SDK (`@anthropic-ai/claude-agent-sdk`, see `claude-sdk.js`), not the
+interactive CLI. The SDK stamps the spawned process with
+`CLAUDE_CODE_ENTRYPOINT=sdk-ts`, and every transcript entry it writes records
+`"entrypoint":"sdk-ts"`. The Claude Code CLI's resume picker deliberately
+filters these out: it keeps a set `{"sdk-cli","sdk-ts","sdk-py"}` and drops any
+session whose `entrypoint` is in it (unless the picker itself was launched from
+an SDK context), logging `Session <id> filtered from /resume:
+entrypoint=sdk-ts`. Verified in the `claude` 2.1.207 binary. Interactive
+sessions record `entrypoint:"cli"` and are shown.
+
+**What still works.** This is *only* a picker-visibility filter, not a storage
+difference. SDK sessions are written to the standard
+`~/.claude/projects/<encoded-cwd>/<id>.jsonl` with matching `cwd`, and are fully
+resumable **by explicit id**, which bypasses the picker:
+`claude --resume <session-id>`. The Hub itself lists them because it scans
+`~/.claude/projects/**` on disk directly (`sessions-watcher.service.ts`,
+`claude-session-synchronizer.provider.ts`) rather than going through the CLI
+picker — which is why the visibility is one-directional (Hub sees terminal
+sessions; the terminal picker does not see Hub sessions).
+
+**Making Hub sessions appear natively (optional).** The SDK sets the entrypoint
+only when unset (`sdk.mjs`: `if (!ft.CLAUDE_CODE_ENTRYPOINT)
+ft.CLAUDE_CODE_ENTRYPOINT = "sdk-ts"`), and fleet-server forwards its whole env
+to the SDK (`claude-sdk.js`: `sdkOptions.env = { ...process.env }`). So exporting
+`CLAUDE_CODE_ENTRYPOINT=cli` for the fleet-server process — e.g. a line in
+`~/.fleet-server/.env` — makes new sessions record `entrypoint:"cli"` and show
+in the picker. Existing transcripts can be back-filled by rewriting
+`"entrypoint":"sdk-ts"` → `"entrypoint":"cli"` in the `.jsonl` files. **Caveat:**
+`entrypoint` is how Anthropic classifies interactive vs Agent-SDK usage, and the
+CLI also branches on it for telemetry and rate-limit bucketing — forcing `cli`
+reports SDK traffic as interactive, so treat this as a deliberate, documented
+choice, not a default.
 
 ## Security model
 

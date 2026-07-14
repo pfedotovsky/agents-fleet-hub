@@ -71,7 +71,23 @@ for agents:
 ### Other API-ready items (carried from feature-parity)
 
 - [ ] **Project management** — create, rename, delete/archive + restore,
-  git-clone with `/clone-progress` stream. Full REST routes exist.
+  git-clone with `/clone-progress` stream. Full REST routes exist server-side
+  but the hub client (`fleet-hub/src/lib/api.ts`) calls none of them yet.
+  Includes **create or open a folder and start a session in it**: create a new
+  directory (or pick/clone one) on the host, then hand the resulting
+  `projectPath` straight to `createSession` so the user lands in a fresh chat.
+  Pairs with the new-session folder picker below.
+- [ ] **Start a session without pre-selecting a folder** — a global "New
+  session" entry (from the feed / top level, not just inside a project) where
+  the target folder is chosen inside the new-session UI. Today both entry
+  points require an already-resolved project (`App.newSession` at
+  `fleet-hub/src/App.tsx:133`; `ProjectPane.startNewSession` at
+  `fleet-hub/src/components/ProjectPane.tsx:88`), and creation is deferred to
+  first send in `ChatPane.send` (`ChatPane.tsx:1116`). Add a folder picker to
+  the draft-chat composer that sets `projectPath` before the first
+  `createSession` call; reuse the project list from `useFleet`
+  (`fleet-hub/src/hooks/useFleet.ts`, `getProjects`) and, once available, the
+  create/open-folder flow from Project management above.
 - [ ] **Session rename** — verify `PUT /api/providers/sessions/:id` against
   a live host; implement if stable.
 - [ ] **Git panel: history & discard** — commit history, discard/revert

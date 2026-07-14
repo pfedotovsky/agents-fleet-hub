@@ -177,6 +177,19 @@ log the agent CLIs in) and **one install for the hub** (signed app). The
 localhost path is already effectively one-click; remote hosts still need the
 network sorted out by hand.
 
+## Limitations
+
+**Hub-created Claude sessions don't show in `claude --resume`.** fleet-server
+runs Claude through the Agent SDK, so its sessions are tagged
+`CLAUDE_CODE_ENTRYPOINT=sdk-ts`, and the interactive `claude --resume` / `/resume`
+picker deliberately hides SDK-tagged sessions. The transcripts are still written
+normally to `~/.claude/projects/` and are fully resumable — either from the hub,
+or in the terminal by explicit id: `claude --resume <session-id>` (the id is the
+`.jsonl` filename). To make new hub sessions appear in the picker, export
+`CLAUDE_CODE_ENTRYPOINT=cli` for the fleet-server process (e.g. in
+`~/.fleet-server/.env`), at the cost of reporting SDK usage as interactive. Full
+detail in [`docs/architecture.md`](docs/architecture.md#claude-code---resume-visibility-of-agent-hub-sessions).
+
 ## Security
 
 A host's JWT allows running code as your user on that machine. Tokens live in

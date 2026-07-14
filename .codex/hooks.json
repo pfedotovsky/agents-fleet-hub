@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "'/Users/pfedotovsky/projects/agents-remote-control/.codex/hooks/docs-reminder.sh'",
+            "timeout": 15,
+            "statusMessage": "Checking docs are in sync…"
+          }
+        ]
+      }
+    ]
+  }
+}
