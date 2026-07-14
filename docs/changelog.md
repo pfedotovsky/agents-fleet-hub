@@ -53,6 +53,11 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   Hub for normal use, not account creation.
 
 ### Released
+- **fleet-server 0.1.7** — tag `server-v0.1.7`; serves the Agents Hub web UI at
+  `/fleet-hub` (see Added). The release workflow now builds `fleet-hub` before
+  compiling so the UI is embedded in the binary. Upgrade with
+  `brew upgrade fleet-server` and restart the service
+  (`brew services restart fleet-server`), or rerun `install.sh --service`.
 - **fleet-server 0.1.6** — tag `server-v0.1.6`; host-local auth setup via
   `fleet-server auth setup` and no browser/API account-creation path (see
   Fixed). Upgrade with `brew upgrade fleet-server` and restart the service

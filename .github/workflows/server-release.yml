@@ -21,6 +21,19 @@ jobs:
         with:
           bun-version: latest
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Build the Agents Hub web UI so scripts/build.ts can embed it into the
+      # binary (served at /fleet-hub). Without this, generate-hub-assets finds
+      # no dist and ships an empty UI manifest.
+      - name: Build Agents Hub web UI
+        working-directory: fleet-hub
+        run: |
+          npm ci
+          npm run build
+
       - name: Install dependencies
         run: bun install --frozen-lockfile || bun install
 
