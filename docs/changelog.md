@@ -35,6 +35,10 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   Hub for normal use, not account creation.
 
 ### Released
+- **fleet-server 0.1.6** — tag `server-v0.1.6`; host-local auth setup via
+  `fleet-server auth setup` and no browser/API account-creation path (see
+  Fixed). Upgrade with `brew upgrade fleet-server` and restart the service
+  (`brew services restart fleet-server`), or rerun `install.sh --service`.
 - **fleet-server 0.1.5** — tag `server-v0.1.5`; IPv6-first bind for remote VM
   hostnames (see Fixed). Upgrade with `brew upgrade fleet-server` and restart
   the service (`brew services restart fleet-server`), or rerun `install.sh
