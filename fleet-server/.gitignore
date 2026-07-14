@@ -8,3 +8,7 @@ bun.lock
 # bun build scratch files
 *.bun-build
 .*.bun-build
+
+# Embedded Agents Hub web UI (regenerated from fleet-hub/dist by scripts/build.ts)
+server/hub-dist/
+server/hub-assets.generated.js

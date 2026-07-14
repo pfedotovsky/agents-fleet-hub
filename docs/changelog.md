@@ -6,6 +6,24 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-14
 
+### Added
+- **fleet-server serves the Agents Hub web UI at `/fleet-hub`.** A browser-based
+  distribution channel that needs no code signing, as an alternative to the
+  signed `.dmg` Tauri build. The API stays under `/api` and the `/` landing page
+  is unchanged; the UI lives only under `/fleet-hub`. `fleet-hub` now builds with
+  Vite `base: './'` (relative asset URLs) so one build serves both the Tauri
+  shell and the sub-path. `scripts/generate-hub-assets.ts` embeds `fleet-hub/dist`
+  into the compiled binary via Bun `with { type: 'file' }` (run automatically by
+  `scripts/build.ts` before compile), so the single binary serves the whole UI
+  with no files on disk; `bun run` dev falls back to reading `fleet-hub/dist`
+  directly. Bare `/fleet-hub` 308-redirects to `/fleet-hub/`.
+- **Documented native Codex app visibility.** Codex sessions started from Agents
+  Hub are SDK-created provider threads that fleet-server indexes from
+  `~/.codex/sessions`; the ChatGPT/Codex desktop app uses its app-server task
+  list and does not discover those hub-created rows as native tasks. The
+  architecture doc now records the app-facing vs provider-native id split and
+  the likely bridge direction.
+
 ### Fixed
 - **Codex transcript no longer duplicates on reconciliation.** Codex rollout
   entries carry no per-message uuid, so fleet-server was minting a random id on
@@ -35,6 +53,11 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   Hub for normal use, not account creation.
 
 ### Released
+- **fleet-server 0.1.7** — tag `server-v0.1.7`; serves the Agents Hub web UI at
+  `/fleet-hub` (see Added). The release workflow now builds `fleet-hub` before
+  compiling so the UI is embedded in the binary. Upgrade with
+  `brew upgrade fleet-server` and restart the service
+  (`brew services restart fleet-server`), or rerun `install.sh --service`.
 - **fleet-server 0.1.6** — tag `server-v0.1.6`; host-local auth setup via
   `fleet-server auth setup` and no browser/API account-creation path (see
   Fixed). Upgrade with `brew upgrade fleet-server` and restart the service
