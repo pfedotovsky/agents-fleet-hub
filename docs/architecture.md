@@ -263,10 +263,16 @@ CLI/app surfaces need the provider-native id if resuming outside the hub.
 
 **Potential bridge.** The official Codex app-server is the supported rich-client
 integration surface for authentication, conversation history, approvals, and
-streamed events. Making Agents Hub sessions show up as native desktop tasks
-would require either driving Codex through app-server from the start or adding a
-deliberate import/register bridge; scanning `~/.codex/sessions` is enough for
-Agents Hub, but not for the native app's task list.
+streamed events. The `codex app-server generate-ts --experimental` schema from
+Codex CLI 0.144.1 exposes `thread/start`, `thread/resume`, `thread/list`, and
+`thread/search`; `thread/list` can scan-and-repair metadata from rollout JSONL
+unless `useStateDbOnly` is set, but it defaults to interactive source kinds.
+There is no stable `thread/import` or `thread/register` method for converting an
+already-created SDK rollout into a native desktop task. Making Agents Hub
+sessions show up reliably would therefore mean driving Codex through app-server
+from the start, or accepting a fragile/private migration/import path. Scanning
+`~/.codex/sessions` is enough for Agents Hub, but not a complete native-app task
+registration contract.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 
