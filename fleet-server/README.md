@@ -17,7 +17,8 @@ Section 7 additional terms — see [`LICENSE`](LICENSE), [`NOTICE`](NOTICE),
 
 Install **and start a persistent service** in one command — `--service`
 generates and loads a launchd agent (macOS) or systemd user unit (Linux),
-uses the server's IPv6-first wildcard bind, and verifies `/health`:
+uses the server's IPv6-first wildcard bind, records the current shell's
+`claude` path in the service when detected, and verifies `/health`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh -s -- --service

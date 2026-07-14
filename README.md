@@ -50,8 +50,10 @@ fleet-server auth setup
 brew services start fleet-server
 ```
 
-Verify it's up: `curl http://localhost:3011/health`. Opening the host URL in a
-browser only shows a small status page. For remote access, create the host
+`install.sh --service` records the `claude` path visible in the install shell,
+so service managers with a minimal PATH can still launch Claude Code. Verify
+it's up: `curl http://localhost:3011/health`. Opening the host URL in a browser
+only shows a small status page. For remote access, create the host
 username/password locally:
 
 ```bash

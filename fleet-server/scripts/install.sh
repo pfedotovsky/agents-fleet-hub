@@ -99,6 +99,28 @@ detect_host() {
   printf '%s' "$SERVER_HOST"
 }
 
+detect_claude_cli_path() {
+  if [ -n "${CLAUDE_CLI_PATH:-}" ]; then
+    printf '%s' "$CLAUDE_CLI_PATH"
+    return 0
+  fi
+
+  candidate=$(command -v claude 2>/dev/null || true)
+  case "$candidate" in
+    /*) printf '%s' "$candidate" ;;
+  esac
+}
+
+xml_escape() {
+  printf '%s' "$1" |
+    sed \
+      -e 's/&/\&amp;/g' \
+      -e 's/</\&lt;/g' \
+      -e 's/>/\&gt;/g' \
+      -e 's/"/\&quot;/g' \
+      -e "s/'/\&apos;/g"
+}
+
 verify_health() {
   if [ "$SERVER_HOST_RESOLVED" = "0.0.0.0" ]; then
     probe_urls="http://127.0.0.1:${SERVER_PORT}/health"
@@ -131,7 +153,14 @@ install_launchd() {
   host_entry=""
   if [ -n "$SERVER_HOST_RESOLVED" ]; then
     host_entry="    <key>HOST</key>
-    <string>${SERVER_HOST_RESOLVED}</string>
+    <string>$(xml_escape "$SERVER_HOST_RESOLVED")</string>
+"
+  fi
+
+  claude_entry=""
+  if [ -n "$CLAUDE_CLI_PATH_RESOLVED" ]; then
+    claude_entry="    <key>CLAUDE_CLI_PATH</key>
+    <string>$(xml_escape "$CLAUDE_CLI_PATH_RESOLVED")</string>
 "
   fi
 
@@ -150,7 +179,7 @@ install_launchd() {
   <dict>
     <key>SERVER_PORT</key>
     <string>${SERVER_PORT}</string>
-${host_entry}  </dict>
+${host_entry}${claude_entry}  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -188,6 +217,12 @@ install_systemd() {
 "
   fi
 
+  claude_line=""
+  if [ -n "$CLAUDE_CLI_PATH_RESOLVED" ]; then
+    claude_line="Environment=\"CLAUDE_CLI_PATH=${CLAUDE_CLI_PATH_RESOLVED}\"
+"
+  fi
+
   cat > "$unit" <<EOF
 [Unit]
 Description=fleet-server — agent host server for Agents Hub
@@ -198,7 +233,7 @@ ExecStart=${BIN}
 Restart=on-failure
 RestartSec=3
 Environment=SERVER_PORT=${SERVER_PORT}
-${host_line}
+${host_line}${claude_line}
 [Install]
 WantedBy=default.target
 EOF
@@ -215,10 +250,16 @@ EOF
 
 if [ "$SERVICE" -eq 1 ]; then
   SERVER_HOST_RESOLVED=$(detect_host)
+  CLAUDE_CLI_PATH_RESOLVED=$(detect_claude_cli_path)
   if [ -n "$SERVER_HOST_RESOLVED" ]; then
     echo "Setting up service on port ${SERVER_PORT} (HOST=${SERVER_HOST_RESOLVED})..."
   else
     echo "Setting up service on port ${SERVER_PORT} (HOST default: :: with IPv4 fallback)..."
+  fi
+  if [ -n "$CLAUDE_CLI_PATH_RESOLVED" ]; then
+    echo "Detected Claude CLI: ${CLAUDE_CLI_PATH_RESOLVED}"
+  else
+    echo "Claude CLI not found during install; fleet-server will resolve 'claude' from the service PATH."
   fi
   if [ "$platform" = "darwin" ]; then
     install_launchd

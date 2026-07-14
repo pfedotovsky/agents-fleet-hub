@@ -25,6 +25,12 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   the likely bridge direction.
 
 ### Fixed
+- **`install.sh --service` pins the detected Claude CLI path.** The installer
+  now captures `CLAUDE_CLI_PATH` if already set, otherwise `command -v claude`,
+  and writes an absolute detected path into the generated launchd/systemd
+  service environment. This uses the user's interactive install shell to
+  discover paths that the service manager would not see later, such as
+  `~/.nix-profile/bin/claude`.
 - **Codex transcript no longer duplicates on reconciliation.** Codex rollout
   entries carry no per-message uuid, so fleet-server was minting a random id on
   every history read; the hub de-duplicates by id, so each reconciliation
@@ -57,6 +63,11 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   Hub for normal use, not account creation.
 
 ### Released
+- **fleet-server 0.1.8** — tag `server-v0.1.8`; `install.sh --service` pins
+  the detected Claude CLI path into generated service units so service-managed
+  hosts can launch Claude Code installed in shell-only locations such as Nix
+  profiles. Upgrade with `brew upgrade fleet-server` and restart the service
+  (`brew services restart fleet-server`), or rerun `install.sh --service`.
 - **fleet-server 0.1.7** — tag `server-v0.1.7`; serves the Agents Hub web UI at
   `/fleet-hub` (see Added). The release workflow now builds `fleet-hub` before
   compiling so the UI is embedded in the binary. Upgrade with
