@@ -6,6 +6,14 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-18
 
+### Released
+- **Agents Hub `v0.2.0` + fleet-server `server-v0.2.0`.** The fleet-hub UI
+  overhaul below (semantic theming + light mode, motion system, Codex monochrome
+  restyle) shipped as a minor bump: client `package.json`/`tauri.conf.json`/
+  `Cargo.toml` 0.1.7 → 0.2.0, fleet-server `package.json` 0.1.8 → 0.2.0. Both
+  release tags pushed from `main`; the server binary embeds the redesigned UI at
+  `/fleet-hub`.
+
 ### Changed
 - **fleet-hub Codex monochrome restyle (theming Phase 3).** Retuned the token
   ramp from blue-graphite to a true neutral grayscale (both themes), and dropped
