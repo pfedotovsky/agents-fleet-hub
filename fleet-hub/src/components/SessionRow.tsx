@@ -1,6 +1,8 @@
 import { Archive, ExternalLink } from 'lucide-react'
+import { motion } from 'motion/react'
 import type { FleetSession } from '../types'
 import { hostColor, isActive, relativeTime } from '../lib/format'
+import { layoutTransition } from '../lib/motion'
 import { ProviderBadge } from './Messages'
 
 interface Props {
@@ -12,7 +14,12 @@ interface Props {
 export function SessionRow({ item, onOpen, onArchive }: Props) {
   const color = hostColor(item.hostColorIdx)
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: item.stale ? 0.5 : 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={layoutTransition}
       role="button"
       tabIndex={0}
       onClick={() => onOpen(item)}
@@ -20,8 +27,8 @@ export function SessionRow({ item, onOpen, onArchive }: Props) {
         if (event.key === 'Enter' || event.key === ' ') onOpen(item)
       }}
       className={`group flex cursor-pointer items-center gap-3 rounded-lg border border-line/80 bg-surface/60 px-4 py-3 backdrop-blur transition-colors hover:bg-elevated/60 ${
-        item.stale ? 'opacity-50' : ''
-      } ${item.justUpdated ? 'just-updated' : ''}`}
+        item.justUpdated ? 'just-updated' : ''
+      }`}
       style={{ borderLeft: `3px solid ${color}` }}
     >
       <div className="min-w-0 flex-1">
@@ -75,6 +82,6 @@ export function SessionRow({ item, onOpen, onArchive }: Props) {
       >
         <ExternalLink size={14} />
       </a>
-    </div>
+    </motion.div>
   )
 }

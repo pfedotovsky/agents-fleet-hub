@@ -1,3 +1,4 @@
+import { AnimatePresence } from 'motion/react'
 import type { FleetSession, HostRuntime } from '../types'
 import { SessionRow } from './SessionRow'
 
@@ -40,9 +41,11 @@ export function SessionList({ sessions, hosts, onOpen, onArchive }: Props) {
   }
   return (
     <div className="flex flex-col gap-2">
-      {sessions.map((item) => (
-        <SessionRow key={item.key} item={item} onOpen={onOpen} onArchive={onArchive} />
-      ))}
+      <AnimatePresence initial={false}>
+        {sessions.map((item) => (
+          <SessionRow key={item.key} item={item} onOpen={onOpen} onArchive={onArchive} />
+        ))}
+      </AnimatePresence>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import {
   ArrowLeft,
   ArrowUp,
@@ -66,6 +67,7 @@ import type { CompletionItem } from '../hooks/useComposerAutocomplete'
 import { MessageItem, PROVIDER_META, RENDERED_KINDS, ProviderBadge, contentToText } from './Messages'
 import { PlanPanel } from './PlanPanel'
 import { seedImageCache } from './AuthedImage'
+import { cardVariants } from '../lib/motion'
 
 const PAGE_SIZE = 100
 
@@ -1507,65 +1509,86 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                 imageSource={{ baseUrl: target.baseUrl, hostId: target.hostId }}
               />
             ))}
-            {permissions.map((request) => {
-              if (isPlanRequest(request)) {
+            <AnimatePresence initial={false}>
+              {permissions.map((request) => {
+                let card
+                if (isPlanRequest(request)) {
+                  card = (
+                    <PlanReadyChip panelOpen={planPanelOpen} onOpen={() => setPlanPanelOpen(true)} />
+                  )
+                } else {
+                  // Unparseable question input falls through to the generic card.
+                  const questions = isQuestionRequest(request) ? parseQuestions(request.input) : []
+                  card =
+                    questions.length > 0 ? (
+                      <QuestionCard request={request} questions={questions} onAnswer={respondQuestion} />
+                    ) : (
+                      <PermissionCard request={request} onRespond={respondPermission} />
+                    )
+                }
                 return (
-                  <PlanReadyChip
+                  <motion.div
                     key={request.requestId}
-                    panelOpen={planPanelOpen}
-                    onOpen={() => setPlanPanelOpen(true)}
-                  />
-                )
-              }
-              // Unparseable question input falls through to the generic card.
-              const questions = isQuestionRequest(request) ? parseQuestions(request.input) : []
-              if (questions.length > 0) {
-                return (
-                  <QuestionCard
-                    key={request.requestId}
-                    request={request}
-                    questions={questions}
-                    onAnswer={respondQuestion}
-                  />
-                )
-              }
-              return (
-                <PermissionCard key={request.requestId} request={request} onRespond={respondPermission} />
-              )
-            })}
-            {isCodex && codexPlanReady && !processing && (
-              <div className="rounded-lg border border-indigo-500/30 bg-indigo-500/5 px-3 py-2.5">
-                <div className="flex items-center gap-2 text-xs font-medium text-indigo-300">
-                  <ClipboardList size={14} />
-                  Plan ready — review it above
-                </div>
-                <p className="mt-1 text-[11px] text-fg-faint">
-                  Codex explored read-only and proposed a plan. Build to leave plan mode and
-                  have it implement, or keep planning to refine.
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={buildFromPlan}
-                    className="inline-flex items-center gap-1 rounded-md bg-indigo-500/90 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-indigo-500"
+                    layout
+                    variants={cardVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
                   >
-                    Build
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCodexPlanReady(false)}
-                    className="rounded-md border border-line px-2.5 py-1 text-[11px] text-fg-muted transition-colors hover:border-line-strong hover:text-fg"
-                  >
-                    Keep planning
-                  </button>
-                </div>
-              </div>
-            )}
-            {processing && permissions.length === 0 && (
-              <div className="flex items-center gap-2 text-xs text-fg-faint">
-                <LoaderCircle size={12} className="animate-spin" /> working…
-              </div>
-            )}
+                    {card}
+                  </motion.div>
+                )
+              })}
+              {isCodex && codexPlanReady && !processing && (
+                <motion.div
+                  key="codex-plan-ready"
+                  layout
+                  variants={cardVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className="rounded-lg border border-indigo-500/30 bg-indigo-500/5 px-3 py-2.5"
+                >
+                  <div className="flex items-center gap-2 text-xs font-medium text-indigo-300">
+                    <ClipboardList size={14} />
+                    Plan ready — review it above
+                  </div>
+                  <p className="mt-1 text-[11px] text-fg-faint">
+                    Codex explored read-only and proposed a plan. Build to leave plan mode and
+                    have it implement, or keep planning to refine.
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={buildFromPlan}
+                      className="inline-flex items-center gap-1 rounded-md bg-indigo-500/90 px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-indigo-500"
+                    >
+                      Build
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCodexPlanReady(false)}
+                      className="rounded-md border border-line px-2.5 py-1 text-[11px] text-fg-muted transition-colors hover:border-line-strong hover:text-fg"
+                    >
+                      Keep planning
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+              {processing && permissions.length === 0 && (
+                <motion.div
+                  key="working"
+                  layout
+                  variants={cardVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className="flex items-center gap-2 text-xs text-fg-faint"
+                >
+                  <LoaderCircle size={12} className="animate-spin" /> working…
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>

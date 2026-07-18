@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { X } from 'lucide-react'
+import { motion } from 'motion/react'
 import type { HostRuntime } from '../types'
+import { backdropVariants, modalVariants } from '../lib/motion'
 
 interface Props {
   runtime: HostRuntime
@@ -37,11 +39,19 @@ export function LoginModal({ runtime, onSubmit, onClose }: Props) {
   }
 
   return (
-    <div
+    <motion.div
+      variants={backdropVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
-      <form
+      <motion.form
+        variants={modalVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
         onSubmit={handleSubmit}
         onClick={(event) => event.stopPropagation()}
         className="w-full max-w-sm rounded-xl border border-line bg-surface p-5 shadow-2xl"
@@ -118,7 +128,7 @@ export function LoginModal({ runtime, onSubmit, onClose }: Props) {
         <p className="mt-3 text-center text-[11px] text-fg-subtle">
           Only the session token is stored — never your password.
         </p>
-      </form>
-    </div>
+      </motion.form>
+    </motion.div>
   )
 }

@@ -134,22 +134,8 @@ body {
   animation: flash-ring 2s ease-out;
 }
 
-@keyframes slide-in {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-.slide-in {
-  animation: slide-in 200ms ease-out;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .just-updated,
-  .slide-in {
+  .just-updated {
     animation: none;
   }
 }

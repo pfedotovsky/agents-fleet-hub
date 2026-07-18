@@ -6,6 +6,21 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-18
 
+### Added
+- **fleet-hub motion system (Phase 2).** Added the `motion` library (Framer
+  Motion) with a shared vocabulary in `lib/motion.ts` (enter ~200-240ms
+  ease-out, shorter ease-in exits) and a global `<MotionConfig
+  reducedMotion="user">` in `main.tsx` so everything honors
+  `prefers-reduced-motion` without per-site branching. Animated: transcript
+  message reveals (`Messages.tsx`), enter/exit for the chat permission /
+  question / plan-ready / working cards (`ChatPane.tsx`, via `AnimatePresence`),
+  session-list row reflow + add/remove (`SessionRow`/`SessionList` with the
+  `layout` prop, replacing the reorder jump), and enter/exit for the overlays
+  and error toast (`SettingsPanel` slide-in, `SearchOverlay` + `LoginModal`
+  modal pop, wrapped in `AnimatePresence` in `App.tsx`). Removed the now-unused
+  `.slide-in` CSS keyframes (motion replaced it); the `.just-updated` flash-ring
+  stays. Verified live; adds ~40KB gzip to the main bundle.
+
 ### Changed
 - **fleet-hub migrated to semantic color classes (theming Phase 1c).** All ~507
   raw `ink-*`/`brass-*` Tailwind classes across 19 components were replaced with

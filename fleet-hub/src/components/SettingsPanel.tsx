@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Plus, Trash2, X, Radar, Monitor, Moon, Sun } from 'lucide-react'
+import { motion } from 'motion/react'
 import type { HostRuntime, Prefs } from '../types'
 import type { NewHostInput } from '../hooks/useFleet'
 import type { Theme } from '../lib/theme'
 import { hostColor } from '../lib/format'
+import { backdropVariants, panelVariants } from '../lib/motion'
 import { discoverLocalHosts, type DiscoveredHost } from '../lib/api'
 
 interface Props {
@@ -78,10 +80,21 @@ export function SettingsPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" onClick={onClose}>
-      <aside
+    <motion.div
+      variants={backdropVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.aside
+        variants={panelVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
         onClick={(event) => event.stopPropagation()}
-        className="slide-in absolute right-0 top-0 h-full w-96 max-w-full overflow-y-auto border-l border-line bg-canvas p-5"
+        className="absolute right-0 top-0 h-full w-96 max-w-full overflow-y-auto border-l border-line bg-canvas p-5"
       >
         <div className="mb-5 flex items-center justify-between">
           <h2 className="font-display text-sm font-semibold">Settings</h2>
@@ -248,7 +261,7 @@ export function SettingsPanel({
           A host token allows running code as your user on that machine. Tokens live only in this
           browser's localStorage; passwords are never stored.
         </p>
-      </aside>
-    </div>
+      </motion.aside>
+    </motion.div>
   )
 }

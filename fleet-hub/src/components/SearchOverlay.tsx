@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Folder, LoaderCircle, MessageSquare, Search, X } from 'lucide-react'
+import { motion } from 'motion/react'
 import type { FleetSession, HostRuntime, Provider } from '../types'
+import { backdropVariants, modalVariants } from '../lib/motion'
 import { searchSessions } from '../lib/search'
 import type { SearchMatch, SearchProgress, SearchProjectResult } from '../lib/search'
 import { hostColor } from '../lib/format'
@@ -216,11 +218,19 @@ export function SearchOverlay({ hosts, onOpenSession, onClose }: Props) {
   let lastGroup = ''
 
   return (
-    <div
+    <motion.div
+      variants={backdropVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
       className="fixed inset-0 z-50 flex items-start justify-center bg-canvas/70 pt-[12vh] backdrop-blur-sm"
       onClick={onClose}
     >
-      <div
+      <motion.div
+        variants={modalVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
         role="dialog"
         aria-label="Search conversations"
         onClick={(event) => event.stopPropagation()}
@@ -331,7 +341,7 @@ export function SearchOverlay({ hosts, onOpenSession, onClose }: Props) {
           <span>↵ open</span>
           <span>esc close</span>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

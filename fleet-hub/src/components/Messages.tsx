@@ -1,6 +1,8 @@
 import { MousePointer2, Sparkles, SquareCode, Terminal, TriangleAlert } from 'lucide-react'
 import type { ComponentType } from 'react'
+import { motion } from 'motion/react'
 import type { NormalizedMessage, Provider } from '../types'
+import { messageReveal } from '../lib/motion'
 import { AuthedImage } from './AuthedImage'
 import { Markdown } from './Markdown'
 import { ToolCall } from './ToolCall'
@@ -57,7 +59,7 @@ export function MessageItem({
     if (message.role === 'user') {
       const images = imageSource ? message.images ?? [] : []
       return (
-        <div className="flex max-w-[75%] flex-col items-end gap-1.5 self-end">
+        <motion.div {...messageReveal} className="flex max-w-[75%] flex-col items-end gap-1.5 self-end">
           {images.length > 0 && (
             <div className="flex flex-wrap justify-end gap-1.5">
               {images.map((image, index) =>
@@ -86,34 +88,41 @@ export function MessageItem({
               {text}
             </div>
           )}
-        </div>
+        </motion.div>
       )
     }
     return (
-      <div className="min-w-0">
+      <motion.div {...messageReveal} className="min-w-0">
         <Markdown>{text}</Markdown>
-      </div>
+      </motion.div>
     )
   }
   if (message.kind === 'thinking') {
     return (
-      <details className="min-w-0 text-xs text-fg-faint">
+      <motion.details {...messageReveal} className="min-w-0 text-xs text-fg-faint">
         <summary className="cursor-pointer select-none italic">thinking…</summary>
         <div className="mt-1 whitespace-pre-wrap break-words border-l border-line pl-3 italic">
           {contentToText(message.content)}
         </div>
-      </details>
+      </motion.details>
     )
   }
   if (message.kind === 'tool_use') {
-    return <ToolCall message={message} />
+    return (
+      <motion.div {...messageReveal}>
+        <ToolCall message={message} />
+      </motion.div>
+    )
   }
   if (message.kind === 'error') {
     return (
-      <div className="flex items-start gap-2 rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-300">
+      <motion.div
+        {...messageReveal}
+        className="flex items-start gap-2 rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-xs text-rose-300"
+      >
         <TriangleAlert size={13} className="mt-0.5 shrink-0" />
         <span className="whitespace-pre-wrap break-words">{contentToText(message.content)}</span>
-      </div>
+      </motion.div>
     )
   }
   return null

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import { Server, X } from 'lucide-react'
 import type { FleetSession, Provider, SessionSummary } from './types'
+import { EASE_OUT } from './lib/motion'
 import type { ChatPanelKind } from './lib/storage'
 import {
   CHAT_PANEL_MIN_WIDTH,
@@ -312,52 +314,66 @@ export default function App() {
         onRefresh={fleet.refresh}
       />
       <main className="flex min-w-0 flex-1 flex-col">{renderMain()}</main>
-      {createError && (
-        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-md border border-rose-900/60 bg-surface px-3 py-2 text-xs text-rose-400 shadow-lg">
-          <span>{createError}</span>
-          <button
-            type="button"
-            onClick={() => setCreateError(null)}
-            className="rounded p-0.5 text-fg-faint hover:text-fg"
+      <AnimatePresence>
+        {createError && (
+          <motion.div
+            initial={{ opacity: 0, y: 12, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 8, x: '-50%' }}
+            transition={{ duration: 0.2, ease: EASE_OUT }}
+            className="fixed bottom-4 left-1/2 z-50 flex items-center gap-2 rounded-md border border-rose-900/60 bg-surface px-3 py-2 text-xs text-rose-400 shadow-lg"
           >
-            <X size={12} />
-          </button>
-        </div>
-      )}
-      {searchOpen && (
-        <SearchOverlay
-          hosts={fleet.hosts}
-          onOpenSession={openChat}
-          onClose={() => setSearchOpen(false)}
-        />
-      )}
-      {settingsOpen && (
-        <SettingsPanel
-          hosts={fleet.hosts}
-          prefs={fleet.prefs}
-          theme={theme}
-          onChangeTheme={setTheme}
-          onAddHost={fleet.addHost}
-          onRemoveHost={fleet.removeHost}
-          onUpdatePrefs={fleet.updatePrefs}
-          onClearTokens={fleet.clearTokens}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
-      {loginRuntime && (
-        <LoginModal
-          runtime={loginRuntime}
-          onSubmit={(username, password) =>
-            fleet.loginHost(
-              loginRuntime.config.id,
-              username,
-              password,
-              loginRuntime.status === 'needs-setup' ? 'setup' : 'login',
-            )
-          }
-          onClose={() => setLoginHostId(null)}
-        />
-      )}
+            <span>{createError}</span>
+            <button
+              type="button"
+              onClick={() => setCreateError(null)}
+              className="rounded p-0.5 text-fg-faint hover:text-fg"
+            >
+              <X size={12} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {searchOpen && (
+          <SearchOverlay
+            hosts={fleet.hosts}
+            onOpenSession={openChat}
+            onClose={() => setSearchOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {settingsOpen && (
+          <SettingsPanel
+            hosts={fleet.hosts}
+            prefs={fleet.prefs}
+            theme={theme}
+            onChangeTheme={setTheme}
+            onAddHost={fleet.addHost}
+            onRemoveHost={fleet.removeHost}
+            onUpdatePrefs={fleet.updatePrefs}
+            onClearTokens={fleet.clearTokens}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {loginRuntime && (
+          <LoginModal
+            runtime={loginRuntime}
+            onSubmit={(username, password) =>
+              fleet.loginHost(
+                loginRuntime.config.id,
+                username,
+                password,
+                loginRuntime.status === 'needs-setup' ? 'setup' : 'login',
+              )
+            }
+            onClose={() => setLoginHostId(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
