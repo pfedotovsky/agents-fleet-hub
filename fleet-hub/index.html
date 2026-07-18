@@ -1,7 +1,25 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // FOUC guard: resolve the stored theme before first paint so the app
+      // never flashes dark-then-light. Mirrors lib/theme.ts (kept inline so it
+      // runs ahead of the bundle). Defaults to the OS preference.
+      (function () {
+        try {
+          var stored = localStorage.getItem('fleethub.v1.theme')
+          var choice =
+            stored === 'dark' || stored === 'light' || stored === 'system' ? stored : 'system'
+          var dark =
+            choice === 'dark' ||
+            (choice === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark'
+        }
+      })()
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Agents Hub</title>

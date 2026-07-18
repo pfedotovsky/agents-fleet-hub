@@ -2,8 +2,15 @@
 
 /*
  * Agents Hub design tokens — "ink & brass" ops-deck theme.
- * ink-*  : blue-graphite neutrals (bg / surfaces / text), replaces zinc.
- * brass-*: gold command accent — reserved for primary actions and the live wordmark.
+ *
+ * Two layers:
+ *   1. Primitives (--color-ink-*, --color-brass-*): raw color ramps. ink-* is a
+ *      blue-graphite neutral scale (dark→light), brass-* the gold accent.
+ *   2. Semantics (--color-canvas, --color-surface, --color-fg, …): meaning-based
+ *      tokens that point at primitives. Components should migrate onto these so a
+ *      theme swap is a one-line cascade override — see the [data-theme="light"]
+ *      block below. New UI must use the semantic tokens, not raw ink / brass.
+ *
  * Host identity colors live in lib/format.ts and are unchanged.
  */
 @theme {
@@ -11,6 +18,7 @@
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
   --font-display: "Space Grotesk", "IBM Plex Sans", ui-sans-serif, sans-serif;
 
+  /* --- Primitives: dark-tuned defaults (the historical ink/brass ramps) --- */
   --color-ink-950: #0a0e16;
   --color-ink-900: #0f141f;
   --color-ink-850: #141a27;
@@ -29,6 +37,65 @@
   --color-brass-400: #e3b44c;
   --color-brass-500: #c79832;
   --color-brass-600: #a17a24;
+
+  /* --- Semantics: what the UI should reference (bg-canvas, text-fg, …) --- */
+  --color-canvas: var(--color-ink-950);
+  --color-surface: var(--color-ink-900);
+  --color-elevated: var(--color-ink-800);
+  --color-line: var(--color-ink-800);
+  --color-line-strong: var(--color-ink-700);
+
+  --color-fg: var(--color-ink-100);
+  --color-fg-secondary: var(--color-ink-300);
+  --color-fg-muted: var(--color-ink-400);
+  --color-fg-faint: var(--color-ink-500);
+
+  --color-accent: var(--color-brass-400);
+  --color-accent-strong: var(--color-brass-300);
+  --color-on-accent: var(--color-ink-950);
+
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #fb7185;
+  --color-info: #38bdf8;
+}
+
+/*
+ * Light theme — a neutral, Codex-flavored palette. Until the app finishes
+ * migrating off raw ink / brass classes, we remap the PRIMITIVE ramps here
+ * (inverting light↔dark while staying neutral) so every existing component
+ * flips today. Semantic tokens that must change shape (on-accent text,
+ * color-scheme) are overridden alongside. As components move to semantic
+ * classes, the primitive overrides below become dead weight and can be dropped.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-ink-950: #ffffff;
+  --color-ink-900: #f6f7f9;
+  --color-ink-850: #f1f2f5;
+  --color-ink-800: #e8eaee;
+  --color-ink-700: #d6d9df;
+  --color-ink-600: #aab0bb;
+  --color-ink-500: #7c8494;
+  --color-ink-400: #5c6472;
+  --color-ink-300: #434b59;
+  --color-ink-200: #2f3542;
+  --color-ink-100: #1b2028;
+  --color-ink-50: #0d1015;
+
+  /* Accent darkens for contrast on light surfaces; on-accent text goes light. */
+  --color-brass-200: #a97f1c;
+  --color-brass-300: #9a7018;
+  --color-brass-400: #8a6414;
+  --color-brass-500: #75530f;
+  --color-brass-600: #5f430c;
+  --color-on-accent: #ffffff;
+
+  --color-success: #059669;
+  --color-warning: #b45309;
+  --color-danger: #e11d48;
+  --color-info: #0284c7;
 }
 
 html {
@@ -36,7 +103,10 @@ html {
 }
 
 body {
-  @apply bg-ink-950 text-ink-100 antialiased;
+  background-color: var(--color-canvas);
+  color: var(--color-fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .font-display {

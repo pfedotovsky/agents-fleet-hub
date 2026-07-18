@@ -9,6 +9,7 @@ import {
   saveChatPanel,
 } from './lib/storage'
 import { useFleet } from './hooks/useFleet'
+import { useTheme } from './hooks/useTheme'
 import { Sidebar } from './components/Sidebar'
 import { SessionList } from './components/SessionList'
 import { ChatPane } from './components/ChatPane'
@@ -29,6 +30,7 @@ export type View =
 
 export default function App() {
   const fleet = useFleet()
+  const [theme, setTheme] = useTheme()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [loginHostId, setLoginHostId] = useState<string | null>(null)
@@ -333,6 +335,8 @@ export default function App() {
         <SettingsPanel
           hosts={fleet.hosts}
           prefs={fleet.prefs}
+          theme={theme}
+          onChangeTheme={setTheme}
           onAddHost={fleet.addHost}
           onRemoveHost={fleet.removeHost}
           onUpdatePrefs={fleet.updatePrefs}
