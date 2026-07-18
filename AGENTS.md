@@ -102,6 +102,9 @@ bun run build      # compiled binary for this platform → dist/
   `docs/changelog.md`.
 - Discovered gaps, ideas, and follow-ups → add them to `backlog.md` with
   pointers. Don't create new planning docs (and never HTML ones).
+- An `## Inbox` section (when present) holds untriaged quick-adds from the
+  dev-only hub Backlog view — fold them into the prioritized sections (with
+  pointers) as you pick them up.
 - The "Priorities" section at the top is user-set — don't reorder it.
 - Markdown is canonical everywhere in `docs/`; `docs/*.html` files are
   regenerable human views (e.g. `feature-parity.html` mirrors

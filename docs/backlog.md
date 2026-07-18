@@ -1,17 +1,5 @@
 # Backlog
 
-**This file is the single source of truth for planned work.** Conventions
-for agents:
-
-- Check this file before starting feature work; if the work matches an item,
-  do that item (and its listed pointers first).
-- When an item ships: delete it here and record it in `docs/changelog.md`
-  (per AGENTS.md → Documentation upkeep). Done items do not accumulate here.
-- Discovered gaps, ideas, and follow-ups get added here as new items with
-  pointers — never as new HTML planning docs. Markdown is canonical;
-  `docs/*.html` files are regenerable human views.
-- The **Priorities** section is user-set. Don't reorder it.
-
 ## Priorities (user-set)
 
 1. **As simple a setup as possible** — one command per host, one command on

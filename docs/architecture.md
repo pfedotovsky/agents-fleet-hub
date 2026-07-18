@@ -45,6 +45,7 @@ Browser (Agents Hub SPA)
 | `components/FileBrowser.tsx`, `FileTree.tsx`, `CodeEditor.tsx` | Project file tree + lazy-loaded CodeMirror editor (One Dark); Cmd+S saves via `PUT /file`. Also renders `embedded` as a chat side panel (close icon, narrower tree). |
 | `components/GitPanel.tsx` | Git status/stage/commit (AI message generation), branch switch/create, fetch/pull/push/publish, per-file diff. Full-screen via the project pane or `embedded` as a chat side panel. |
 | `components/LoginModal.tsx`, `SettingsPanel.tsx`, `OfflineCard.tsx` | Per-host login and first-time setup (register; password never stored), host/prefs management (incl. the Appearance theme toggle), hibernated-VM card with restart hint. |
+| `components/BacklogPage.tsx` | **Dev-only** full-page viewer for `docs/backlog.md`, opened in its own tab via `?view=backlog` (sidebar button + `⌘/Ctrl+B`; the `main.tsx` branch renders it instead of `<App>`). Includes a quick-add box that appends items to an `## Inbox` section. The button, the `main.tsx` branch, and the shortcut are all gated behind `import.meta.env.DEV`, so they tree-shake out of `vite build` (absent from the release bundle / fleet-server binary). GET (read) / POST (append to Inbox) are served off disk by a dev-only Vite middleware in `vite.config.ts` (`/__backlog`, `apply: 'serve'`) — not a fleet-server route. |
 
 ## Data flow
 

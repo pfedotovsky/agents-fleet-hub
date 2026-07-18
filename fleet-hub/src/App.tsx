@@ -23,6 +23,12 @@ import { LoginModal } from './components/LoginModal'
 import { SettingsPanel } from './components/SettingsPanel'
 import { SearchOverlay } from './components/SearchOverlay'
 
+// Dev-only: open the full-page Backlog view in its own tab. Guarded by
+// import.meta.env.DEV so the trigger is stripped from release builds.
+const openBacklogTab = () => {
+  window.open(`${window.location.pathname}?view=backlog`, '_blank', 'noopener')
+}
+
 export type View =
   | { kind: 'feed' }
   | { kind: 'project'; hostId: string; projectId: string }
@@ -77,6 +83,10 @@ export default function App() {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
         setSearchOpen((open) => !open)
+      }
+      if (import.meta.env.DEV && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'b') {
+        event.preventDefault()
+        openBacklogTab()
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -312,6 +322,7 @@ export default function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenSearch={() => setSearchOpen(true)}
         onRefresh={fleet.refresh}
+        onOpenBacklog={import.meta.env.DEV ? openBacklogTab : undefined}
       />
       <main className="flex min-w-0 flex-1 flex-col">{renderMain()}</main>
       <AnimatePresence>

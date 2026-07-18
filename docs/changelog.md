@@ -33,6 +33,25 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   Verified live in both themes.
 
 ### Added
+- **fleet-hub dev-only Backlog viewer.** A sidebar button (and `⌘/Ctrl+B`) opens
+  `docs/backlog.md` as a full-page view in its own browser tab
+  (`components/BacklogPage.tsx`, reached via `?view=backlog`), so the backlog is
+  one click away and readable instead of hunting for the file. The page has a
+  **quick-add box** that appends items to an `## Inbox` section on disk (created
+  above Priorities if missing) for later triage. Everything is gated behind
+  `import.meta.env.DEV`: the button, the `?view=backlog` branch in `main.tsx`,
+  and the keyboard shortcut are tree-shaken out of `vite build`, so nothing ships
+  in the release bundle or the fleet-server binary. GET/POST are served off disk
+  by a dev-only Vite middleware (`/__backlog`, `apply: 'serve'` in
+  `vite.config.ts`) — no fleet-server changes, and edits show on the next reload
+  with no rebuild. Dropped the "Conventions for agents" preamble from
+  `backlog.md` (it duplicated the AGENTS.md → Backlog section) so the human view
+  starts at Priorities. Also extended `components/Markdown.tsx` with
+  `li`/`input`/`h4` overrides so GFM task lists (`- [ ]` / `- [x]`) render as
+  clean inline checkboxes. Verified live in dev (full-page render + quick-add
+  round-trip writing to the Inbox); `grep` confirms the endpoint, `?view=backlog`
+  branch, quick-add UI, and backlog text are all absent from `dist` after
+  `npm run build`.
 - **fleet-hub motion system (Phase 2).** Added the `motion` library (Framer
   Motion) with a shared vocabulary in `lib/motion.ts` (enter ~200-240ms
   ease-out, shorter ease-in exits) and a global `<MotionConfig

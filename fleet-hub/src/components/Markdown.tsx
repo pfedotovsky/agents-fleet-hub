@@ -74,12 +74,29 @@ const COMPONENTS = {
   ol: (props: ComponentPropsWithoutRef<'ol'>) => (
     <ol {...props} className="my-2 list-decimal space-y-1 pl-5" />
   ),
+  // GFM task-list items (`- [ ]` / `- [x]`) arrive with a `task-list-item`
+  // class. Drop the disc bullet (the checkbox is the marker) but keep the item
+  // as normal inline flow so the label and following text don't break onto
+  // separate lines the way a flex container forces them to.
+  li: ({ className, ...props }: ComponentPropsWithoutRef<'li'>) =>
+    className?.includes('task-list-item') ? (
+      <li {...props} className="-ml-5 list-none" />
+    ) : (
+      <li {...props} className={className} />
+    ),
+  input: ({ className, ...props }: ComponentPropsWithoutRef<'input'>) =>
+    props.type === 'checkbox' ? (
+      <input {...props} disabled className="mr-2 translate-y-px accent-accent" />
+    ) : (
+      <input {...props} className={className} />
+    ),
   blockquote: (props: ComponentPropsWithoutRef<'blockquote'>) => (
     <blockquote {...props} className="my-2 border-l-2 border-line-strong pl-3 italic text-fg-muted" />
   ),
   h1: (props: ComponentPropsWithoutRef<'h1'>) => <h1 {...props} className="mb-2 mt-3 text-lg font-semibold" />,
   h2: (props: ComponentPropsWithoutRef<'h2'>) => <h2 {...props} className="mb-2 mt-3 text-base font-semibold" />,
   h3: (props: ComponentPropsWithoutRef<'h3'>) => <h3 {...props} className="mb-1 mt-2 text-[15px] font-semibold" />,
+  h4: (props: ComponentPropsWithoutRef<'h4'>) => <h4 {...props} className="mb-1 mt-2 text-[13px] font-semibold uppercase tracking-wide text-fg-muted" />,
   table: (props: ComponentPropsWithoutRef<'table'>) => (
     <div className="my-2 overflow-x-auto">
       <table {...props} className="min-w-full border-collapse text-[13px]" />
