@@ -1392,10 +1392,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
   return (
     <div className="flex h-full min-w-0 flex-1">
     <div className="flex h-full min-w-0 flex-1 flex-col">
-      <header
-        className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3"
-        style={{ borderLeft: `3px solid ${color}` }}
-      >
+      <header className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3">
         <button
           type="button"
           onClick={onBack}
@@ -1485,7 +1482,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
             )}
           </div>
         ) : (
-          <div ref={contentRef} className="mx-auto flex max-w-[80rem] flex-col gap-3">
+          <div ref={contentRef} className="mx-auto flex max-w-3xl flex-col gap-6">
             {hasMore && (
               <button
                 type="button"
@@ -1594,7 +1591,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
       </div>
 
       <footer className="shrink-0 border-t border-line px-4 py-3">
-        <div className="relative mx-auto max-w-[80rem]">
+        <div className="relative mx-auto max-w-3xl">
           {autocomplete.open && (
             <CompletionMenu
               items={autocomplete.items}

@@ -44,17 +44,6 @@ const CATEGORY: Record<string, Category> = {
   write_stdin: 'bash',
 }
 
-const BORDER: Record<Category, string> = {
-  edit: 'border-l-amber-500',
-  bash: 'border-l-emerald-500',
-  search: 'border-l-ink-500',
-  todo: 'border-l-violet-500',
-  read: 'border-l-sky-500',
-  agent: 'border-l-purple-500',
-  plan: 'border-l-indigo-500',
-  default: 'border-l-ink-600',
-}
-
 const ICON: Record<Category, ComponentType<{ size?: number; className?: string }>> = {
   edit: Pencil,
   bash: SquareTerminal,
@@ -176,7 +165,7 @@ function Collapsible({
   const [open, setOpen] = useState(Boolean(defaultOpen))
   const Icon = ICON[category]
   return (
-    <div className={`border-l-2 ${BORDER[category]} rounded-r-md bg-surface/30`}>
+    <div className="rounded-md border border-line bg-surface/30">
       <div className="flex items-center gap-2 py-1 pl-2.5 pr-2">
         <button
           type="button"
@@ -218,16 +207,14 @@ function OneLine({
   const terminal = category === 'bash'
   return (
     <div
-      className={`flex items-center gap-2 border-l-2 ${BORDER[category]} rounded-r-md py-1 pl-2.5 pr-2 ${
-        terminal ? 'bg-emerald-950/20' : 'bg-surface/30'
+      className={`flex items-center gap-2 rounded-md border border-line py-1 pl-2.5 pr-2 ${
+        terminal ? 'bg-canvas/50' : 'bg-surface/30'
       }`}
     >
-      <Icon size={12} className={`shrink-0 ${terminal ? 'text-emerald-500' : 'text-fg-faint'}`} />
+      <Icon size={12} className="shrink-0 text-fg-faint" />
       <span className="shrink-0 text-xs font-medium text-fg-faint">{label}</span>
       <span
-        className={`min-w-0 flex-1 truncate ${mono ? 'font-mono' : ''} text-xs ${
-          terminal ? 'text-emerald-300' : 'text-fg-secondary'
-        }`}
+        className={`min-w-0 flex-1 truncate ${mono ? 'font-mono' : ''} text-xs text-fg-secondary`}
         title={value}
       >
         {value}
@@ -306,7 +293,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
     })
     if (todos.length > 0) {
       return (
-        <div className="border-l-2 border-l-violet-500 rounded-r-md bg-surface/30 py-1 pl-2.5 pr-2">
+        <div className="rounded-md border border-line bg-surface/30 py-1 pl-2.5 pr-2">
           <TodoList todos={todos} />
         </div>
       )

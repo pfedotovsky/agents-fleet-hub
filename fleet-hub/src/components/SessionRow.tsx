@@ -26,10 +26,9 @@ export function SessionRow({ item, onOpen, onArchive }: Props) {
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') onOpen(item)
       }}
-      className={`group flex cursor-pointer items-center gap-3 rounded-lg border border-line/80 bg-surface/60 px-4 py-3 backdrop-blur transition-colors hover:bg-elevated/60 ${
+      className={`group flex cursor-pointer items-center gap-3 rounded-lg border border-line bg-surface/60 px-4 py-3 transition-colors hover:bg-elevated/60 ${
         item.justUpdated ? 'just-updated' : ''
       }`}
-      style={{ borderLeft: `3px solid ${color}` }}
     >
       <div className="min-w-0 flex-1">
         <div className="mb-0.5 flex items-center gap-2 text-[11px] text-fg-faint">

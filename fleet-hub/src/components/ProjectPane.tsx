@@ -115,10 +115,7 @@ export function ProjectPane({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto">
-      <header
-        className="sticky top-0 z-10 border-b border-line bg-canvas/90 px-6 py-4 backdrop-blur"
-        style={{ borderLeft: `3px solid ${color}` }}
-      >
+      <header className="sticky top-0 z-10 border-b border-line bg-canvas/90 px-6 py-4 backdrop-blur">
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 text-[11px] text-fg-faint">

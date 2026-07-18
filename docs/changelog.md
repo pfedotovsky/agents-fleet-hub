@@ -6,6 +6,24 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-18
 
+### Changed
+- **fleet-hub Codex monochrome restyle (theming Phase 3).** Retuned the token
+  ramp from blue-graphite to a true neutral grayscale (both themes), and dropped
+  the brass gold accent: the `accent` role is now a high-contrast neutral
+  (near-white primary on dark, near-black on light) that inverts for free
+  because it points at the ramp ends. The only remaining color is the functional
+  status vocabulary (success/warning/danger/info) and the small host/provider
+  identity marks. Unified the type system to one family (`--font-display` now
+  aliases `--font-sans`; no more Space Grotesk display face in UI). Flattened the
+  chat transcript to Codex style: user turns are a flat "You"-labeled block
+  instead of a right-aligned bubble, in a narrower 65–75ch column
+  (`max-w-3xl`, composer aligned to match). Removed the banned colored
+  side-stripes (`border-left: 3px solid <host>` on session rows and the chat /
+  project / git / files headers; per-category `border-l-2` accent stripes on
+  tool-call rows → full hairline borders; the flash-ring highlight is now a
+  theme-aware neutral). Host-color identity now lives only in the dot markers.
+  Verified live in both themes.
+
 ### Added
 - **fleet-hub motion system (Phase 2).** Added the `motion` library (Framer
   Motion) with a shared vocabulary in `lib/motion.ts` (enter ~200-240ms

@@ -108,10 +108,7 @@ export function FileBrowser({ runtime, hostColorIdx, project, onBack, embedded }
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
-      <header
-        className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3"
-        style={{ borderLeft: `3px solid ${color}` }}
-      >
+      <header className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3">
         <button
           type="button"
           onClick={onBack}

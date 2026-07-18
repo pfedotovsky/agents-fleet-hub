@@ -47,6 +47,19 @@ export function contentToText(content: unknown): string {
 /** Kinds that render as transcript entries; everything else is lifecycle/gateway. */
 export const RENDERED_KINDS = new Set(['text', 'tool_use', 'thinking', 'error'])
 
+/**
+ * Codex-style role marker above a turn: a small label + hairline, in a flat
+ * single-column transcript (no chat bubbles). Assistant turns render bare
+ * markdown with no marker so the agent's output reads as the primary content.
+ */
+function RoleLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-fg-subtle">
+      {children}
+    </div>
+  )
+}
+
 export function MessageItem({
   message,
   imageSource,
@@ -59,9 +72,10 @@ export function MessageItem({
     if (message.role === 'user') {
       const images = imageSource ? message.images ?? [] : []
       return (
-        <motion.div {...messageReveal} className="flex max-w-[75%] flex-col items-end gap-1.5 self-end">
+        <motion.div {...messageReveal} className="min-w-0">
+          <RoleLabel>You</RoleLabel>
           {images.length > 0 && (
-            <div className="flex flex-wrap justify-end gap-1.5">
+            <div className="mb-2 flex flex-wrap gap-1.5">
               {images.map((image, index) =>
                 image.path ? (
                   <AuthedImage
@@ -84,7 +98,7 @@ export function MessageItem({
             </div>
           )}
           {text && (
-            <div className="whitespace-pre-wrap break-words rounded-lg rounded-br-sm bg-elevated px-3.5 py-2.5 text-[15px] text-fg">
+            <div className="whitespace-pre-wrap break-words text-[15px] leading-7 text-fg-secondary">
               {text}
             </div>
           )}

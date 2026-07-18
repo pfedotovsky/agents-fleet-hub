@@ -231,10 +231,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
     })
 
   const header = (
-    <header
-      className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3"
-      style={{ borderLeft: `3px solid ${color}` }}
-    >
+    <header className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3">
       <button
         type="button"
         onClick={onBack}
