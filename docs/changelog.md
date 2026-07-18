@@ -4,6 +4,73 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-07-18
+
+### Changed
+- **fleet-hub Codex monochrome restyle (theming Phase 3).** Retuned the token
+  ramp from blue-graphite to a true neutral grayscale (both themes), and dropped
+  the brass gold accent: the `accent` role is now a high-contrast neutral
+  (near-white primary on dark, near-black on light) that inverts for free
+  because it points at the ramp ends. The only remaining color is the functional
+  status vocabulary (success/warning/danger/info) and the small host/provider
+  identity marks. Unified the type system to one family (`--font-display` now
+  aliases `--font-sans`; no more Space Grotesk display face in UI). Flattened the
+  chat transcript to Codex style: user turns are a flat "You"-labeled block
+  instead of a right-aligned bubble, in a narrower 65–75ch column
+  (`max-w-3xl`, composer aligned to match). Removed the banned colored
+  side-stripes (`border-left: 3px solid <host>` on session rows and the chat /
+  project / git / files headers; per-category `border-l-2` accent stripes on
+  tool-call rows → full hairline borders; the flash-ring highlight is now a
+  theme-aware neutral). Host-color identity now lives only in the dot markers.
+  Verified live in both themes.
+
+### Added
+- **fleet-hub motion system (Phase 2).** Added the `motion` library (Framer
+  Motion) with a shared vocabulary in `lib/motion.ts` (enter ~200-240ms
+  ease-out, shorter ease-in exits) and a global `<MotionConfig
+  reducedMotion="user">` in `main.tsx` so everything honors
+  `prefers-reduced-motion` without per-site branching. Animated: transcript
+  message reveals (`Messages.tsx`), enter/exit for the chat permission /
+  question / plan-ready / working cards (`ChatPane.tsx`, via `AnimatePresence`),
+  session-list row reflow + add/remove (`SessionRow`/`SessionList` with the
+  `layout` prop, replacing the reorder jump), and enter/exit for the overlays
+  and error toast (`SettingsPanel` slide-in, `SearchOverlay` + `LoginModal`
+  modal pop, wrapped in `AnimatePresence` in `App.tsx`). Removed the now-unused
+  `.slide-in` CSS keyframes (motion replaced it); the `.just-updated` flash-ring
+  stays. Verified live; adds ~40KB gzip to the main bundle.
+
+### Changed
+- **fleet-hub migrated to semantic color classes (theming Phase 1c).** All ~507
+  raw `ink-*`/`brass-*` Tailwind classes across 19 components were replaced with
+  the semantic tokens introduced in Phase 1a (`bg-canvas/surface/elevated`,
+  `text-fg/fg-muted/fg-faint/fg-subtle`, `border-line/line-strong`,
+  `bg-accent`, `text-on-accent`, …) via a one-shot property-aware codemod; no
+  raw primitive classes remain in `src`. The light theme's semantic tokens now
+  drive every surface. Syntax highlighting is theme-aware: `Markdown.tsx` uses
+  Prism `oneLight`/`oneDark` (and a light/dark code background) and
+  `CodeEditor.tsx` swaps the CodeMirror One Dark theme for the built-in light
+  theme, both driven by a new `useResolvedTheme` hook that watches
+  `<html data-theme>` and re-renders on flip. Categorical host-identity and
+  provider brand colors (`lib/format.ts`, `Messages.tsx`) are intentionally left
+  as-is — they're CVD-validated cross-theme identity accents. Dark is unchanged;
+  verified live in both themes incl. fenced code blocks and tool calls.
+
+### Added
+- **fleet-hub theming foundation + light theme.** First phase of a Codex-style
+  UI overhaul (branch `ui-codex-theming`). `src/index.css` gains a two-layer
+  Tailwind v4 token system: raw primitives (`--color-ink-*`, `--color-brass-*`)
+  plus semantic tokens (`--color-canvas/surface/elevated/line/fg/accent/on-accent/…`)
+  that new UI should consume. A `[data-theme="light"]` override provides a
+  neutral, Codex-flavored light palette; until components migrate off raw
+  `ink-*`/`brass-*` classes it also remaps the primitive ramps so the whole app
+  flips with no component edits. New `lib/theme.ts` + `hooks/useTheme.ts` manage
+  a persisted System/Dark/Light choice (`fleethub.v1.theme`) that follows the OS
+  when set to System; an inline FOUC-guard script in `index.html` resolves the
+  theme before first paint. A new **Appearance** toggle in Settings switches it.
+  Dark is unchanged; verified live in-browser in both themes. Follow-ups
+  (semantic-class migration for the ~621 raw token usages, light syntax themes,
+  motion, and the full monochrome restyle) are the remaining phases.
+
 ## 2026-07-14
 
 ### Added

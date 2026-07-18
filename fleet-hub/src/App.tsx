@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'motion/react'
 import { Server, X } from 'lucide-react'
 import type { FleetSession, Provider, SessionSummary } from './types'
+import { EASE_OUT } from './lib/motion'
 import type { ChatPanelKind } from './lib/storage'
 import {
   CHAT_PANEL_MIN_WIDTH,
@@ -9,6 +11,7 @@ import {
   saveChatPanel,
 } from './lib/storage'
 import { useFleet } from './hooks/useFleet'
+import { useTheme } from './hooks/useTheme'
 import { Sidebar } from './components/Sidebar'
 import { SessionList } from './components/SessionList'
 import { ChatPane } from './components/ChatPane'
@@ -29,6 +32,7 @@ export type View =
 
 export default function App() {
   const fleet = useFleet()
+  const [theme, setTheme] = useTheme()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [loginHostId, setLoginHostId] = useState<string | null>(null)
@@ -171,10 +175,10 @@ export default function App() {
     if (fleet.hosts.length === 0) {
       return (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-          <Server size={32} className="text-ink-700" />
+          <Server size={32} className="text-fg-subtle" />
           <div>
-            <h2 className="font-display text-base font-semibold text-ink-200">No hosts configured</h2>
-            <p className="mt-1 max-w-sm text-sm text-ink-500">
+            <h2 className="font-display text-base font-semibold text-fg">No hosts configured</h2>
+            <p className="mt-1 max-w-sm text-sm text-fg-faint">
               Add your CloudCLI instances — remote VMs or localhost — and their projects and
               sessions will appear here.
             </p>
@@ -182,7 +186,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
-            className="rounded-md bg-brass-400 px-4 py-2 text-sm font-medium text-ink-950 transition-colors hover:bg-brass-300"
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-on-accent transition-colors hover:bg-accent-strong"
           >
             Add your first host
           </button>
@@ -208,9 +212,9 @@ export default function App() {
               <div
                 onPointerDown={startChatPanelResize}
                 title="Drag to resize"
-                className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize transition-colors hover:bg-ink-700/50"
+                className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize transition-colors hover:bg-elevated-strong/50"
               />
-              <aside className="flex min-w-0 flex-1 flex-col border-l border-ink-800/80">
+              <aside className="flex min-w-0 flex-1 flex-col border-l border-line/80">
                 <PanelComponent
                   key={`${chatPanel}:${view.target.hostId}:${view.target.projectId}`}
                   runtime={runtime}
@@ -229,7 +233,7 @@ export default function App() {
       const { hostIndex, runtime, project } = findProject(view.hostId, view.projectId)
       if (!runtime || !project) {
         return (
-          <p className="flex flex-1 items-center justify-center text-sm text-ink-500">
+          <p className="flex flex-1 items-center justify-center text-sm text-fg-faint">
             This project is no longer available.
           </p>
         )
@@ -249,7 +253,7 @@ export default function App() {
       const { hostIndex, runtime, project } = findProject(view.hostId, view.projectId)
       if (!runtime || !project) {
         return (
-          <p className="flex flex-1 items-center justify-center text-sm text-ink-500">
+          <p className="flex flex-1 items-center justify-center text-sm text-fg-faint">
             This project is no longer available.
           </p>
         )
@@ -270,7 +274,7 @@ export default function App() {
     return (
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-2 px-4 py-6">
-          <h2 className="font-display mb-1 text-sm font-semibold text-ink-300">All sessions</h2>
+          <h2 className="font-display mb-1 text-sm font-semibold text-fg-secondary">All sessions</h2>
           {downHosts.map((runtime) => (
             <OfflineCard
               key={runtime.config.id}
@@ -310,50 +314,66 @@ export default function App() {
         onRefresh={fleet.refresh}
       />
       <main className="flex min-w-0 flex-1 flex-col">{renderMain()}</main>
-      {createError && (
-        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-md border border-rose-900/60 bg-ink-900 px-3 py-2 text-xs text-rose-400 shadow-lg">
-          <span>{createError}</span>
-          <button
-            type="button"
-            onClick={() => setCreateError(null)}
-            className="rounded p-0.5 text-ink-500 hover:text-ink-200"
+      <AnimatePresence>
+        {createError && (
+          <motion.div
+            initial={{ opacity: 0, y: 12, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 8, x: '-50%' }}
+            transition={{ duration: 0.2, ease: EASE_OUT }}
+            className="fixed bottom-4 left-1/2 z-50 flex items-center gap-2 rounded-md border border-rose-900/60 bg-surface px-3 py-2 text-xs text-rose-400 shadow-lg"
           >
-            <X size={12} />
-          </button>
-        </div>
-      )}
-      {searchOpen && (
-        <SearchOverlay
-          hosts={fleet.hosts}
-          onOpenSession={openChat}
-          onClose={() => setSearchOpen(false)}
-        />
-      )}
-      {settingsOpen && (
-        <SettingsPanel
-          hosts={fleet.hosts}
-          prefs={fleet.prefs}
-          onAddHost={fleet.addHost}
-          onRemoveHost={fleet.removeHost}
-          onUpdatePrefs={fleet.updatePrefs}
-          onClearTokens={fleet.clearTokens}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
-      {loginRuntime && (
-        <LoginModal
-          runtime={loginRuntime}
-          onSubmit={(username, password) =>
-            fleet.loginHost(
-              loginRuntime.config.id,
-              username,
-              password,
-              loginRuntime.status === 'needs-setup' ? 'setup' : 'login',
-            )
-          }
-          onClose={() => setLoginHostId(null)}
-        />
-      )}
+            <span>{createError}</span>
+            <button
+              type="button"
+              onClick={() => setCreateError(null)}
+              className="rounded p-0.5 text-fg-faint hover:text-fg"
+            >
+              <X size={12} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {searchOpen && (
+          <SearchOverlay
+            hosts={fleet.hosts}
+            onOpenSession={openChat}
+            onClose={() => setSearchOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {settingsOpen && (
+          <SettingsPanel
+            hosts={fleet.hosts}
+            prefs={fleet.prefs}
+            theme={theme}
+            onChangeTheme={setTheme}
+            onAddHost={fleet.addHost}
+            onRemoveHost={fleet.removeHost}
+            onUpdatePrefs={fleet.updatePrefs}
+            onClearTokens={fleet.clearTokens}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {loginRuntime && (
+          <LoginModal
+            runtime={loginRuntime}
+            onSubmit={(username, password) =>
+              fleet.loginHost(
+                loginRuntime.config.id,
+                username,
+                password,
+                loginRuntime.status === 'needs-setup' ? 'setup' : 'login',
+              )
+            }
+            onClose={() => setLoginHostId(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

@@ -231,28 +231,25 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
     })
 
   const header = (
-    <header
-      className="flex shrink-0 items-center gap-3 border-b border-ink-800 px-4 py-3"
-      style={{ borderLeft: `3px solid ${color}` }}
-    >
+    <header className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3">
       <button
         type="button"
         onClick={onBack}
         title={embedded ? 'Close panel' : 'Back to project'}
-        className="shrink-0 rounded-md p-1.5 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
+        className="shrink-0 rounded-md p-1.5 text-fg-faint hover:bg-elevated hover:text-fg"
       >
         {embedded ? <X size={16} /> : <ArrowLeft size={16} />}
       </button>
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 text-[11px] text-ink-500">
-          <span className="inline-flex items-center gap-1 font-medium text-ink-400">
+        <div className="flex items-center gap-2 text-[11px] text-fg-faint">
+          <span className="inline-flex items-center gap-1 font-medium text-fg-muted">
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
             {runtime.config.name}
           </span>
           <span>·</span>
           <span className="truncate font-mono">Git</span>
         </div>
-        <h2 className="font-display truncate text-sm font-semibold text-ink-100">
+        <h2 className="font-display truncate text-sm font-semibold text-fg">
           {project.displayName}
         </h2>
       </div>
@@ -260,7 +257,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
         type="button"
         onClick={() => void refresh()}
         title="Refresh"
-        className="shrink-0 rounded-md p-1.5 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
+        className="shrink-0 rounded-md p-1.5 text-fg-faint hover:bg-elevated hover:text-fg"
       >
         <RefreshCw size={14} />
       </button>
@@ -271,7 +268,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
     return (
       <div className="flex h-full min-w-0 flex-1 flex-col">
         {header}
-        <div className="flex flex-1 items-center justify-center text-ink-500">
+        <div className="flex flex-1 items-center justify-center text-fg-faint">
           <LoaderCircle size={20} className="animate-spin" />
         </div>
       </div>
@@ -283,10 +280,10 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
       <div className="flex h-full min-w-0 flex-1 flex-col">
         {header}
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-8 text-center">
-          <GitBranch size={22} className="text-ink-700" />
-          <p className="text-sm text-ink-400">This project is not a git repository.</p>
-          <p className="text-xs text-ink-600">
-            Run <code className="rounded bg-ink-900 px-1">git init</code> on the host to start
+          <GitBranch size={22} className="text-fg-subtle" />
+          <p className="text-sm text-fg-muted">This project is not a git repository.</p>
+          <p className="text-xs text-fg-subtle">
+            Run <code className="rounded bg-surface px-1">git init</code> on the host to start
             tracking it.
           </p>
         </div>
@@ -299,10 +296,10 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
       {header}
       <div className="flex min-h-0 flex-1">
         {/* Left pane: branch, remote, changed files, commit box */}
-        <div className={`flex ${embedded ? 'w-64' : 'w-80'} shrink-0 flex-col border-r border-ink-800/80`}>
-          <div className="flex flex-col gap-2 border-b border-ink-800/60 px-3 py-2.5">
+        <div className={`flex ${embedded ? 'w-64' : 'w-80'} shrink-0 flex-col border-r border-line/80`}>
+          <div className="flex flex-col gap-2 border-b border-line/60 px-3 py-2.5">
             <div className="flex items-center gap-1.5">
-              <GitBranch size={13} className="shrink-0 text-ink-500" />
+              <GitBranch size={13} className="shrink-0 text-fg-faint" />
               {branches?.localBranches.length ? (
                 <select
                   value={status?.branch ?? ''}
@@ -315,7 +312,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
                       )
                   }}
                   title="Switch branch"
-                  className="min-w-0 flex-1 rounded border border-ink-800 bg-ink-900 px-1.5 py-1 font-mono text-xs text-ink-300 outline-none"
+                  className="min-w-0 flex-1 rounded border border-line bg-surface px-1.5 py-1 font-mono text-xs text-fg-secondary outline-none"
                 >
                   {[...new Set([status?.branch ?? '', ...branches.localBranches])]
                     .filter(Boolean)
@@ -326,7 +323,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
                     ))}
                 </select>
               ) : (
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-300">
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-fg-secondary">
                   {status?.branch}
                 </span>
               )}
@@ -334,7 +331,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
                 type="button"
                 onClick={() => setCreatingBranch((prev) => !prev)}
                 title="New branch"
-                className="shrink-0 rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
+                className="shrink-0 rounded p-1 text-fg-faint hover:bg-elevated hover:text-fg"
               >
                 <Plus size={12} />
               </button>
@@ -360,19 +357,19 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
                   onChange={(event) => setNewBranch(event.target.value)}
                   placeholder="new-branch-name"
                   autoFocus
-                  className="min-w-0 flex-1 rounded border border-ink-800 bg-ink-950 px-1.5 py-1 font-mono text-xs text-ink-200 outline-none focus:border-brass-400/60"
+                  className="min-w-0 flex-1 rounded border border-line bg-canvas px-1.5 py-1 font-mono text-xs text-fg outline-none focus:border-accent/60"
                 />
                 <button
                   type="submit"
                   disabled={!newBranch.trim() || !!busy}
-                  className="shrink-0 rounded bg-brass-400 px-2 py-1 text-[11px] font-medium text-ink-950 hover:bg-brass-300 disabled:opacity-40"
+                  className="shrink-0 rounded bg-accent px-2 py-1 text-[11px] font-medium text-on-accent hover:bg-accent-strong disabled:opacity-40"
                 >
                   Create
                 </button>
               </form>
             )}
             {remote?.hasRemote && (
-              <div className="flex items-center gap-1.5 text-[11px] text-ink-500">
+              <div className="flex items-center gap-1.5 text-[11px] text-fg-faint">
                 {remote.hasUpstream ? (
                   <span
                     className="tnum inline-flex items-center gap-0.5 font-mono"
@@ -384,7 +381,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
                     {remote.behind}
                   </span>
                 ) : (
-                  <span className="text-ink-600">no upstream</span>
+                  <span className="text-fg-subtle">no upstream</span>
                 )}
                 <span className="ml-auto flex items-center gap-1">
                   {(['fetch', 'pull'] as const).map((action) => (
@@ -397,7 +394,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
                           gitRemoteAction(baseUrl, project.projectId, action, auth),
                         )
                       }
-                      className="rounded border border-ink-800 px-1.5 py-0.5 text-[11px] text-ink-400 hover:bg-ink-800 disabled:opacity-40"
+                      className="rounded border border-line px-1.5 py-0.5 text-[11px] text-fg-muted hover:bg-elevated disabled:opacity-40"
                     >
                       {busy === action ? <LoaderCircle size={10} className="animate-spin" /> : action}
                     </button>
@@ -411,7 +408,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
                           gitRemoteAction(baseUrl, project.projectId, 'push', auth),
                         )
                       }
-                      className="rounded border border-ink-800 px-1.5 py-0.5 text-[11px] text-ink-400 hover:bg-ink-800 disabled:opacity-40"
+                      className="rounded border border-line px-1.5 py-0.5 text-[11px] text-fg-muted hover:bg-elevated disabled:opacity-40"
                     >
                       {busy === 'push' ? <LoaderCircle size={10} className="animate-spin" /> : 'push'}
                     </button>
@@ -425,7 +422,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
                           gitRemoteAction(baseUrl, project.projectId, 'publish', auth, status?.branch),
                         )
                       }
-                      className="inline-flex items-center gap-1 rounded border border-ink-800 px-1.5 py-0.5 text-[11px] text-ink-400 hover:bg-ink-800 disabled:opacity-40"
+                      className="inline-flex items-center gap-1 rounded border border-line px-1.5 py-0.5 text-[11px] text-fg-muted hover:bg-elevated disabled:opacity-40"
                     >
                       {busy === 'publish' ? (
                         <LoaderCircle size={10} className="animate-spin" />
@@ -442,7 +439,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
 
           {(error || notice) && (
             <div
-              className={`flex items-start gap-1.5 border-b border-ink-800/60 px-3 py-1.5 text-[11px] ${
+              className={`flex items-start gap-1.5 border-b border-line/60 px-3 py-1.5 text-[11px] ${
                 error ? 'text-rose-400' : 'text-emerald-400'
               }`}
             >
@@ -457,20 +454,20 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
 
           <div className="min-h-0 flex-1 overflow-y-auto py-1">
             {files.length === 0 && (
-              <p className="px-3 py-8 text-center text-xs text-ink-600">
+              <p className="px-3 py-8 text-center text-xs text-fg-subtle">
                 Working tree clean — nothing to commit.
               </p>
             )}
             {groups.map(({ group, files: groupedFiles }) => (
               <div key={group} className="mb-1">
-                <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-ink-600">
+                <div className="px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-fg-subtle">
                   {GROUP_LABELS[group]} · {groupedFiles.length}
                 </div>
                 {groupedFiles.map((file) => (
                   <div
                     key={`${group}:${file.path}`}
                     className={`group/file flex items-center gap-1.5 px-2 py-1 ${
-                      selectedFile === file.path ? 'bg-ink-800' : 'hover:bg-ink-900'
+                      selectedFile === file.path ? 'bg-elevated' : 'hover:bg-surface'
                     }`}
                   >
                     <input
@@ -478,14 +475,14 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
                       checked={checked.has(file.path)}
                       onChange={() => toggleChecked(file.path)}
                       title="Include in commit"
-                      className="shrink-0 accent-brass-400"
+                      className="shrink-0 accent-accent"
                     />
                     <button
                       type="button"
                       onClick={() => openDiff(file.path)}
                       title={file.path}
                       className={`min-w-0 flex-1 truncate text-left font-mono text-xs ${
-                        file.deleted ? 'text-rose-400/80 line-through' : 'text-ink-300'
+                        file.deleted ? 'text-rose-400/80 line-through' : 'text-fg-secondary'
                       }`}
                     >
                       {file.path}
@@ -500,7 +497,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
                           )
                         }
                         title="Unstage"
-                        className="shrink-0 rounded p-0.5 text-ink-600 opacity-0 hover:bg-ink-700 hover:text-ink-200 group-hover/file:opacity-100"
+                        className="shrink-0 rounded p-0.5 text-fg-subtle opacity-0 hover:bg-elevated-strong hover:text-fg group-hover/file:opacity-100"
                       >
                         <Minus size={11} />
                       </button>
@@ -514,7 +511,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
                           )
                         }
                         title="Stage"
-                        className="shrink-0 rounded p-0.5 text-ink-600 opacity-0 hover:bg-ink-700 hover:text-ink-200 group-hover/file:opacity-100"
+                        className="shrink-0 rounded p-0.5 text-fg-subtle opacity-0 hover:bg-elevated-strong hover:text-fg group-hover/file:opacity-100"
                       >
                         <Plus size={11} />
                       </button>
@@ -525,21 +522,21 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
             ))}
           </div>
 
-          <div className="border-t border-ink-800/60 p-2.5">
+          <div className="border-t border-line/60 p-2.5">
             <div className="relative">
               <textarea
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 placeholder={`Commit message (${checkedFiles.length} file${checkedFiles.length === 1 ? '' : 's'} selected)…`}
                 rows={3}
-                className="w-full resize-none rounded-md border border-ink-800 bg-ink-950 px-2 py-1.5 pr-8 text-xs text-ink-200 outline-none placeholder:text-ink-600 focus:border-brass-400/60"
+                className="w-full resize-none rounded-md border border-line bg-canvas px-2 py-1.5 pr-8 text-xs text-fg outline-none placeholder:text-fg-subtle focus:border-accent/60"
               />
               <button
                 type="button"
                 onClick={() => void generate()}
                 disabled={generating || checkedFiles.length === 0}
                 title="Generate a commit message with AI"
-                className="absolute right-1.5 top-1.5 rounded p-1 text-ink-500 hover:bg-ink-800 hover:text-brass-300 disabled:opacity-40"
+                className="absolute right-1.5 top-1.5 rounded p-1 text-fg-faint hover:bg-elevated hover:text-accent-strong disabled:opacity-40"
               >
                 {generating ? (
                   <LoaderCircle size={13} className="animate-spin" />
@@ -564,7 +561,7 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
                   if (ok) setMessage('')
                 })
               }
-              className="mt-1.5 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-brass-400 px-3 py-1.5 text-xs font-medium text-ink-950 transition-colors hover:bg-brass-300 disabled:opacity-40"
+              className="mt-1.5 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-strong disabled:opacity-40"
             >
               {busy === 'commit' ? (
                 <LoaderCircle size={13} className="animate-spin" />
@@ -579,19 +576,19 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
         {/* Right pane: diff of the selected file */}
         <div className="min-w-0 flex-1 p-3">
           {!selectedFile ? (
-            <div className="flex h-full items-center justify-center text-sm text-ink-600">
+            <div className="flex h-full items-center justify-center text-sm text-fg-subtle">
               Select a file to view its diff
             </div>
           ) : diffLoading ? (
             <div className="flex h-full items-center justify-center">
-              <LoaderCircle size={18} className="animate-spin text-ink-600" />
+              <LoaderCircle size={18} className="animate-spin text-fg-subtle" />
             </div>
           ) : diffError ? (
             <div className="flex h-full items-center justify-center gap-2 text-sm text-rose-400">
               <TriangleAlert size={14} /> {diffError}
             </div>
           ) : diffText.trim() === '' ? (
-            <div className="flex h-full items-center justify-center text-sm text-ink-600">
+            <div className="flex h-full items-center justify-center text-sm text-fg-subtle">
               No changes in this file.
             </div>
           ) : (

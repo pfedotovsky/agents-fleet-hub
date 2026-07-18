@@ -2,6 +2,7 @@ import CodeMirror from '@uiw/react-codemirror'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { loadLanguage } from '@uiw/codemirror-extensions-langs'
 import type { LanguageName } from '@uiw/codemirror-extensions-langs'
+import { useResolvedTheme } from '../hooks/useTheme'
 
 const EXT_TO_LANG: Record<string, LanguageName> = {
   ts: 'ts',
@@ -60,11 +61,12 @@ interface Props {
 }
 
 export default function CodeEditor({ filePath, value, onChange, readOnly }: Props) {
+  const resolved = useResolvedTheme()
   return (
     <CodeMirror
       value={value}
       onChange={onChange}
-      theme={oneDark}
+      theme={resolved === 'light' ? 'light' : oneDark}
       extensions={languageExtensions(filePath)}
       readOnly={readOnly}
       basicSetup={{ lineNumbers: true, highlightActiveLine: true, foldGutter: true }}

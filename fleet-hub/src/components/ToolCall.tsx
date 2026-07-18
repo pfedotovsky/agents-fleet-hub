@@ -44,17 +44,6 @@ const CATEGORY: Record<string, Category> = {
   write_stdin: 'bash',
 }
 
-const BORDER: Record<Category, string> = {
-  edit: 'border-l-amber-500',
-  bash: 'border-l-emerald-500',
-  search: 'border-l-ink-500',
-  todo: 'border-l-violet-500',
-  read: 'border-l-sky-500',
-  agent: 'border-l-purple-500',
-  plan: 'border-l-indigo-500',
-  default: 'border-l-ink-600',
-}
-
 const ICON: Record<Category, ComponentType<{ size?: number; className?: string }>> = {
   edit: Pencil,
   bash: SquareTerminal,
@@ -110,7 +99,7 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true)
         setTimeout(() => setCopied(false), 1500)
       }}
-      className="shrink-0 rounded p-1 text-ink-500 transition-colors hover:bg-ink-700 hover:text-ink-200"
+      className="shrink-0 rounded p-1 text-fg-faint transition-colors hover:bg-elevated-strong hover:text-fg"
       title="Copy"
     >
       {copied ? <Check size={12} /> : <Copy size={12} />}
@@ -126,8 +115,8 @@ interface TodoItem {
 function TodoList({ todos }: { todos: TodoItem[] }) {
   const done = todos.filter((t) => t.status === 'completed').length
   return (
-    <div className="rounded-md border border-ink-800 bg-ink-900/50 p-2.5 text-xs">
-      <div className="mb-1.5 text-xs font-medium text-ink-400">
+    <div className="rounded-md border border-line bg-surface/50 p-2.5 text-xs">
+      <div className="mb-1.5 text-xs font-medium text-fg-muted">
         Todo list · {done}/{todos.length}
       </div>
       <ul className="space-y-1">
@@ -138,15 +127,15 @@ function TodoList({ todos }: { todos: TodoItem[] }) {
             ) : todo.status === 'in_progress' ? (
               <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-sky-400" />
             ) : (
-              <CircleDot size={12} className="shrink-0 text-ink-600" />
+              <CircleDot size={12} className="shrink-0 text-fg-subtle" />
             )}
             <span
               className={
                 todo.status === 'completed'
-                  ? 'text-ink-500 line-through'
+                  ? 'text-fg-faint line-through'
                   : todo.status === 'in_progress'
-                    ? 'font-medium text-ink-100'
-                    : 'text-ink-400'
+                    ? 'font-medium text-fg'
+                    : 'text-fg-muted'
               }
             >
               {todo.content}
@@ -176,7 +165,7 @@ function Collapsible({
   const [open, setOpen] = useState(Boolean(defaultOpen))
   const Icon = ICON[category]
   return (
-    <div className={`border-l-2 ${BORDER[category]} rounded-r-md bg-ink-900/30`}>
+    <div className="rounded-md border border-line bg-surface/30">
       <div className="flex items-center gap-2 py-1 pl-2.5 pr-2">
         <button
           type="button"
@@ -185,11 +174,11 @@ function Collapsible({
         >
           <ChevronRight
             size={12}
-            className={`shrink-0 text-ink-600 transition-transform ${open ? 'rotate-90' : ''}`}
+            className={`shrink-0 text-fg-subtle transition-transform ${open ? 'rotate-90' : ''}`}
           />
-          <Icon size={12} className="shrink-0 text-ink-500" />
-          <span className="shrink-0 font-mono text-xs font-medium text-ink-300">{title}</span>
-          {subtitle && <span className="truncate font-mono text-xs text-ink-600">{subtitle}</span>}
+          <Icon size={12} className="shrink-0 text-fg-faint" />
+          <span className="shrink-0 font-mono text-xs font-medium text-fg-secondary">{title}</span>
+          {subtitle && <span className="truncate font-mono text-xs text-fg-subtle">{subtitle}</span>}
         </button>
         {copyText && <CopyButton text={copyText} />}
       </div>
@@ -218,21 +207,19 @@ function OneLine({
   const terminal = category === 'bash'
   return (
     <div
-      className={`flex items-center gap-2 border-l-2 ${BORDER[category]} rounded-r-md py-1 pl-2.5 pr-2 ${
-        terminal ? 'bg-emerald-950/20' : 'bg-ink-900/30'
+      className={`flex items-center gap-2 rounded-md border border-line py-1 pl-2.5 pr-2 ${
+        terminal ? 'bg-canvas/50' : 'bg-surface/30'
       }`}
     >
-      <Icon size={12} className={`shrink-0 ${terminal ? 'text-emerald-500' : 'text-ink-500'}`} />
-      <span className="shrink-0 text-xs font-medium text-ink-500">{label}</span>
+      <Icon size={12} className="shrink-0 text-fg-faint" />
+      <span className="shrink-0 text-xs font-medium text-fg-faint">{label}</span>
       <span
-        className={`min-w-0 flex-1 truncate ${mono ? 'font-mono' : ''} text-xs ${
-          terminal ? 'text-emerald-300' : 'text-ink-300'
-        }`}
+        className={`min-w-0 flex-1 truncate ${mono ? 'font-mono' : ''} text-xs text-fg-secondary`}
         title={value}
       >
         {value}
       </span>
-      {secondary && <span className="shrink-0 truncate text-xs text-ink-600">{secondary}</span>}
+      {secondary && <span className="shrink-0 truncate text-xs text-fg-subtle">{secondary}</span>}
       {copyText && <CopyButton text={copyText} />}
     </div>
   )
@@ -242,8 +229,8 @@ function ResultBlock({ content, isError }: { content: string; isError?: boolean 
   if (!content.trim()) return null
   return (
     <pre
-      className={`mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-ink-800/60 bg-ink-950/50 p-2 font-mono text-xs ${
-        isError ? 'text-rose-400' : 'text-ink-500'
+      className={`mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-line/60 bg-canvas/50 p-2 font-mono text-xs ${
+        isError ? 'text-rose-400' : 'text-fg-faint'
       }`}
     >
       {content}
@@ -306,7 +293,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
     })
     if (todos.length > 0) {
       return (
-        <div className="border-l-2 border-l-violet-500 rounded-r-md bg-ink-900/30 py-1 pl-2.5 pr-2">
+        <div className="rounded-md border border-line bg-surface/30 py-1 pl-2.5 pr-2">
           <TodoList todos={todos} />
         </div>
       )
@@ -342,7 +329,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
     const plan = asString(input.plan)
     return (
       <Collapsible category="plan" title="Implementation plan" defaultOpen copyText={plan}>
-        <div className="rounded-md border border-ink-800 bg-ink-900/50 p-3 text-[13px]">
+        <div className="rounded-md border border-line bg-surface/50 p-3 text-[13px]">
           <Markdown>{plan}</Markdown>
         </div>
         {result?.isError && <ResultBlock content={result.content} isError />}
@@ -393,7 +380,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
             path,
             kind: 'update',
             body: diffText ? (
-              <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-ink-800/60 bg-ink-950/50 p-2 font-mono text-xs text-ink-400">
+              <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-line/60 bg-canvas/50 p-2 font-mono text-xs text-fg-muted">
                 {diffText}
               </pre>
             ) : undefined,
@@ -414,8 +401,8 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
           <div className="space-y-2">
             {entries.map((entry) => (
               <div key={entry.path}>
-                <div className="mb-1 font-mono text-xs text-ink-500">
-                  <span className="text-ink-400">{entry.kind}</span> · {entry.path}
+                <div className="mb-1 font-mono text-xs text-fg-faint">
+                  <span className="text-fg-muted">{entry.kind}</span> · {entry.path}
                 </div>
                 {entry.body}
               </div>
@@ -448,7 +435,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
       subtitle={filePath || undefined}
       copyText={inputText}
     >
-      <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-ink-400">
+      <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-fg-muted">
         {inputText}
       </pre>
       {result && <ResultBlock content={result.content} isError={result.isError} />}

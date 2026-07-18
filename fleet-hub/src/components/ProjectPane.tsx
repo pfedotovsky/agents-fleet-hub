@@ -115,29 +115,26 @@ export function ProjectPane({
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto">
-      <header
-        className="sticky top-0 z-10 border-b border-ink-800 bg-ink-950/90 px-6 py-4 backdrop-blur"
-        style={{ borderLeft: `3px solid ${color}` }}
-      >
+      <header className="sticky top-0 z-10 border-b border-line bg-canvas/90 px-6 py-4 backdrop-blur">
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 text-[11px] text-ink-500">
-              <span className="inline-flex items-center gap-1 font-medium text-ink-400">
+            <div className="flex items-center gap-2 text-[11px] text-fg-faint">
+              <span className="inline-flex items-center gap-1 font-medium text-fg-muted">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
                 {runtime.config.name}
               </span>
               <span>·</span>
               <span className="tnum font-mono">{project.sessionMeta.total} sessions</span>
             </div>
-            <h2 className="font-display truncate text-base font-semibold text-ink-100">{project.displayName}</h2>
-            <p className="truncate font-mono text-xs text-ink-600">{project.fullPath}</p>
+            <h2 className="font-display truncate text-base font-semibold text-fg">{project.displayName}</h2>
+            <p className="truncate font-mono text-xs text-fg-subtle">{project.fullPath}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={onOpenFiles}
               disabled={runtime.status !== 'online'}
-              className="inline-flex items-center gap-1.5 rounded-md border border-ink-800 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:bg-ink-800 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-xs text-fg-secondary transition-colors hover:bg-elevated disabled:opacity-50"
             >
               <FolderTree size={13} /> Files
             </button>
@@ -145,7 +142,7 @@ export function ProjectPane({
               type="button"
               onClick={onOpenGit}
               disabled={runtime.status !== 'online'}
-              className="inline-flex items-center gap-1.5 rounded-md border border-ink-800 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:bg-ink-800 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-xs text-fg-secondary transition-colors hover:bg-elevated disabled:opacity-50"
             >
               <GitBranch size={13} /> Git
             </button>
@@ -153,7 +150,7 @@ export function ProjectPane({
               type="button"
               onClick={startNewSession}
               disabled={runtime.status !== 'online'}
-              className="inline-flex items-center gap-1.5 rounded-md bg-brass-400 px-3 py-1.5 text-xs font-medium text-ink-950 transition-colors hover:bg-brass-300 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-strong disabled:opacity-50"
             >
               <Plus size={13} />
               New session
@@ -165,7 +162,7 @@ export function ProjectPane({
 
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 py-4">
         {sessions.length === 0 && (
-          <p className="py-16 text-center text-sm text-ink-500">
+          <p className="py-16 text-center text-sm text-fg-faint">
             No sessions in this project yet — start one above.
           </p>
         )}
@@ -187,7 +184,7 @@ export function ProjectPane({
             type="button"
             onClick={() => void loadMore()}
             disabled={loadingMore}
-            className="mx-auto mt-2 inline-flex items-center gap-1 rounded-full border border-ink-800 px-3 py-1 text-xs text-ink-400 transition-colors hover:bg-ink-800 disabled:opacity-50"
+            className="mx-auto mt-2 inline-flex items-center gap-1 rounded-full border border-line px-3 py-1 text-xs text-fg-muted transition-colors hover:bg-elevated disabled:opacity-50"
           >
             {loadingMore ? <LoaderCircle size={12} className="animate-spin" /> : <ChevronDown size={12} />}
             Load more sessions

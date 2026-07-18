@@ -1,6 +1,8 @@
 import { Archive, ExternalLink } from 'lucide-react'
+import { motion } from 'motion/react'
 import type { FleetSession } from '../types'
 import { hostColor, isActive, relativeTime } from '../lib/format'
+import { layoutTransition } from '../lib/motion'
 import { ProviderBadge } from './Messages'
 
 interface Props {
@@ -12,31 +14,35 @@ interface Props {
 export function SessionRow({ item, onOpen, onArchive }: Props) {
   const color = hostColor(item.hostColorIdx)
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: item.stale ? 0.5 : 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={layoutTransition}
       role="button"
       tabIndex={0}
       onClick={() => onOpen(item)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') onOpen(item)
       }}
-      className={`group flex cursor-pointer items-center gap-3 rounded-lg border border-ink-800/80 bg-ink-900/60 px-4 py-3 backdrop-blur transition-colors hover:bg-ink-800/60 ${
-        item.stale ? 'opacity-50' : ''
-      } ${item.justUpdated ? 'just-updated' : ''}`}
-      style={{ borderLeft: `3px solid ${color}` }}
+      className={`group flex cursor-pointer items-center gap-3 rounded-lg border border-line bg-surface/60 px-4 py-3 transition-colors hover:bg-elevated/60 ${
+        item.justUpdated ? 'just-updated' : ''
+      }`}
     >
       <div className="min-w-0 flex-1">
-        <div className="mb-0.5 flex items-center gap-2 text-[11px] text-ink-500">
-          <span className="inline-flex shrink-0 items-center gap-1 font-medium text-ink-400">
+        <div className="mb-0.5 flex items-center gap-2 text-[11px] text-fg-faint">
+          <span className="inline-flex shrink-0 items-center gap-1 font-medium text-fg-muted">
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
             {item.hostName}
           </span>
           <span>·</span>
           <span className="truncate font-mono">{item.projectName}</span>
           {item.stale && (
-            <span className="shrink-0 rounded bg-ink-800 px-1 text-[10px] text-ink-500">stale</span>
+            <span className="shrink-0 rounded bg-elevated px-1 text-[10px] text-fg-faint">stale</span>
           )}
         </div>
-        <div className="truncate text-sm text-ink-100">
+        <div className="truncate text-sm text-fg">
           {item.session.summary || 'Untitled session'}
         </div>
       </div>
@@ -50,7 +56,7 @@ export function SessionRow({ item, onOpen, onArchive }: Props) {
           {item.running !== undefined ? 'running' : 'active'}
         </span>
       ) : (
-        <span className="tnum w-16 shrink-0 text-right font-mono text-xs text-ink-500">
+        <span className="tnum w-16 shrink-0 text-right font-mono text-xs text-fg-faint">
           {relativeTime(item.session.lastActivity)}
         </span>
       )}
@@ -61,7 +67,7 @@ export function SessionRow({ item, onOpen, onArchive }: Props) {
           onArchive(item)
         }}
         title="Archive (restorable)"
-        className="shrink-0 rounded-md p-1 text-ink-600 opacity-0 transition-opacity hover:bg-ink-700 hover:text-ink-300 group-hover:opacity-100"
+        className="shrink-0 rounded-md p-1 text-fg-subtle opacity-0 transition-opacity hover:bg-elevated-strong hover:text-fg-secondary group-hover:opacity-100"
       >
         <Archive size={14} />
       </button>
@@ -71,10 +77,10 @@ export function SessionRow({ item, onOpen, onArchive }: Props) {
         rel="noreferrer"
         onClick={(event) => event.stopPropagation()}
         title="Open in this host's own CloudCLI UI"
-        className="shrink-0 rounded-md p-1 text-ink-600 opacity-0 transition-opacity hover:bg-ink-700 hover:text-ink-300 group-hover:opacity-100"
+        className="shrink-0 rounded-md p-1 text-fg-subtle opacity-0 transition-opacity hover:bg-elevated-strong hover:text-fg-secondary group-hover:opacity-100"
       >
         <ExternalLink size={14} />
       </a>
-    </div>
+    </motion.div>
   )
 }

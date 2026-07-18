@@ -1,34 +1,93 @@
 @import "tailwindcss";
 
 /*
- * Agents Hub design tokens — "ink & brass" ops-deck theme.
- * ink-*  : blue-graphite neutrals (bg / surfaces / text), replaces zinc.
- * brass-*: gold command accent — reserved for primary actions and the live wordmark.
- * Host identity colors live in lib/format.ts and are unchanged.
+ * Agents Hub design tokens — Codex-style monochrome.
+ *
+ * Two layers:
+ *   1. Primitives (--color-ink-*): one neutral grayscale ramp (dark→light).
+ *   2. Semantics (--color-canvas, --color-surface, --color-fg, --color-accent, …):
+ *      meaning-based tokens that point at primitives. Components reference ONLY
+ *      the semantics, so a theme swap is a one-line cascade — see the
+ *      [data-theme="light"] block below.
+ *
+ * There is no brand-color accent: the "accent" role is a high-contrast neutral
+ * (near-white primary on dark, near-black on light) that flips automatically
+ * because it points at the ink ramp. The only color in the UI is the functional
+ * status vocabulary (success / warning / danger / info) and the small host- and
+ * provider-identity marks in lib/format.ts + Messages.tsx.
  */
 @theme {
   --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
-  --font-display: "Space Grotesk", "IBM Plex Sans", ui-sans-serif, sans-serif;
+  --font-display: var(--font-sans);
 
-  --color-ink-950: #0a0e16;
-  --color-ink-900: #0f141f;
-  --color-ink-850: #141a27;
-  --color-ink-800: #1a2130;
-  --color-ink-700: #2a3347;
-  --color-ink-600: #46516b;
-  --color-ink-500: #6b7692;
-  --color-ink-400: #94a0bc;
-  --color-ink-300: #b9c3d8;
-  --color-ink-200: #d6ddeb;
-  --color-ink-100: #ecf0f8;
-  --color-ink-50: #f6f8fc;
+  /* --- Primitive ramp: neutral grayscale, dark-tuned defaults --- */
+  --color-ink-950: #0a0a0a;
+  --color-ink-900: #141414;
+  --color-ink-850: #1a1a1a;
+  --color-ink-800: #232323;
+  --color-ink-700: #333333;
+  --color-ink-600: #525252;
+  --color-ink-500: #737373;
+  --color-ink-400: #a3a3a3;
+  --color-ink-300: #d4d4d4;
+  --color-ink-200: #e5e5e5;
+  --color-ink-100: #f2f2f2;
+  --color-ink-50: #fafafa;
 
-  --color-brass-200: #f6dc9a;
-  --color-brass-300: #f0c868;
-  --color-brass-400: #e3b44c;
-  --color-brass-500: #c79832;
-  --color-brass-600: #a17a24;
+  /* --- Semantics: what the UI references (bg-canvas, text-fg, bg-accent, …) --- */
+  --color-canvas: var(--color-ink-950);
+  --color-surface: var(--color-ink-900);
+  --color-elevated: var(--color-ink-800);
+  --color-elevated-strong: var(--color-ink-700);
+  --color-line: var(--color-ink-800);
+  --color-line-strong: var(--color-ink-700);
+
+  --color-fg: var(--color-ink-100);
+  --color-fg-secondary: var(--color-ink-300);
+  --color-fg-muted: var(--color-ink-400);
+  --color-fg-faint: var(--color-ink-500);
+  --color-fg-subtle: var(--color-ink-600);
+
+  /* Neutral high-contrast primary. Points at the ramp ends so it inverts with
+     the theme: near-white button + dark text on dark, the reverse on light. */
+  --color-accent: var(--color-ink-100);
+  --color-accent-strong: var(--color-ink-50);
+  --color-on-accent: var(--color-ink-950);
+
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #fb7185;
+  --color-info: #38bdf8;
+}
+
+/*
+ * Light theme. Semantics reference the primitive ramp, so light is defined by
+ * remapping the PRIMITIVES to a neutral light ramp (inverting light↔dark). The
+ * accent/on-accent tokens invert for free (they point at ramp ends), so only the
+ * ramp, color-scheme, and the functional status colors need overriding here. To
+ * tune one role in light without touching dark, override its --color-<semantic>.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-ink-950: #ffffff;
+  --color-ink-900: #f7f7f7;
+  --color-ink-850: #f2f2f2;
+  --color-ink-800: #e8e8e8;
+  --color-ink-700: #d6d6d6;
+  --color-ink-600: #a3a3a3;
+  --color-ink-500: #6b6b6b;
+  --color-ink-400: #565656;
+  --color-ink-300: #3d3d3d;
+  --color-ink-200: #2a2a2a;
+  --color-ink-100: #1a1a1a;
+  --color-ink-50: #0a0a0a;
+
+  --color-success: #059669;
+  --color-warning: #b45309;
+  --color-danger: #e11d48;
+  --color-info: #0284c7;
 }
 
 html {
@@ -36,7 +95,10 @@ html {
 }
 
 body {
-  @apply bg-ink-950 text-ink-100 antialiased;
+  background-color: var(--color-canvas);
+  color: var(--color-fg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .font-display {
@@ -50,7 +112,7 @@ body {
 
 @keyframes flash-ring {
   0% {
-    box-shadow: 0 0 0 1px rgb(227 180 76 / 0.55);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-fg) 45%, transparent);
   }
   100% {
     box-shadow: 0 0 0 1px transparent;
@@ -61,22 +123,8 @@ body {
   animation: flash-ring 2s ease-out;
 }
 
-@keyframes slide-in {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-.slide-in {
-  animation: slide-in 200ms ease-out;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .just-updated,
-  .slide-in {
+  .just-updated {
     animation: none;
   }
 }

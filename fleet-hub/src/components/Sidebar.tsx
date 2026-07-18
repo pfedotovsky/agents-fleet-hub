@@ -70,11 +70,11 @@ function recencyKey(project: Project, hostId: string, recent: Record<string, num
 function HostStatusHint({ runtime, onSignIn }: { runtime: HostRuntime; onSignIn: (hostId: string) => void }) {
   switch (runtime.status) {
     case 'loading':
-      return <LoaderCircle size={12} className="animate-spin text-ink-600" />
+      return <LoaderCircle size={12} className="animate-spin text-fg-subtle" />
     case 'offline':
       return (
         <span title="Offline — wake the VM and run HOST=:: cloudcli">
-          <MoonStar size={12} className="text-ink-600" />
+          <MoonStar size={12} className="text-fg-subtle" />
         </span>
       )
     case 'needs-auth':
@@ -83,7 +83,7 @@ function HostStatusHint({ runtime, onSignIn }: { runtime: HostRuntime; onSignIn:
           type="button"
           onClick={() => onSignIn(runtime.config.id)}
           title={`Sign in to ${runtime.config.name}`}
-          className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[12px] font-medium text-amber-400 hover:bg-ink-800"
+          className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[12px] font-medium text-amber-400 hover:bg-elevated"
         >
           <KeyRound size={12} /> sign in
         </button>
@@ -94,7 +94,7 @@ function HostStatusHint({ runtime, onSignIn }: { runtime: HostRuntime; onSignIn:
           type="button"
           onClick={() => onSignIn(runtime.config.id)}
           title={`Create the first account on ${runtime.config.name}`}
-          className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[12px] font-medium text-sky-400 hover:bg-ink-800"
+          className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[12px] font-medium text-sky-400 hover:bg-elevated"
         >
           <UserPlus size={12} /> set up
         </button>
@@ -123,7 +123,7 @@ function SessionLink({
   return (
     <div
       className={`group/session flex w-full min-w-0 items-center rounded-md pr-1 transition-colors ${
-        active ? 'bg-ink-800' : 'hover:bg-ink-900'
+        active ? 'bg-elevated' : 'hover:bg-surface'
       }`}
     >
       <button
@@ -131,7 +131,7 @@ function SessionLink({
         onClick={onOpen}
         title={title}
         className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-3 pr-1 text-sm ${
-          active ? 'text-ink-100' : 'text-ink-500 hover:text-ink-300'
+          active ? 'text-fg' : 'text-fg-faint hover:text-fg-secondary'
         }`}
       >
         <span className="inline-flex shrink-0" title={providerMeta.label}>
@@ -147,7 +147,7 @@ function SessionLink({
             {runningIds ? 'running' : 'active'}
           </span>
         ) : (
-          <span className="tnum shrink-0 font-mono text-[12px] text-ink-600">
+          <span className="tnum shrink-0 font-mono text-[12px] text-fg-subtle">
             {relativeTime(session.lastActivity)}
           </span>
         )}
@@ -156,7 +156,7 @@ function SessionLink({
         type="button"
         onClick={onArchive}
         title="Archive (restorable)"
-        className="shrink-0 rounded p-1 text-ink-600 opacity-0 transition-opacity hover:bg-ink-700 hover:text-ink-200 group-hover/session:opacity-100"
+        className="shrink-0 rounded p-1 text-fg-subtle opacity-0 transition-opacity hover:bg-elevated-strong hover:text-fg group-hover/session:opacity-100"
       >
         <Archive size={12} />
       </button>
@@ -210,14 +210,14 @@ function ProjectRow({
     <div className={dimmed ? 'opacity-60' : ''}>
       <div
         className={`group flex items-center rounded-md pr-1 transition-colors ${
-          active ? 'bg-ink-800' : 'hover:bg-ink-900'
+          active ? 'bg-elevated' : 'hover:bg-surface'
         }`}
       >
         <button
           type="button"
           onClick={onToggleExpand}
           title={expanded ? 'Hide chats' : 'Show chats'}
-          className="shrink-0 rounded p-0.5 pl-1.5 text-ink-600 hover:text-ink-300"
+          className="shrink-0 rounded p-0.5 pl-1.5 text-fg-subtle hover:text-fg-secondary"
         >
           <Chevron size={13} />
         </button>
@@ -226,10 +226,10 @@ function ProjectRow({
           onClick={onSelect}
           title={project.fullPath}
           className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-1 text-[15px] ${
-            active ? 'text-ink-100' : 'text-ink-400'
+            active ? 'text-fg' : 'text-fg-muted'
           }`}
         >
-          <Folder size={14} className="shrink-0 text-ink-600" />
+          <Folder size={14} className="shrink-0 text-fg-subtle" />
           <span className="min-w-0 flex-1 truncate text-left">{project.displayName}</span>
           {hasActivity && (
             <span
@@ -237,7 +237,7 @@ function ProjectRow({
               className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400"
             />
           )}
-          <span className="tnum shrink-0 font-mono text-[12px] text-ink-600">
+          <span className="tnum shrink-0 font-mono text-[12px] text-fg-subtle">
             {project.sessionMeta.total}
           </span>
         </button>
@@ -247,12 +247,12 @@ function ProjectRow({
             onClick={onNewSession}
             disabled={creating}
             title={newSessionTitle}
-            className={`shrink-0 rounded p-1 text-ink-600 transition-opacity hover:bg-ink-700 hover:text-ink-200 ${
+            className={`shrink-0 rounded p-1 text-fg-subtle transition-opacity hover:bg-elevated-strong hover:text-fg ${
               creating ? '' : 'opacity-0 group-hover:opacity-100'
             }`}
           >
             {creating ? (
-              <LoaderCircle size={13} className="animate-spin text-ink-400" />
+              <LoaderCircle size={13} className="animate-spin text-fg-muted" />
             ) : (
               <Plus size={13} />
             )}
@@ -262,15 +262,15 @@ function ProjectRow({
           type="button"
           onClick={onToggleStar}
           title={project.isStarred ? 'Unpin' : 'Pin'}
-          className={`shrink-0 rounded p-1 transition-opacity hover:bg-ink-700 ${
-            project.isStarred ? 'text-amber-400' : 'text-ink-600 opacity-0 group-hover:opacity-100'
+          className={`shrink-0 rounded p-1 transition-opacity hover:bg-elevated-strong ${
+            project.isStarred ? 'text-amber-400' : 'text-fg-subtle opacity-0 group-hover:opacity-100'
           }`}
         >
           <Star size={13} fill={project.isStarred ? 'currentColor' : 'none'} />
         </button>
       </div>
       {expanded && (
-        <div className="mb-0.5 ml-[13px] border-l border-ink-800/90">
+        <div className="mb-0.5 ml-[13px] border-l border-line/90">
           {sessions.map((session) => (
             <SessionLink
               key={session.id}
@@ -281,12 +281,12 @@ function ProjectRow({
               onArchive={() => onArchiveSession(session.id)}
             />
           ))}
-          {sessions.length === 0 && <p className="py-1 pl-3 text-sm text-ink-600">no chats yet</p>}
+          {sessions.length === 0 && <p className="py-1 pl-3 text-sm text-fg-subtle">no chats yet</p>}
           {project.sessionMeta.total > sessions.length && (
             <button
               type="button"
               onClick={onSelect}
-              className="flex w-full items-center rounded-md py-1.5 pl-3 text-sm text-ink-500 hover:bg-ink-900 hover:text-ink-300"
+              className="flex w-full items-center rounded-md py-1.5 pl-3 text-sm text-fg-faint hover:bg-surface hover:text-fg-secondary"
             >
               all {project.sessionMeta.total} chats…
             </button>
@@ -362,7 +362,7 @@ function ArchivedSection({
       <button
         type="button"
         onClick={toggle}
-        className="flex w-full items-center gap-1.5 rounded-md py-1 pl-2 pr-2 text-[13px] text-ink-600 hover:bg-ink-900 hover:text-ink-400"
+        className="flex w-full items-center gap-1.5 rounded-md py-1 pl-2 pr-2 text-[13px] text-fg-subtle hover:bg-surface hover:text-fg-muted"
       >
         <Chevron size={12} className="shrink-0" />
         <Archive size={12} className="shrink-0" />
@@ -374,27 +374,27 @@ function ArchivedSection({
       {open && (
         <div className="mb-1">
           {loading && (
-            <p className="flex items-center gap-2 py-1 pl-6 text-[13px] text-ink-600">
+            <p className="flex items-center gap-2 py-1 pl-6 text-[13px] text-fg-subtle">
               <LoaderCircle size={12} className="animate-spin" /> loading…
             </p>
           )}
           {error && <p className="py-1 pl-6 pr-2 text-[13px] text-rose-400">{error}</p>}
           {!loading && items?.length === 0 && (
-            <p className="py-1 pl-6 text-[13px] text-ink-600">nothing archived</p>
+            <p className="py-1 pl-6 text-[13px] text-fg-subtle">nothing archived</p>
           )}
           {items?.map((item) => (
             <div
               key={item.sessionId}
-              className="group/arch flex min-w-0 items-center gap-2 rounded-md py-1 pl-6 pr-1 text-[13px] text-ink-500 hover:bg-ink-900"
+              className="group/arch flex min-w-0 items-center gap-2 rounded-md py-1 pl-6 pr-1 text-[13px] text-fg-faint hover:bg-surface"
             >
               <div className="min-w-0 flex-1" title={item.sessionTitle}>
                 <div className="truncate">{item.sessionTitle}</div>
-                <div className="truncate font-mono text-[11px] text-ink-600">
+                <div className="truncate font-mono text-[11px] text-fg-subtle">
                   {item.projectDisplayName}
                 </div>
               </div>
               {busyId === item.sessionId ? (
-                <LoaderCircle size={11} className="shrink-0 animate-spin text-ink-400" />
+                <LoaderCircle size={11} className="shrink-0 animate-spin text-fg-muted" />
               ) : confirmId === item.sessionId ? (
                 <span className="flex shrink-0 items-center gap-1">
                   <button
@@ -408,7 +408,7 @@ function ArchivedSection({
                   <button
                     type="button"
                     onClick={() => setConfirmId(null)}
-                    className="rounded px-1 py-0.5 text-[12px] text-ink-500 hover:text-ink-300"
+                    className="rounded px-1 py-0.5 text-[12px] text-fg-faint hover:text-fg-secondary"
                   >
                     cancel
                   </button>
@@ -419,7 +419,7 @@ function ArchivedSection({
                     type="button"
                     onClick={() => void run(item.sessionId, () => onRestore(item.sessionId))}
                     title="Restore"
-                    className="rounded p-1 text-ink-500 hover:bg-ink-700 hover:text-ink-200"
+                    className="rounded p-1 text-fg-faint hover:bg-elevated-strong hover:text-fg"
                   >
                     <ArchiveRestore size={12} />
                   </button>
@@ -427,7 +427,7 @@ function ArchivedSection({
                     type="button"
                     onClick={() => setConfirmId(item.sessionId)}
                     title="Delete permanently"
-                    className="rounded p-1 text-ink-600 hover:bg-ink-700 hover:text-rose-400"
+                    className="rounded p-1 text-fg-subtle hover:bg-elevated-strong hover:text-rose-400"
                   >
                     <Trash2 size={12} />
                   </button>
@@ -514,7 +514,7 @@ function HostSection({
     <div className="mb-1">
       <div
         className={`flex items-center gap-2 px-2 py-1.5 text-sm font-medium ${
-          runtime.status === 'online' ? 'text-ink-300' : 'text-ink-500'
+          runtime.status === 'online' ? 'text-fg-secondary' : 'text-fg-faint'
         }`}
       >
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color }} />
@@ -553,7 +553,7 @@ function HostSection({
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="flex w-full items-center gap-1 rounded-md py-1.5 pl-2 text-sm text-ink-500 hover:bg-ink-900 hover:text-ink-300"
+          className="flex w-full items-center gap-1 rounded-md py-1.5 pl-2 text-sm text-fg-faint hover:bg-surface hover:text-fg-secondary"
         >
           <ChevronDown size={13} /> {hidden} more
         </button>
@@ -562,13 +562,13 @@ function HostSection({
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="flex w-full items-center gap-1 rounded-md py-1.5 pl-2 text-sm text-ink-500 hover:bg-ink-900 hover:text-ink-300"
+          className="flex w-full items-center gap-1 rounded-md py-1.5 pl-2 text-sm text-fg-faint hover:bg-surface hover:text-fg-secondary"
         >
           <ChevronDown size={13} className="rotate-180" /> Show less
         </button>
       )}
       {runtime.status === 'online' && runtime.projects.length === 0 && (
-        <p className="py-1 pl-2 text-sm text-ink-600">no projects</p>
+        <p className="py-1 pl-2 text-sm text-fg-subtle">no projects</p>
       )}
       {runtime.status === 'online' && (
         <ArchivedSection
@@ -636,7 +636,7 @@ export function Sidebar({
   return (
     <aside
       style={{ width }}
-      className="relative flex h-full shrink-0 flex-col border-r border-ink-800/80 bg-ink-950"
+      className="relative flex h-full shrink-0 flex-col border-r border-line/80 bg-canvas"
     >
       <div className="flex items-center justify-between px-4 py-3">
         <h1 className="font-display flex min-w-0 items-center gap-2 text-[15px] font-semibold tracking-wide">
@@ -644,15 +644,15 @@ export function Sidebar({
             aria-hidden
             className={`h-2 w-2 shrink-0 rounded-full ${
               liveCount > 0
-                ? 'animate-pulse bg-brass-400 shadow-[0_0_8px_rgba(227,180,76,0.7)]'
-                : 'bg-ink-600'
+                ? 'animate-pulse bg-accent shadow-[0_0_8px_rgba(227,180,76,0.7)]'
+                : 'bg-elevated-strong'
             }`}
           />
           <span className="truncate">Agents Hub</span>
           {liveCount > 0 && (
             <span
               title={`${liveCount} agent${liveCount === 1 ? '' : 's'} running`}
-              className="tnum shrink-0 rounded-full border border-brass-400/30 bg-brass-400/10 px-1.5 py-px font-mono text-[11px] font-medium text-brass-300"
+              className="tnum shrink-0 rounded-full border border-accent/30 bg-accent/10 px-1.5 py-px font-mono text-[11px] font-medium text-accent-strong"
             >
               {liveCount} live
             </span>
@@ -663,7 +663,7 @@ export function Sidebar({
             type="button"
             onClick={onOpenSearch}
             title="Search conversations (⌘K)"
-            className="rounded-md p-1.5 text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+            className="rounded-md p-1.5 text-fg-faint transition-colors hover:bg-elevated hover:text-fg"
           >
             <Search size={14} />
           </button>
@@ -671,7 +671,7 @@ export function Sidebar({
             type="button"
             onClick={onRefresh}
             title="Refresh now"
-            className="rounded-md p-1.5 text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+            className="rounded-md p-1.5 text-fg-faint transition-colors hover:bg-elevated hover:text-fg"
           >
             <RefreshCw size={14} />
           </button>
@@ -679,7 +679,7 @@ export function Sidebar({
             type="button"
             onClick={onOpenSettings}
             title="Settings"
-            className="rounded-md p-1.5 text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
+            className="rounded-md p-1.5 text-fg-faint transition-colors hover:bg-elevated hover:text-fg"
           >
             <Settings size={14} />
           </button>
@@ -691,7 +691,7 @@ export function Sidebar({
           type="button"
           onClick={onSelectFeed}
           className={`mb-2 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[15px] transition-colors ${
-            view.kind === 'feed' ? 'bg-ink-800 text-ink-100' : 'text-ink-400 hover:bg-ink-900'
+            view.kind === 'feed' ? 'bg-elevated text-fg' : 'text-fg-muted hover:bg-surface'
           }`}
         >
           <Inbox size={15} className="shrink-0" />
@@ -721,7 +721,7 @@ export function Sidebar({
       <div
         onPointerDown={startResize}
         title="Drag to resize"
-        className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize transition-colors hover:bg-ink-700/50"
+        className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize transition-colors hover:bg-elevated-strong/50"
       />
     </aside>
   )
