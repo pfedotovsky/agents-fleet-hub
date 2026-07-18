@@ -42,7 +42,7 @@ function rowsFromUnified(diffText: string): Row[] {
 
 const BADGE_CLASS: Record<NonNullable<Props['badgeColor']>, string> = {
   green: 'bg-emerald-500/15 text-emerald-300',
-  gray: 'bg-ink-700/50 text-ink-300',
+  gray: 'bg-elevated-strong/50 text-fg-secondary',
   amber: 'bg-amber-500/15 text-amber-300',
 }
 
@@ -85,10 +85,10 @@ export function Diff({
 
   return (
     <div
-      className={`overflow-hidden rounded-md border border-ink-800 ${tall ? 'flex h-full flex-col' : ''}`}
+      className={`overflow-hidden rounded-md border border-line ${tall ? 'flex h-full flex-col' : ''}`}
     >
       {(filePath || badge) && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-ink-800 bg-ink-900/80 px-2.5 py-1.5">
+        <div className="flex shrink-0 items-center gap-2 border-b border-line bg-surface/80 px-2.5 py-1.5">
           {filePath && (
             <span className="truncate font-mono text-xs text-sky-400">{basename(filePath)}</span>
           )}
@@ -104,7 +104,7 @@ export function Diff({
       >
         {rows.map((row, index) =>
           row.sign === '@' ? (
-            <div key={index} className="bg-ink-900/80 px-4 py-0.5 text-sky-500/80">
+            <div key={index} className="bg-surface/80 px-4 py-0.5 text-sky-500/80">
               {row.text}
             </div>
           ) : (
@@ -118,7 +118,7 @@ export function Diff({
                     : ''
               }`}
             >
-              <span className="w-4 shrink-0 select-none text-center text-ink-600">
+              <span className="w-4 shrink-0 select-none text-center text-fg-subtle">
                 {row.sign === ' ' ? '' : row.sign}
               </span>
               <span
@@ -127,7 +127,7 @@ export function Diff({
                     ? 'text-emerald-300'
                     : row.sign === '-'
                       ? 'text-rose-300'
-                      : 'text-ink-400'
+                      : 'text-fg-muted'
                 }`}
               >
                 {row.text || ' '}

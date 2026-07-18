@@ -84,7 +84,7 @@ export function AuthedImage({
     return (
       <span
         title={path}
-        className="inline-flex items-center gap-1.5 rounded-md border border-ink-800 bg-ink-900 px-2 py-1.5 text-[11px] text-ink-500"
+        className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface px-2 py-1.5 text-[11px] text-fg-faint"
       >
         <ImageOff size={12} /> {name ?? path.split('/').pop()}
       </span>
@@ -92,8 +92,8 @@ export function AuthedImage({
   }
   if (!src) {
     return (
-      <span className="flex h-24 w-32 items-center justify-center rounded-md border border-ink-800 bg-ink-900">
-        <LoaderCircle size={14} className="animate-spin text-ink-600" />
+      <span className="flex h-24 w-32 items-center justify-center rounded-md border border-line bg-surface">
+        <LoaderCircle size={14} className="animate-spin text-fg-subtle" />
       </span>
     )
   }
@@ -103,7 +103,7 @@ export function AuthedImage({
       alt={name ?? 'attached image'}
       title={name}
       onClick={() => window.open(src, '_blank')}
-      className="max-h-64 max-w-full cursor-zoom-in rounded-md border border-ink-800 object-contain"
+      className="max-h-64 max-w-full cursor-zoom-in rounded-md border border-line object-contain"
     />
   )
 }

@@ -42,6 +42,7 @@
   --color-canvas: var(--color-ink-950);
   --color-surface: var(--color-ink-900);
   --color-elevated: var(--color-ink-800);
+  --color-elevated-strong: var(--color-ink-700);
   --color-line: var(--color-ink-800);
   --color-line-strong: var(--color-ink-700);
 
@@ -49,6 +50,7 @@
   --color-fg-secondary: var(--color-ink-300);
   --color-fg-muted: var(--color-ink-400);
   --color-fg-faint: var(--color-ink-500);
+  --color-fg-subtle: var(--color-ink-600);
 
   --color-accent: var(--color-brass-400);
   --color-accent-strong: var(--color-brass-300);
@@ -61,12 +63,13 @@
 }
 
 /*
- * Light theme — a neutral, Codex-flavored palette. Until the app finishes
- * migrating off raw ink / brass classes, we remap the PRIMITIVE ramps here
- * (inverting light↔dark while staying neutral) so every existing component
- * flips today. Semantic tokens that must change shape (on-accent text,
- * color-scheme) are overridden alongside. As components move to semantic
- * classes, the primitive overrides below become dead weight and can be dropped.
+ * Light theme — a neutral, Codex-flavored palette. The semantic tokens above
+ * reference the primitive ramps, so the light theme is defined by remapping the
+ * PRIMITIVES here (a neutral light ramp, roughly inverting light↔dark). Semantic
+ * tokens that must change shape independently of the ramps — on-accent text
+ * flips to light, accent darkens for contrast, color-scheme — are overridden
+ * alongside. To tune a single surface/text role in light without touching dark,
+ * override its --color-<semantic> here instead of the primitive it points at.
  */
 :root[data-theme="light"] {
   color-scheme: light;

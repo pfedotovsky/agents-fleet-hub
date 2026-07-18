@@ -26,7 +26,7 @@ export function ProviderBadge({ provider }: { provider: Provider }) {
   const isCursor = provider === 'cursor'
   return (
     <span
-      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-ink-800 bg-ink-900 px-2 py-0.5 text-[11px] text-ink-400"
+      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-line bg-surface px-2 py-0.5 text-[11px] text-fg-muted"
       title={isCursor ? 'Cursor IDE sessions may not open correctly in CloudCLI' : undefined}
     >
       <meta.Icon size={11} style={{ color: meta.color }} />
@@ -75,14 +75,14 @@ export function MessageItem({
                     key={index}
                     src={image.data}
                     alt={image.name ?? 'attachment'}
-                    className="max-h-48 max-w-64 rounded-lg border border-ink-800 object-contain"
+                    className="max-h-48 max-w-64 rounded-lg border border-line object-contain"
                   />
                 ) : null,
               )}
             </div>
           )}
           {text && (
-            <div className="whitespace-pre-wrap break-words rounded-lg rounded-br-sm bg-ink-800 px-3.5 py-2.5 text-[15px] text-ink-100">
+            <div className="whitespace-pre-wrap break-words rounded-lg rounded-br-sm bg-elevated px-3.5 py-2.5 text-[15px] text-fg">
               {text}
             </div>
           )}
@@ -97,9 +97,9 @@ export function MessageItem({
   }
   if (message.kind === 'thinking') {
     return (
-      <details className="min-w-0 text-xs text-ink-500">
+      <details className="min-w-0 text-xs text-fg-faint">
         <summary className="cursor-pointer select-none italic">thinking…</summary>
-        <div className="mt-1 whitespace-pre-wrap break-words border-l border-ink-800 pl-3 italic">
+        <div className="mt-1 whitespace-pre-wrap break-words border-l border-line pl-3 italic">
           {contentToText(message.content)}
         </div>
       </details>

@@ -6,6 +6,22 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-18
 
+### Changed
+- **fleet-hub migrated to semantic color classes (theming Phase 1c).** All ~507
+  raw `ink-*`/`brass-*` Tailwind classes across 19 components were replaced with
+  the semantic tokens introduced in Phase 1a (`bg-canvas/surface/elevated`,
+  `text-fg/fg-muted/fg-faint/fg-subtle`, `border-line/line-strong`,
+  `bg-accent`, `text-on-accent`, …) via a one-shot property-aware codemod; no
+  raw primitive classes remain in `src`. The light theme's semantic tokens now
+  drive every surface. Syntax highlighting is theme-aware: `Markdown.tsx` uses
+  Prism `oneLight`/`oneDark` (and a light/dark code background) and
+  `CodeEditor.tsx` swaps the CodeMirror One Dark theme for the built-in light
+  theme, both driven by a new `useResolvedTheme` hook that watches
+  `<html data-theme>` and re-renders on flip. Categorical host-identity and
+  provider brand colors (`lib/format.ts`, `Messages.tsx`) are intentionally left
+  as-is — they're CVD-validated cross-theme identity accents. Dark is unchanged;
+  verified live in both themes incl. fenced code blocks and tool calls.
+
 ### Added
 - **fleet-hub theming foundation + light theme.** First phase of a Codex-style
   UI overhaul (branch `ui-codex-theming`). `src/index.css` gains a two-layer

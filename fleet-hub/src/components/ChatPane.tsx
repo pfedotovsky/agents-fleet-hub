@@ -240,10 +240,10 @@ function QuestionCard({
                   {q.header}
                 </span>
               )}
-              <p className="text-[13px] text-ink-100">
+              <p className="text-[13px] text-fg">
                 {q.question}
                 {q.multiSelect && (
-                  <span className="ml-1 text-xs text-ink-500">(select all that apply)</span>
+                  <span className="ml-1 text-xs text-fg-faint">(select all that apply)</span>
                 )}
               </p>
             </div>
@@ -256,16 +256,16 @@ function QuestionCard({
                     type="button"
                     onClick={() => pick(index, option.label)}
                     className={`rounded-md border px-3 py-2 text-left transition-colors ${
-                      active ? 'border-sky-400/70 bg-sky-500/15' : 'border-ink-700 hover:bg-ink-800'
+                      active ? 'border-sky-400/70 bg-sky-500/15' : 'border-line-strong hover:bg-elevated'
                     }`}
                   >
                     <span
-                      className={`text-[13px] font-medium ${active ? 'text-sky-200' : 'text-ink-200'}`}
+                      className={`text-[13px] font-medium ${active ? 'text-sky-200' : 'text-fg'}`}
                     >
                       {option.label}
                     </span>
                     {option.description && (
-                      <span className="mt-0.5 block text-xs text-ink-500">{option.description}</span>
+                      <span className="mt-0.5 block text-xs text-fg-faint">{option.description}</span>
                     )}
                   </button>
                 )
@@ -283,7 +283,7 @@ function QuestionCard({
                   }
                 }}
                 placeholder="Other…"
-                className="rounded-md border border-ink-700 bg-transparent px-3 py-2 text-[13px] text-ink-100 outline-none placeholder:text-ink-600 focus:border-sky-400/60"
+                className="rounded-md border border-line-strong bg-transparent px-3 py-2 text-[13px] text-fg outline-none placeholder:text-fg-subtle focus:border-sky-400/60"
               />
             </div>
           </div>
@@ -301,7 +301,7 @@ function QuestionCard({
         <button
           type="button"
           onClick={() => onAnswer(request.requestId, null)}
-          className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:bg-ink-800"
+          className="inline-flex items-center gap-1 rounded-md border border-line-strong px-3 py-1.5 text-xs text-fg-secondary transition-colors hover:bg-elevated"
         >
           <X size={12} /> Dismiss
         </button>
@@ -340,7 +340,7 @@ function PermissionCard({
         Permission requested: <span className="font-mono">{request.toolName ?? 'tool'}</span>
       </div>
       {request.input !== undefined && (
-        <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-ink-950/60 p-2 font-mono text-xs text-ink-400">
+        <pre className="mb-3 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-canvas/60 p-2 font-mono text-xs text-fg-muted">
           {contentToText(request.input)}
         </pre>
       )}
@@ -365,7 +365,7 @@ function PermissionCard({
         <button
           type="button"
           onClick={() => onRespond(request.requestId, false)}
-          className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:bg-ink-800"
+          className="inline-flex items-center gap-1 rounded-md border border-line-strong px-3 py-1.5 text-xs text-fg-secondary transition-colors hover:bg-elevated"
         >
           <X size={12} /> Deny
         </button>
@@ -389,7 +389,7 @@ function CompletionMenu({
   onPick: (item: CompletionItem) => void
 }) {
   return (
-    <div className="absolute inset-x-0 bottom-full z-10 mb-2 max-h-72 overflow-y-auto rounded-xl border border-ink-700 bg-ink-900 py-1 shadow-2xl">
+    <div className="absolute inset-x-0 bottom-full z-10 mb-2 max-h-72 overflow-y-auto rounded-xl border border-line-strong bg-surface py-1 shadow-2xl">
       {items.map((item, index) => {
         const Icon = COMPLETION_ICONS[item.kind]
         return (
@@ -403,13 +403,13 @@ function CompletionMenu({
             }}
             onMouseEnter={() => onHover(index)}
             className={`flex w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] ${
-              index === selected ? 'bg-ink-800 text-ink-100' : 'text-ink-300'
+              index === selected ? 'bg-elevated text-fg' : 'text-fg-secondary'
             }`}
           >
-            <Icon size={13} className="shrink-0 text-ink-500" />
+            <Icon size={13} className="shrink-0 text-fg-faint" />
             <span className="shrink-0 font-mono">{item.label}</span>
-            {item.detail && <span className="min-w-0 truncate text-xs text-ink-500">{item.detail}</span>}
-            <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wide text-ink-600">
+            {item.detail && <span className="min-w-0 truncate text-xs text-fg-faint">{item.detail}</span>}
+            <span className="ml-auto shrink-0 text-[10px] uppercase tracking-wide text-fg-subtle">
               {COMPLETION_TAGS[item.kind]}
             </span>
           </button>
@@ -1391,34 +1391,34 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
     <div className="flex h-full min-w-0 flex-1">
     <div className="flex h-full min-w-0 flex-1 flex-col">
       <header
-        className="flex shrink-0 items-center gap-3 border-b border-ink-800 px-4 py-3"
+        className="flex shrink-0 items-center gap-3 border-b border-line px-4 py-3"
         style={{ borderLeft: `3px solid ${color}` }}
       >
         <button
           type="button"
           onClick={onBack}
           title="Back"
-          className="shrink-0 rounded-md p-1.5 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
+          className="shrink-0 rounded-md p-1.5 text-fg-faint hover:bg-elevated hover:text-fg"
         >
           <ArrowLeft size={16} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-[11px] text-ink-500">
-            <span className="inline-flex items-center gap-1 font-medium text-ink-400">
+          <div className="flex items-center gap-2 text-[11px] text-fg-faint">
+            <span className="inline-flex items-center gap-1 font-medium text-fg-muted">
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
               {target.hostName}
             </span>
             <span>·</span>
             <span className="truncate font-mono">{target.projectName}</span>
           </div>
-          <h2 className="font-display truncate text-sm font-semibold text-ink-100">
+          <h2 className="font-display truncate text-sm font-semibold text-fg">
             {target.session.summary || 'New session'}
           </h2>
         </div>
         {tokenBudget && (
           <span
             title={`${PROVIDER_META[provider]?.label ?? provider} context window usage for this session`}
-            className="shrink-0 rounded-full border border-ink-800 bg-ink-900 px-2 py-0.5 font-mono text-[11px] text-ink-500"
+            className="shrink-0 rounded-full border border-line bg-surface px-2 py-0.5 font-mono text-[11px] text-fg-faint"
           >
             {formatTokens(tokenBudget.used)} / {formatTokens(tokenBudget.total)}
           </span>
@@ -1430,8 +1430,8 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
               type="button"
               onClick={() => onTogglePanel('files')}
               title="Project files"
-              className={`rounded-md p-1.5 transition-colors hover:bg-ink-800 ${
-                panel === 'files' ? 'bg-ink-800 text-brass-300' : 'text-ink-500 hover:text-ink-200'
+              className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
+                panel === 'files' ? 'bg-elevated text-accent-strong' : 'text-fg-faint hover:text-fg'
               }`}
             >
               <FolderTree size={15} />
@@ -1440,8 +1440,8 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
               type="button"
               onClick={() => onTogglePanel('git')}
               title="Source control"
-              className={`rounded-md p-1.5 transition-colors hover:bg-ink-800 ${
-                panel === 'git' ? 'bg-ink-800 text-brass-300' : 'text-ink-500 hover:text-ink-200'
+              className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
+                panel === 'git' ? 'bg-elevated text-accent-strong' : 'text-fg-faint hover:text-fg'
               }`}
             >
               <GitBranch size={15} />
@@ -1453,7 +1453,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
           target="_blank"
           rel="noreferrer"
           title="Open in this host's own CloudCLI UI"
-          className="shrink-0 rounded-md p-1.5 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
+          className="shrink-0 rounded-md p-1.5 text-fg-faint hover:bg-elevated hover:text-fg"
         >
           <ExternalLink size={15} />
         </a>
@@ -1468,15 +1468,15 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
         className="flex-1 overflow-y-auto px-4 py-4"
       >
         {loading ? (
-          <div className="flex h-full items-center justify-center text-ink-500">
+          <div className="flex h-full items-center justify-center text-fg-faint">
             <LoaderCircle size={20} className="animate-spin" />
           </div>
         ) : fatalError ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
             <TriangleAlert size={20} className="text-amber-400" />
-            <p className="text-sm text-ink-400">{fatalError}</p>
+            <p className="text-sm text-fg-muted">{fatalError}</p>
             {provider === 'cursor' && (
-              <p className="text-xs text-ink-600">
+              <p className="text-xs text-fg-subtle">
                 Cursor sessions created from the Cursor IDE have no readable store — this is a known
                 CloudCLI limitation.
               </p>
@@ -1489,14 +1489,14 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                 type="button"
                 onClick={() => void loadOlder()}
                 disabled={loadingOlder}
-                className="mx-auto inline-flex items-center gap-1 rounded-full border border-ink-800 px-3 py-1 text-xs text-ink-400 transition-colors hover:bg-ink-800 disabled:opacity-50"
+                className="mx-auto inline-flex items-center gap-1 rounded-full border border-line px-3 py-1 text-xs text-fg-muted transition-colors hover:bg-elevated disabled:opacity-50"
               >
                 {loadingOlder ? <LoaderCircle size={12} className="animate-spin" /> : <ChevronUp size={12} />}
                 Load older messages
               </button>
             )}
             {visible.length === 0 && !processing && (
-              <p className="py-16 text-center text-sm text-ink-500">
+              <p className="py-16 text-center text-sm text-fg-faint">
                 No messages yet — send the first one below.
               </p>
             )}
@@ -1539,7 +1539,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                   <ClipboardList size={14} />
                   Plan ready — review it above
                 </div>
-                <p className="mt-1 text-[11px] text-ink-500">
+                <p className="mt-1 text-[11px] text-fg-faint">
                   Codex explored read-only and proposed a plan. Build to leave plan mode and
                   have it implement, or keep planning to refine.
                 </p>
@@ -1554,7 +1554,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                   <button
                     type="button"
                     onClick={() => setCodexPlanReady(false)}
-                    className="rounded-md border border-ink-800 px-2.5 py-1 text-[11px] text-ink-400 transition-colors hover:border-ink-700 hover:text-ink-200"
+                    className="rounded-md border border-line px-2.5 py-1 text-[11px] text-fg-muted transition-colors hover:border-line-strong hover:text-fg"
                   >
                     Keep planning
                   </button>
@@ -1562,7 +1562,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
               </div>
             )}
             {processing && permissions.length === 0 && (
-              <div className="flex items-center gap-2 text-xs text-ink-500">
+              <div className="flex items-center gap-2 text-xs text-fg-faint">
                 <LoaderCircle size={12} className="animate-spin" /> working…
               </div>
             )}
@@ -1570,7 +1570,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
         )}
       </div>
 
-      <footer className="shrink-0 border-t border-ink-800 px-4 py-3">
+      <footer className="shrink-0 border-t border-line px-4 py-3">
         <div className="relative mx-auto max-w-[80rem]">
           {autocomplete.open && (
             <CompletionMenu
@@ -1586,7 +1586,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
             </div>
           )}
           <div
-            className="rounded-xl border border-ink-700 bg-ink-900 p-2 focus-within:border-brass-400/60"
+            className="rounded-xl border border-line-strong bg-surface p-2 focus-within:border-accent/60"
             onDragOver={(event) => {
               if (event.dataTransfer.types.includes('Files')) event.preventDefault()
             }}
@@ -1603,7 +1603,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                     key={chip.id}
                     title={chip.name}
                     className={`group/chip relative h-14 w-14 overflow-hidden rounded-md border ${
-                      chip.status === 'error' ? 'border-rose-500/60' : 'border-ink-700'
+                      chip.status === 'error' ? 'border-rose-500/60' : 'border-line-strong'
                     }`}
                   >
                     <img
@@ -1613,7 +1613,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                     />
                     {chip.status === 'uploading' && (
                       <span className="absolute inset-0 flex items-center justify-center">
-                        <LoaderCircle size={14} className="animate-spin text-ink-300" />
+                        <LoaderCircle size={14} className="animate-spin text-fg-secondary" />
                       </span>
                     )}
                     {chip.status === 'error' && (
@@ -1628,7 +1628,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                       type="button"
                       onClick={() => removeImage(chip.id)}
                       title="Remove"
-                      className="absolute right-0.5 top-0.5 rounded-full bg-ink-950/80 p-0.5 text-ink-400 opacity-0 transition-opacity hover:text-ink-100 group-hover/chip:opacity-100"
+                      className="absolute right-0.5 top-0.5 rounded-full bg-canvas/80 p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-fg group-hover/chip:opacity-100"
                     >
                       <X size={11} />
                     </button>
@@ -1653,7 +1653,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
               onClick={() => fileInputRef.current?.click()}
               disabled={!canChat || socketState !== 'open' || pendingImages.length >= MAX_IMAGES}
               title="Attach images (or paste / drag & drop)"
-              className="shrink-0 rounded-lg p-2 text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200 disabled:opacity-40"
+              className="shrink-0 rounded-lg p-2 text-fg-faint transition-colors hover:bg-elevated hover:text-fg disabled:opacity-40"
             >
               <ImagePlus size={16} />
             </button>
@@ -1701,7 +1701,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                   : 'Connecting to host…'
               }
               disabled={!canChat || socketState !== 'open'}
-              className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] text-ink-100 outline-none placeholder:text-ink-600 disabled:opacity-50"
+              className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] text-fg outline-none placeholder:text-fg-subtle disabled:opacity-50"
             />
             {processing ? (
               <button
@@ -1718,16 +1718,16 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                 onClick={send}
                 disabled={!input.trim() || socketState !== 'open'}
                 title="Send (Enter)"
-                className="shrink-0 rounded-lg bg-brass-400 p-2 text-ink-950 transition-colors hover:bg-brass-300 disabled:opacity-40"
+                className="shrink-0 rounded-lg bg-accent p-2 text-on-accent transition-colors hover:bg-accent-strong disabled:opacity-40"
               >
                 <ArrowUp size={16} />
               </button>
             )}
             </div>
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-ink-600">
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[11px] text-fg-subtle">
             {isDraft && (
-              <div className="inline-flex items-center rounded-md border border-ink-800 bg-ink-900 p-0.5">
+              <div className="inline-flex items-center rounded-md border border-line bg-surface p-0.5">
                 {COMPOSER_PROVIDERS.map((p) => {
                   const meta = PROVIDER_META[p]
                   const active = provider === p
@@ -1739,7 +1739,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                       aria-pressed={active}
                       title={`Start this chat with ${meta.label}`}
                       className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] transition-colors ${
-                        active ? 'bg-ink-700 text-ink-100' : 'text-ink-500 hover:text-ink-300'
+                        active ? 'bg-elevated-strong text-fg' : 'text-fg-faint hover:text-fg-secondary'
                       }`}
                     >
                       <meta.Icon size={11} style={{ color: meta.color }} />
@@ -1757,7 +1757,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
               className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
                 planMode
                   ? 'border-indigo-500/60 bg-indigo-500/15 text-indigo-300'
-                  : 'border-ink-800 text-ink-500 hover:border-ink-700 hover:text-ink-300'
+                  : 'border-line text-fg-faint hover:border-line-strong hover:text-fg-secondary'
               }`}
             >
               <ClipboardList size={11} /> Plan
@@ -1770,7 +1770,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                 savePermissionMode(target.hostId, mode)
               }}
               title="Permission mode"
-              className="rounded border border-ink-800 bg-ink-900 px-1.5 py-0.5 text-[11px] text-ink-400 outline-none"
+              className="rounded border border-line bg-surface px-1.5 py-0.5 text-[11px] text-fg-muted outline-none"
             >
               {PERMISSION_MODES.map((mode) => (
                 <option key={mode.value} value={mode.value}>
@@ -1783,7 +1783,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                 value={model}
                 onChange={(event) => changeModel(event.target.value)}
                 title="Model"
-                className="max-w-40 rounded border border-ink-800 bg-ink-900 px-1.5 py-0.5 text-[11px] text-ink-400 outline-none"
+                className="max-w-40 rounded border border-line bg-surface px-1.5 py-0.5 text-[11px] text-fg-muted outline-none"
               >
                 {modelOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -1797,7 +1797,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
                 value={effort || activeModel.effort.default}
                 onChange={(event) => changeEffort(event.target.value)}
                 title="Reasoning effort"
-                className="rounded border border-ink-800 bg-ink-900 px-1.5 py-0.5 text-[11px] text-ink-400 outline-none"
+                className="rounded border border-line bg-surface px-1.5 py-0.5 text-[11px] text-fg-muted outline-none"
               >
                 {activeModel.effort.values.map((option) => (
                   <option key={option.value} value={option.value}>

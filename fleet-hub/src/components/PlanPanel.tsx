@@ -19,22 +19,22 @@ export function PlanPanel({
   const input = request.input as { plan?: unknown } | null | undefined
   const plan = typeof input?.plan === 'string' ? input.plan : ''
   return (
-    <aside className="flex h-full w-[26rem] shrink-0 flex-col border-l border-ink-800/80 xl:w-[32rem]">
-      <div className="flex shrink-0 items-center gap-2 border-b border-ink-800 px-4 py-3">
+    <aside className="flex h-full w-[26rem] shrink-0 flex-col border-l border-line/80 xl:w-[32rem]">
+      <div className="flex shrink-0 items-center gap-2 border-b border-line px-4 py-3">
         <ClipboardList size={15} className="shrink-0 text-indigo-300" />
-        <h3 className="font-display min-w-0 flex-1 truncate text-sm font-semibold text-ink-100">
+        <h3 className="font-display min-w-0 flex-1 truncate text-sm font-semibold text-fg">
           Plan ready for review
         </h3>
         <button
           type="button"
           onClick={onClose}
           title="Hide panel"
-          className="shrink-0 rounded-md p-1.5 text-ink-500 hover:bg-ink-800 hover:text-ink-200"
+          className="shrink-0 rounded-md p-1.5 text-fg-faint hover:bg-elevated hover:text-fg"
         >
           <X size={14} />
         </button>
       </div>
-      <div className="flex shrink-0 flex-wrap gap-2 border-b border-ink-800 px-4 py-2.5">
+      <div className="flex shrink-0 flex-wrap gap-2 border-b border-line px-4 py-2.5">
         <button
           type="button"
           onClick={() => onDecide(request.requestId, 'build')}
@@ -53,7 +53,7 @@ export function PlanPanel({
         <button
           type="button"
           onClick={() => onDecide(request.requestId, 'revise')}
-          className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:bg-ink-800"
+          className="inline-flex items-center gap-1 rounded-md border border-line-strong px-3 py-1.5 text-xs text-fg-secondary transition-colors hover:bg-elevated"
         >
           <X size={12} /> Revise
         </button>
@@ -62,7 +62,7 @@ export function PlanPanel({
         {plan ? (
           <Markdown>{plan}</Markdown>
         ) : (
-          <p className="text-sm text-ink-500">The agent didn't attach any plan text.</p>
+          <p className="text-sm text-fg-faint">The agent didn't attach any plan text.</p>
         )}
       </div>
     </aside>
