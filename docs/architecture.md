@@ -32,6 +32,7 @@ Browser (Agents Hub SPA)
 | `lib/chatSocket.ts` | `ChatSocket` class — one reconnecting WS per chat (fixed 3 s retry until `close()`), typed senders: `chat.send` / `chat.subscribe` / `chat.abort` / `chat.permission-response` (with optional `rememberEntry`). |
 | `lib/storage.ts` | localStorage wrapper, keys `fleethub.v1.{hosts,tokens,prefs,recentProjects,models,permissions,permissionModes,planMode,sidebarWidth,drafts,chatPanel,autoAdded}`. "Always allow" grants are keyed `hostId:projectPath`, permission mode per hostId, unsent chat drafts `hostId:sessionId`. |
 | `lib/format.ts` | Relative-time and path helpers. |
+| `lib/theme.ts` + `hooks/useTheme.ts` | Theme system. `index.css` holds a two-layer Tailwind v4 token set: raw primitives (`--color-ink-*`, `--color-brass-*`) and semantic tokens (`--color-canvas/surface/elevated/line/fg/accent/on-accent/…`) that the UI should reference. `[data-theme="light"]` on `<html>` supplies a neutral light palette; while components still use raw `ink-*`/`brass-*` classes it also remaps the primitive ramps so the whole app flips. Choice (`system`/`dark`/`light`) is persisted at `fleethub.v1.theme` and resolved before paint by an inline FOUC-guard script in `index.html`. |
 | `types.ts` | Shared types: `HostConfig/HostRuntime/HostStatus`, `Project`, `SessionSummary`, `FleetSession`, `ChatEvent`, `PermissionMode`, model catalog. |
 | `components/Sidebar.tsx` | Hosts → projects → chats tree: starred first, then recency; long tails behind "N more"; per-project disclosure lists recent sessions inline (embedded poll data, capped at 6; "all N chats…" opens the project pane), each chat prefixed with its provider icon (Claude/Codex/…) from `PROVIDER_META`; the active chat's project auto-expands; status dots. Hover "+" per project row opens a **draft** chat directly (handler in `App.tsx`) — the session is created on first send with the provider chosen in the composer toggle (seeded from the last-picked provider). |
 | `components/SessionList.tsx` + `SessionRow.tsx` | "All sessions" merged feed rows. |
@@ -42,7 +43,7 @@ Browser (Agents Hub SPA)
 | `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
 | `components/FileBrowser.tsx`, `FileTree.tsx`, `CodeEditor.tsx` | Project file tree + lazy-loaded CodeMirror editor (One Dark); Cmd+S saves via `PUT /file`. Also renders `embedded` as a chat side panel (close icon, narrower tree). |
 | `components/GitPanel.tsx` | Git status/stage/commit (AI message generation), branch switch/create, fetch/pull/push/publish, per-file diff. Full-screen via the project pane or `embedded` as a chat side panel. |
-| `components/LoginModal.tsx`, `SettingsPanel.tsx`, `OfflineCard.tsx` | Per-host login and first-time setup (register; password never stored), host/prefs management, hibernated-VM card with restart hint. |
+| `components/LoginModal.tsx`, `SettingsPanel.tsx`, `OfflineCard.tsx` | Per-host login and first-time setup (register; password never stored), host/prefs management (incl. the Appearance theme toggle), hibernated-VM card with restart hint. |
 
 ## Data flow
 

@@ -4,6 +4,24 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-07-18
+
+### Added
+- **fleet-hub theming foundation + light theme.** First phase of a Codex-style
+  UI overhaul (branch `ui-codex-theming`). `src/index.css` gains a two-layer
+  Tailwind v4 token system: raw primitives (`--color-ink-*`, `--color-brass-*`)
+  plus semantic tokens (`--color-canvas/surface/elevated/line/fg/accent/on-accent/…`)
+  that new UI should consume. A `[data-theme="light"]` override provides a
+  neutral, Codex-flavored light palette; until components migrate off raw
+  `ink-*`/`brass-*` classes it also remaps the primitive ramps so the whole app
+  flips with no component edits. New `lib/theme.ts` + `hooks/useTheme.ts` manage
+  a persisted System/Dark/Light choice (`fleethub.v1.theme`) that follows the OS
+  when set to System; an inline FOUC-guard script in `index.html` resolves the
+  theme before first paint. A new **Appearance** toggle in Settings switches it.
+  Dark is unchanged; verified live in-browser in both themes. Follow-ups
+  (semantic-class migration for the ~621 raw token usages, light syntax themes,
+  motion, and the full monochrome restyle) are the remaining phases.
+
 ## 2026-07-14
 
 ### Added
