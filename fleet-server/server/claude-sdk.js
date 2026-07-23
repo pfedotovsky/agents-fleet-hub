@@ -481,6 +481,52 @@ async function queryClaudeSDK(command, options = {}, ws) {
     // async generator cannot be replayed once consumed.
     const createPrompt = () => buildPromptPayload(command, options.images, options.cwd);
 
+    // Emit a permission_request to the client and await the user's decision.
+    // Shared by canUseTool and the PreToolUse hook below; deduped by the tool's
+    // tool_use_id so interactive tools — which reach BOTH paths in 'default'
+    // mode — only ever produce a single prompt and resolve to one decision.
+    // The map lives for this query's lifetime (few interactive calls per run)
+    // and is GC'd with the closure, so no explicit cleanup is needed.
+    const interactiveDecisions = new Map();
+    const requestUserApproval = ({ toolUseId, toolName, input, signal, interactive }) => {
+      if (interactive && toolUseId && interactiveDecisions.has(toolUseId)) {
+        return interactiveDecisions.get(toolUseId);
+      }
+
+      const requestId = createRequestId();
+      ws.send(createNormalizedMessage({ kind: 'permission_request', requestId, toolName, input, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+      emitNotification(createNotificationEvent({
+        provider: 'claude',
+        sessionId: capturedSessionId || sessionId || null,
+        kind: 'action_required',
+        code: 'permission.required',
+        meta: { toolName, sessionName: sessionSummary },
+        severity: 'warning',
+        requiresUserAction: true,
+        dedupeKey: `claude:permission:${capturedSessionId || sessionId || 'none'}:${requestId}`
+      }));
+
+      const decisionPromise = waitForToolApproval(requestId, {
+        // Interactive tools (AskUserQuestion, ExitPlanMode) wait indefinitely.
+        timeoutMs: interactive ? 0 : undefined,
+        signal,
+        metadata: {
+          _sessionId: capturedSessionId || sessionId || null,
+          _toolName: toolName,
+          _input: input,
+          _receivedAt: new Date(),
+        },
+        onCancel: (reason) => {
+          ws.send(createNormalizedMessage({ kind: 'permission_cancelled', requestId, reason, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+        }
+      });
+
+      if (interactive && toolUseId) {
+        interactiveDecisions.set(toolUseId, decisionPromise);
+      }
+      return decisionPromise;
+    };
+
     sdkOptions.hooks = {
       Notification: [{
         matcher: '',
@@ -498,15 +544,72 @@ async function queryClaudeSDK(command, options = {}, ws) {
           }));
           return {};
         }]
+      }],
+      // PreToolUse runs BEFORE the permission-mode check, so it is the only way
+      // to make interactive tools reach the UI in 'auto' and 'bypassPermissions'
+      // modes — there the SDK auto-approves every tool before canUseTool is ever
+      // consulted. AskUserQuestion has no non-interactive answer path, so once
+      // auto-approved it produces NO tool_result: the run dead-ends on a dangling
+      // tool_use (no continuation in the UI) and the orphaned call renders as raw
+      // JSON in the transcript. We answer it here via updatedInput; the shared
+      // dedupe keeps 'default' mode (where canUseTool also fires) to one prompt.
+      PreToolUse: [{
+        matcher: '',
+        // Interactive approvals block on a human; keep the hook alive far longer
+        // than the SDK's default hook timeout. Non-interactive tools return
+        // immediately below, so this ceiling only applies while genuinely waiting.
+        timeout: 86400,
+        hooks: [async (input, toolUseId, options) => {
+          const toolName = input?.tool_name;
+          if (!TOOLS_REQUIRING_INTERACTION.has(toolName)) {
+            return {};
+          }
+
+          const toolInput = (input?.tool_input && typeof input.tool_input === 'object')
+            ? input.tool_input
+            : {};
+          const decision = await requestUserApproval({
+            toolUseId: input?.tool_use_id || toolUseId,
+            toolName,
+            input: toolInput,
+            signal: options?.signal,
+            interactive: true,
+          });
+
+          if (!decision || decision.cancelled) {
+            return {
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                permissionDecision: 'deny',
+                permissionDecisionReason: decision?.message || 'Interactive prompt was cancelled',
+              }
+            };
+          }
+          if (decision.allow) {
+            return {
+              hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                permissionDecision: 'allow',
+                updatedInput: decision.updatedInput ?? toolInput,
+              }
+            };
+          }
+          return {
+            hookSpecificOutput: {
+              hookEventName: 'PreToolUse',
+              permissionDecision: 'deny',
+              permissionDecisionReason: decision.message || 'User denied tool use',
+            }
+          };
+        }]
       }]
     };
 
-    // Caveat: in 'auto' and 'bypassPermissions' modes the SDK resolves approval
-    // at the permission-mode step and skips this callback, so interactive tools
-    // (AskUserQuestion, ExitPlanMode) won't reach the UI — the classifier/bypass
-    // auto-approves them and the model acts on a generated answer. Move these
-    // tools to a PreToolUse hook (runs before the mode check) if we need them
-    // to work in those modes.
+    // Interactive tools (AskUserQuestion, ExitPlanMode) are primarily driven by
+    // the PreToolUse hook above so they work in every permission mode. This
+    // callback still handles them for the hooks-disabled fallback path (see the
+    // retry-without-hooks branch below) and in 'default' mode — the shared
+    // dedupe in requestUserApproval collapses the two paths into one prompt.
     sdkOptions.canUseTool = async (toolName, input, context) => {
       const requiresInteraction = TOOLS_REQUIRING_INTERACTION.has(toolName);
 
@@ -530,31 +633,12 @@ async function queryClaudeSDK(command, options = {}, ws) {
         }
       }
 
-      const requestId = createRequestId();
-      ws.send(createNormalizedMessage({ kind: 'permission_request', requestId, toolName, input, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
-      emitNotification(createNotificationEvent({
-        provider: 'claude',
-        sessionId: capturedSessionId || sessionId || null,
-        kind: 'action_required',
-        code: 'permission.required',
-        meta: { toolName, sessionName: sessionSummary },
-        severity: 'warning',
-        requiresUserAction: true,
-        dedupeKey: `claude:permission:${capturedSessionId || sessionId || 'none'}:${requestId}`
-      }));
-
-      const decision = await waitForToolApproval(requestId, {
-        timeoutMs: requiresInteraction ? 0 : undefined,
+      const decision = await requestUserApproval({
+        toolUseId: context?.toolUseID,
+        toolName,
+        input,
         signal: context?.signal,
-        metadata: {
-          _sessionId: capturedSessionId || sessionId || null,
-          _toolName: toolName,
-          _input: input,
-          _receivedAt: new Date(),
-        },
-        onCancel: (reason) => {
-          ws.send(createNormalizedMessage({ kind: 'permission_cancelled', requestId, reason, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
-        }
+        interactive: requiresInteraction,
       });
       if (!decision) {
         return { behavior: 'deny', message: 'Permission request timed out' };
