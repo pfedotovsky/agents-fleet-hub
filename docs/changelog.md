@@ -4,6 +4,17 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-07-20
+
+### Added
+- **fleet-hub licensed under MIT.** Added `fleet-hub/LICENSE` (MIT, © 2026 Pavel
+  Fedotovsky) and set `"license": "MIT"` in `fleet-hub/package.json`, resolving
+  the long-standing "currently unlicensed" TODO. Updated the root README
+  Licensing section to state the terms and the rationale: fleet-hub is
+  independently developed (no CloudCLI code) and talks to the AGPL `fleet-server`
+  only over the network API, so it is not a derivative work of the server and the
+  permissive license is clean. The AGPL boundary at `fleet-server/` is unchanged.
+
 ## 2026-07-18
 
 ### Released

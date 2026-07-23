@@ -206,8 +206,11 @@ This repository contains two differently-licensed parts:
   [`fleet-server/LICENSE`](fleet-server/LICENSE),
   [`fleet-server/NOTICE`](fleet-server/NOTICE), and
   [`fleet-server/UPSTREAM.md`](fleet-server/UPSTREAM.md).
-- Everything else (including `fleet-hub/`) is separate, independently
-  developed work and is not covered by that license. <!-- TODO: pick a
-  license for fleet-hub — currently unlicensed. -->
+- **`fleet-hub/`** is separate, independently developed work (no CloudCLI
+  code) and is licensed **MIT** — see [`fleet-hub/LICENSE`](fleet-hub/LICENSE).
+  It talks to `fleet-server` only over the network API, so it is not a
+  derivative work of the AGPL server.
+- Everything else in the repository is also separate from `fleet-server` and
+  not covered by its license.
 
 Do not move code across this boundary.
