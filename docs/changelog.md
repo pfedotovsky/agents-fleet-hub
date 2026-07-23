@@ -4,6 +4,25 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-07-23
+
+### Added
+- **Shareable session deep-links.** A chat can now be reached by URL:
+  `…/fleet-hub/#/s/<hostId>/<projectId>/<sessionId>`. New
+  `fleet-hub/src/lib/deepLink.ts` serializes/parses the hash and builds an
+  absolute URL against `document.baseURI` so one build works under `/fleet-hub/`,
+  `/` (dev), and the Tauri shell with no server routing — `mountHub`'s existing
+  SPA fallback already covers it, and hash fragments never hit the server. `App`
+  mirrors the open chat into `location.hash`, listens for `hashchange`
+  (paste/back-forward), and resolves an incoming link once the target host
+  finishes loading by rebuilding the full `FleetSession` via the existing
+  `openSessionFromSidebar`. A hidden-for-drafts "Copy link" button sits in the
+  `ChatPane` header. Links are hash-only and carry host+project because a session
+  id is unique only per host and is resolved from the loaded projects list.
+  Known limit: that list holds only the ~5 most recent sessions per project
+  (`getProjects?sessionsLimit=5`), so a link to an older/archived/offline session
+  resolves as not-found → toast + fall back to the feed.
+
 ## 2026-07-20
 
 ### Added

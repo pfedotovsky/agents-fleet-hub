@@ -12,6 +12,7 @@ import {
   FolderTree,
   GitBranch,
   ImagePlus,
+  Link2,
   LoaderCircle,
   MessageCircleQuestion,
   ShieldQuestion,
@@ -42,6 +43,7 @@ import {
   saveFile,
   uploadImages,
 } from '../lib/api'
+import { buildSessionUrl } from '../lib/deepLink'
 import { ChatSocket } from '../lib/chatSocket'
 import type { SocketState } from '../lib/chatSocket'
 import type { ChatPanelKind } from '../lib/storage'
@@ -469,6 +471,8 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
       loadPermissionMode(target.hostId, target.projectPath) === 'plan',
   )
   const [planPanelOpen, setPlanPanelOpen] = useState(true)
+  // Brief "copied" tick on the share-link button.
+  const [linkCopied, setLinkCopied] = useState(false)
   // Codex has no ExitPlanMode request, so a completed plan-mode run flips this
   // to surface the "plan ready" Build card. Cleared when the user sends, builds,
   // or leaves plan mode. See the buildFromPlan / complete-event handlers.
@@ -1378,6 +1382,16 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
     }
   }
 
+  async function copySessionLink() {
+    try {
+      await navigator.clipboard.writeText(buildSessionUrl(target))
+      setLinkCopied(true)
+      window.setTimeout(() => setLinkCopied(false), 1500)
+    } catch {
+      setBanner('Could not copy the link — clipboard access was blocked.')
+    }
+  }
+
   const color = hostColor(target.hostColorIdx)
   const visible = useMemo(() => messages.filter((m) => RENDERED_KINDS.has(m.kind)), [messages])
   const canChat = provider !== 'cursor' || !fatalError
@@ -1446,6 +1460,16 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
               <GitBranch size={15} />
             </button>
           </div>
+        )}
+        {!isDraft && (
+          <button
+            type="button"
+            onClick={() => void copySessionLink()}
+            title="Copy a shareable link to this session"
+            className="shrink-0 rounded-md p-1.5 text-fg-faint hover:bg-elevated hover:text-fg"
+          >
+            {linkCopied ? <Check size={15} className="text-emerald-400" /> : <Link2 size={15} />}
+          </button>
         )}
         <a
           href={target.href}

@@ -26,7 +26,8 @@ Browser (Agents Hub SPA)
 
 | Module | Role |
 | --- | --- |
-| `App.tsx` | View router: a `View` union (`feed` / `project` / `files` / `chat`) in component state. No URL routing. |
+| `App.tsx` | View router: a `View` union (`feed` / `project` / `files` / `chat`) in component state. Only the open `chat` view syncs to the URL — mirrored into `location.hash` and hydrated back from an incoming hash once the host loads (see `lib/deepLink.ts`); all other navigation stays in-memory. |
+| `lib/deepLink.ts` | Shareable session links. Serializes an open chat to `#/s/<hostId>/<projectId>/<sessionId>` and back, and builds an absolute URL against `document.baseURI` so it resolves under `/fleet-hub/`, `/` (dev), and Tauri. Hash-only (no server routing); carries host+project because a session id is unique only per host and is resolved from the loaded projects list. |
 | `hooks/useFleet.ts` | The heart of the app: host configs + prefs from storage, 12 s polling loop per host, host status machine, merged cross-host session feed, star toggle, login. |
 | `lib/api.ts` | All REST calls. `fetchJson` adds timeout (AbortController), Bearer header, captures `X-Refreshed-Token`, maps 401/403 → `AuthError`, network failure → `HostUnreachableError`. |
 | `lib/chatSocket.ts` | `ChatSocket` class — one reconnecting WS per chat (fixed 3 s retry until `close()`), typed senders: `chat.send` / `chat.subscribe` / `chat.abort` / `chat.permission-response` (with optional `rememberEntry`). |
