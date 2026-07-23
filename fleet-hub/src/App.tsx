@@ -12,6 +12,7 @@ import {
 } from './lib/storage'
 import { useFleet } from './hooks/useFleet'
 import { useTheme } from './hooks/useTheme'
+import { parseSessionHash, sessionHash, type SessionLink } from './lib/deepLink'
 import { Sidebar } from './components/Sidebar'
 import { SessionList } from './components/SessionList'
 import { ChatPane } from './components/ChatPane'
@@ -43,6 +44,15 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [loginHostId, setLoginHostId] = useState<string | null>(null)
   const [view, setView] = useState<View>({ kind: 'feed' })
+  // A session deep-link (#/s/host/project/session) parsed from the URL, held
+  // until the target host finishes loading so we can rebuild the full
+  // FleetSession. Seeded on first render before any effect can clear the hash.
+  const [linkRequest, setLinkRequest] = useState<SessionLink | null>(() =>
+    parseSessionHash(window.location.hash),
+  )
+  // Set true right before we write the hash ourselves, so the hashchange
+  // listener ignores our own writes instead of treating them as a new link.
+  const applyingHashRef = useRef(false)
   // Session creation is now deferred to the first send, so the sidebar spinner
   // key stays null — kept for the Sidebar prop contract.
   const [creatingKey] = useState<string | null>(null)
@@ -180,6 +190,61 @@ export default function App() {
     const project = runtime?.projects.find((p) => p.projectId === projectId)
     return { hostIndex, runtime, project }
   }
+
+  // Mirror the open chat into the URL hash so it can be copied/shared. Cleared
+  // for every other view. Skipped while a deep-link is still resolving so we
+  // don't wipe the incoming hash before we've read it.
+  useEffect(() => {
+    if (linkRequest) return
+    const next = view.kind === 'chat' && view.target.session.id ? sessionHash(view.target) : ''
+    const current = window.location.hash
+    if (current === next || (!current && !next)) return
+    applyingHashRef.current = true
+    if (next) {
+      window.location.hash = next
+    } else {
+      // Drop the fragment without leaving a bare "#" in the address bar.
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+      applyingHashRef.current = false
+    }
+  }, [view, linkRequest])
+
+  // Pick up links pasted into the same tab or reached via back/forward.
+  useEffect(() => {
+    const onHashChange = () => {
+      if (applyingHashRef.current) {
+        applyingHashRef.current = false
+        return
+      }
+      setLinkRequest(parseSessionHash(window.location.hash))
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  // Resolve a pending deep-link once its host has finished loading. The chat
+  // view needs the full FleetSession, so we wait for the host's projects rather
+  // than opening on the raw ids. A session that isn't in the loaded list (gone,
+  // archived, or older than the feed's per-project window) falls back to feed.
+  useEffect(() => {
+    if (!linkRequest) return
+    const runtime = fleet.hosts.find((r) => r.config.id === linkRequest.hostId)
+    // Host still coming up — wait for the next hosts update before deciding.
+    if (runtime && runtime.status === 'loading') return
+    const project = runtime?.projects.find((p) => p.projectId === linkRequest.projectId)
+    const session = project?.sessions.find((s) => s.id === linkRequest.sessionId)
+    if (runtime && project && session) {
+      openSessionFromSidebar(runtime.config.id, project.projectId, session)
+    } else {
+      setCreateError(
+        'That session link could not be opened — it may have been archived, or its host is offline.',
+      )
+    }
+    setLinkRequest(null)
+    // openSessionFromSidebar is recreated each render; the effect is driven by
+    // linkRequest/hosts and re-reads it lazily, so it's intentionally omitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkRequest, fleet.hosts])
 
   function renderMain() {
     if (fleet.hosts.length === 0) {
