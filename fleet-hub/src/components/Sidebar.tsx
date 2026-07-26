@@ -7,7 +7,6 @@ import {
   Folder,
   Inbox,
   KeyRound,
-  ListChecks,
   LoaderCircle,
   MessageSquare,
   MoonStar,
@@ -56,8 +55,6 @@ interface Props {
   onOpenSettings: () => void
   onOpenSearch: () => void
   onRefresh: () => void
-  /** Dev-only: opens the Backlog panel. Present only under import.meta.env.DEV. */
-  onOpenBacklog?: () => void
 }
 
 /** Recency = latest of client "last opened" and the project's newest session activity. */
@@ -601,7 +598,6 @@ export function Sidebar({
   onOpenSettings,
   onOpenSearch,
   onRefresh,
-  onOpenBacklog,
 }: Props) {
   const [width, setWidth] = useState(() => loadSidebarWidth())
   const widthRef = useRef(width)
@@ -663,16 +659,6 @@ export function Sidebar({
           )}
         </h1>
         <div className="flex gap-0.5">
-          {import.meta.env.DEV && onOpenBacklog && (
-            <button
-              type="button"
-              onClick={onOpenBacklog}
-              title="Backlog (dev)"
-              className="rounded-md p-1.5 text-fg-faint transition-colors hover:bg-elevated hover:text-fg"
-            >
-              <ListChecks size={14} />
-            </button>
-          )}
           <button
             type="button"
             onClick={onOpenSearch}

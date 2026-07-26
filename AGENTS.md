@@ -94,18 +94,17 @@ bun run build      # compiled binary for this platform → dist/
 
 ## Backlog
 
-`docs/backlog.md` is the single source of truth for planned work:
+Planned work is tracked as **GitHub issues** in the private repo
+`pfedotovsky/agents-fleet-hub-backlog`, surfaced on the "Agents Hub"
+project board (https://github.com/users/pfedotovsky/projects/1). The repo is
+private so the issues stay private even though this code repo is public.
 
-- Before starting feature work, check it; if the work matches an item, do
-  that item (and read its pointers first).
-- When an item ships, delete it from `backlog.md` and record it in
-  `docs/changelog.md`.
-- Discovered gaps, ideas, and follow-ups → add them to `backlog.md` with
-  pointers. Don't create new planning docs (and never HTML ones).
-- An `## Inbox` section (when present) holds untriaged quick-adds from the
-  dev-only hub Backlog view — fold them into the prioritized sections (with
-  pointers) as you pick them up.
-- The "Priorities" section at the top is user-set — don't reorder it.
+- Before starting feature work, check the open issues; if the work matches
+  one, do that item (and read its pointers/body first). Priority is the
+  `P1`/`P2`/`P3` label; area is the remaining labels.
+- When an item ships, close its issue and record it in `docs/changelog.md`.
+- Discovered gaps, ideas, and follow-ups → open a new issue with pointers.
+  Don't create planning docs in this repo (and never HTML ones).
 - Markdown is canonical everywhere in `docs/`; `docs/*.html` files are
   regenerable human views (e.g. `feature-parity.html` mirrors
   `feature-parity.md`) and must be kept in sync or regenerated when their
