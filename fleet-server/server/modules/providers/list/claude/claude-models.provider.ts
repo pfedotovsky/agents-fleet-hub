@@ -1,6 +1,12 @@
-import { readFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+import { query } from '@anthropic-ai/claude-agent-sdk';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { resolveClaudeCodeExecutablePath } from '@/shared/claude-cli-path.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderChangeActiveModelInput,
@@ -9,117 +15,152 @@ import type {
   ProviderModelsDefinition,
   ProviderSessionActiveModelChange,
 } from '@/shared/types.js';
-import {
-  buildDefaultProviderCurrentActiveModel,
-  writeProviderSessionActiveModelChange,
-} from '@/shared/utils.js';
+import { writeProviderSessionActiveModelChange } from '@/shared/utils.js';
 
-export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
-  OPTIONS: [
-    {
-      value: 'default',
-      label: 'Default (recommended)',
-      description: 'Use the Claude Code default model (currently Sonnet 4.6)',
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'max' },
-        ],
-      },
-    },
-    {
-      value: 'fable',
-      label: 'Fable',
-      description: 'Fable 5 · Most capable for your hardest and longest-running tasks · Uses your limits ~2× faster than Opus',
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'xhigh' },
-          { value: 'max' },
-        ],
-      },
-    },
-    {
-      value: "sonnet",
-      label: "Sonnet",
-      description: "Sonnet 4.6 · Best for everyday tasks · $3/$15 per Mtok",
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'max' },
-        ],
-      },
-    },
-    {
-      value: 'sonnet[1m]',
-      label: 'Sonnet (1M context)',
-      description: 'Sonnet 4.6 for long sessions · $3/$15 per Mtok',
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'max' },
-        ],
-      },
-    },
-    {
-      value: 'opus',
-      label: 'Opus',
-      description: 'Opus 4.8 · Best for everyday, complex tasks · ~2× usage vs Sonnet',
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'xhigh' },
-          { value: 'max' },
-        ],
-      },
-    },
-    {
-      value: 'opus[1m]',
-      label: 'Opus 4.8 (1M context)',
-      description: 'Opus 4.8 with 1M context · Most capable for complex work · $5/$25 per Mtok',
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'xhigh' },
-          { value: 'max' },
-        ],
-      },
-    },
-    {
-      value: 'haiku',
-      label: 'Haiku',
-      description: 'Haiku 4.5 · Fastest for quick answers · $1/$5 per Mtok',
-    },
-  ],
-  DEFAULT: 'default',
+/**
+ * Canonical alias the Claude CLI uses for its recommended default model. The CLI
+ * advertises a row with this `value`, and it is the model id we hand back when a
+ * caller has not selected one explicitly.
+ */
+export const CLAUDE_DEFAULT_MODEL = 'default';
+
+/**
+ * Subset of the Claude Agent SDK `ModelInfo` shape we rely on. Typed locally so
+ * the mapper stays resilient to SDK type churn and to unexpected runtime values.
+ */
+type ClaudeSupportedModel = {
+  value?: unknown;
+  displayName?: unknown;
+  description?: unknown;
+  supportsEffort?: unknown;
+  supportedEffortLevels?: unknown;
 };
 
-export const findClaudeModelOption = (model: string | undefined | null): ProviderModelOption | null => {
-  const normalizedModel = typeof model === 'string' ? model.trim() : '';
-  if (!normalizedModel) {
+const CLAUDE_PROBE_PROMPT = 'Get supported models';
+const CLAUDE_PROBE_TIMEOUT_MS = 30_000;
+const CLAUDE_PREFERRED_DEFAULT_EFFORT = 'high';
+
+const buildClaudeModelOption = (model: ClaudeSupportedModel): ProviderModelOption | null => {
+  const value = typeof model.value === 'string' ? model.value.trim() : '';
+  if (!value) {
     return null;
   }
 
-  return CLAUDE_FALLBACK_MODELS.OPTIONS.find((option) => option.value === normalizedModel) ?? null;
+  const label = typeof model.displayName === 'string' && model.displayName.trim()
+    ? model.displayName.trim()
+    : value;
+
+  const option: ProviderModelOption = { value, label };
+
+  if (typeof model.description === 'string' && model.description.trim()) {
+    option.description = model.description;
+  }
+
+  const effortLevels = Array.isArray(model.supportedEffortLevels)
+    ? model.supportedEffortLevels.filter(
+      (level): level is string => typeof level === 'string' && level.trim().length > 0,
+    )
+    : [];
+
+  if (model.supportsEffort === true && effortLevels.length > 0) {
+    option.effort = {
+      default: effortLevels.includes(CLAUDE_PREFERRED_DEFAULT_EFFORT)
+        ? CLAUDE_PREFERRED_DEFAULT_EFFORT
+        : effortLevels[effortLevels.length - 1],
+      values: effortLevels.map((level) => ({ value: level })),
+    };
+  }
+
+  return option;
 };
+
+/**
+ * Map the CLI's advertised model list onto the app's catalog shape. The CLI is
+ * the sole source of truth, so newly released models appear automatically.
+ * Throws when the CLI advertises nothing usable — there is no static fallback.
+ */
+export const buildClaudeModelsDefinition = (
+  models: readonly ClaudeSupportedModel[],
+): ProviderModelsDefinition => {
+  const options = models
+    .map(buildClaudeModelOption)
+    .filter((option): option is ProviderModelOption => option !== null);
+
+  if (options.length === 0) {
+    throw new Error('Claude CLI returned no usable models');
+  }
+
+  const hasDefault = options.some((option) => option.value === CLAUDE_DEFAULT_MODEL);
+
+  return {
+    OPTIONS: options,
+    DEFAULT: hasDefault ? CLAUDE_DEFAULT_MODEL : options[0].value,
+  };
+};
+
+/**
+ * Remove the throwaway workspace and its transcript.
+ *
+ * The CLI writes a session `.jsonl` under `~/.claude/projects/<encoded-cwd>/`,
+ * keyed by the probe's cwd. Because we run the probe in a temp directory tagged
+ * with a unique token, that transcript never attaches to a real workspace — and
+ * deleting the token-tagged project dir keeps it out of the projects list too.
+ */
+const removeClaudeProbeArtifacts = async (probeCwd: string, token: string): Promise<void> => {
+  await rm(probeCwd, { recursive: true, force: true }).catch(() => {});
+
+  const projectsDir = path.join(os.homedir(), '.claude', 'projects');
+  try {
+    const entries = await readdir(projectsDir);
+    await Promise.all(
+      entries
+        .filter((entry) => entry.includes(token))
+        .map((entry) => rm(path.join(projectsDir, entry), { recursive: true, force: true }).catch(() => {})),
+    );
+  } catch {
+    // Projects dir may not exist yet; nothing to clean up.
+  }
+};
+
+const probeClaudeSupportedModels = async (): Promise<ClaudeSupportedModel[]> => {
+  const token = randomUUID().replace(/-/g, '');
+  const probeCwd = path.join(os.tmpdir(), `fleet-model-probe-${token}`);
+  await mkdir(probeCwd, { recursive: true });
+
+  const queryInstance = query({
+    prompt: CLAUDE_PROBE_PROMPT,
+    options: {
+      cwd: probeCwd,
+      permissionMode: 'bypassPermissions',
+      pathToClaudeCodeExecutable: resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH),
+    },
+  });
+
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const models = await Promise.race([
+      queryInstance.supportedModels(),
+      new Promise<never>((_resolve, reject) => {
+        timeoutHandle = setTimeout(
+          () => reject(new Error('Timed out probing Claude supported models')),
+          CLAUDE_PROBE_TIMEOUT_MS,
+        );
+      }),
+    ]);
+    return Array.isArray(models) ? (models as ClaudeSupportedModel[]) : [];
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+    try {
+      queryInstance.close();
+    } catch {
+      // Query may already be closed.
+    }
+    await removeClaudeProbeArtifacts(probeCwd, token);
+  }
+};
+
 type ClaudeInitEvent = {
   sessionId?: string;
   session_id?: string;
@@ -231,23 +272,20 @@ const readClaudeSessionModelFromJsonl = async (
 
 export class ClaudeProviderModels implements IProviderModels {
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    // claude creates a new jsonl file as a separate session for this request.
-    // As a result, it lists the workspace where this is invoked when it shouldn't.
-    //
-    // Disabled for now:
-    // const queryInstance = query({
-    //   prompt: 'Get supported models',
-    //   options: buildClaudeQueryOptions(),
-    // });
-    // const supportedModels = await queryInstance.supportedModels();
-    // queryInstance.close();
-    // return buildClaudeModelsDefinition(supportedModels);
-    return CLAUDE_FALLBACK_MODELS;
+    // Probe the CLI for the live model list so newly released models appear
+    // automatically. The probe runs in a throwaway temp workspace and cleans up
+    // its transcript, so it never pollutes the real workspace session list
+    // (see removeClaudeProbeArtifacts). There is no static fallback: any failure
+    // propagates so the caller surfaces the error instead of a stale list.
+    const supportedModels = await probeClaudeSupportedModels();
+    return buildClaudeModelsDefinition(supportedModels);
   }
 
   async getCurrentActiveModel(sessionId?: string): Promise<ProviderCurrentActiveModel> {
+    // Fall back to the CLI's default alias when there is no session-backed model,
+    // avoiding a CLI probe on every active-model lookup.
     if (!sessionId?.trim()) {
-      return buildDefaultProviderCurrentActiveModel(await this.getSupportedModels());
+      return { model: CLAUDE_DEFAULT_MODEL };
     }
 
     try {
@@ -262,7 +300,7 @@ export class ClaudeProviderModels implements IProviderModels {
       // Fall through to the provider default when the session-backed lookup fails.
     }
 
-    return buildDefaultProviderCurrentActiveModel(await this.getSupportedModels());
+    return { model: CLAUDE_DEFAULT_MODEL };
   }
 
   async changeActiveModel(
