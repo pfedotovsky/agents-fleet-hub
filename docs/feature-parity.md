@@ -5,8 +5,9 @@
 First compared 2026-07-11; status last updated 2026-07-12.*
 
 This file is canonical; `feature-parity.html` is a regenerated human view of
-the same content. **Planned work lives in `docs/backlog.md`** — this document
-is a status/comparison report only.
+the same content. **Planned work lives in GitHub issues** (private
+`pfedotovsky/agents-fleet-hub-backlog` repo) — this document is a
+status/comparison report only.
 
 Agents Hub is a **multi-host aggregator** over per-VM CloudCLI APIs;
 CloudCLI's own web UI is a **single-host** full-featured client. Some CloudCLI

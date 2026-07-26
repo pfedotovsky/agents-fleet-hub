@@ -156,7 +156,7 @@ To develop the desktop (Tauri) shell instead of the browser build, use
 Already done: **`install.sh --service`** installs and starts a persistent
 launchd/systemd unit in one command, and the **hub auto-discovers a localhost
 fleet-server/CloudCLI** and offers a one-click "Add". Remaining friction,
-roughly highest-leverage first (tracked in [`docs/backlog.md`](docs/backlog.md)):
+roughly highest-leverage first (tracked privately as GitHub issues):
 
 1. **Signed & notarized desktop app.** If the cask ships an unsigned build,
    macOS Gatekeeper adds a scary right-click-open step. Notarization makes the

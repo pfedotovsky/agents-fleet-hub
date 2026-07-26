@@ -1,7 +1,8 @@
 # Installation simplicity — current state and roadmap
 
-Work-item status is tracked in `docs/backlog.md` (Priorities → item 1); this
-document holds the detailed analysis behind those items.
+Work-item status is tracked as GitHub issues (label `setup`) in the private
+`pfedotovsky/agents-fleet-hub-backlog` repo; this document holds the detailed
+analysis behind those items.
 
 Requirement (see AGENTS.md → Product principles): installing both parts must
 be as simple as possible — **one command per host** for the server and

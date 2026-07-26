@@ -6,6 +6,20 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-27
 
+### Removed
+- **Backlog moved to GitHub issues; dev-only Backlog viewer deleted.** The
+  32-item `docs/backlog.md` was migrated to GitHub issues in the new private
+  `pfedotovsky/agents-fleet-hub-backlog` repo (private so the issues stay
+  private even though this code repo is public), surfaced on the "Agents Hub"
+  project board. With the source of truth gone, the dev-only viewer was
+  removed wholesale: `docs/backlog.md`, `components/BacklogPage.tsx`, the
+  `?view=backlog` branch + `⌘/Ctrl+B` shortcut, the sidebar button (and its
+  `ListChecks` icon / `onOpenBacklog` prop), and the `/__backlog` Vite
+  middleware in `vite.config.ts`. Doc pointers (AGENTS.md, README,
+  architecture, feature-parity, installation-simplicity) now point at the
+  issue tracker. `grep` confirms no `backlog`/`__backlog` references remain in
+  `src/` or `vite.config.ts`; `npm run build` is green.
+
 ### Added
 - **Task-notification status card.** Harness-injected `<task-notification>`
   turns (which report the fate of a background agent/shell task) arrive as
