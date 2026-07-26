@@ -4,6 +4,20 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-07-27
+
+### Added
+- **Task-notification status card.** Harness-injected `<task-notification>`
+  turns (which report the fate of a background agent/shell task) arrive as
+  plain user-role text full of XML tags. `fleet-hub/src/components/Messages.tsx`
+  now detects them via `parseTaskNotification` and renders a compact
+  `TaskNotificationCard` — status icon + colored label (green completed, amber
+  stopped/cancelled, red failed/error, sky running, neutral fallback), short
+  `task-id` with the full `tool-use-id` on hover, and the summary as the body.
+  Any prose before/after the block is preserved as normal pre-wrapped text, and
+  non-notification user messages fall through to the existing plain-text path
+  unchanged.
+
 ## 2026-07-23
 
 ### Added
