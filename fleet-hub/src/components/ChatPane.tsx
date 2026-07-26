@@ -67,6 +67,7 @@ import { hostColor } from '../lib/format'
 import { useComposerAutocomplete } from '../hooks/useComposerAutocomplete'
 import type { CompletionItem } from '../hooks/useComposerAutocomplete'
 import { MessageItem, PROVIDER_META, RENDERED_KINDS, ProviderBadge, contentToText } from './Messages'
+import { ModelSelect } from './ModelSelect'
 import { PlanPanel } from './PlanPanel'
 import { seedImageCache } from './AuthedImage'
 import { cardVariants } from '../lib/motion'
@@ -1823,18 +1824,7 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
               ))}
             </select>
             {modelOptions.length > 0 && (
-              <select
-                value={model}
-                onChange={(event) => changeModel(event.target.value)}
-                title="Model"
-                className="max-w-40 rounded border border-line bg-surface px-1.5 py-0.5 text-[11px] text-fg-muted outline-none"
-              >
-                {modelOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <ModelSelect options={modelOptions} value={model} onChange={changeModel} />
             )}
             {activeModel?.effort && activeModel.effort.values.length > 0 && (
               <select
