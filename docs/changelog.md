@@ -6,6 +6,20 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-27
 
+### Changed
+- **Claude model list is now populated dynamically from the CLI**
+  (fleet-server, `server-v0.3.0`; closes backlog #33). `ClaudeProviderModels`
+  probes `query().supportedModels()` in a throwaway temp workspace — deleting
+  the token-tagged transcript under `~/.claude/projects/` afterwards so it
+  never pollutes the real session list — and maps the result to the catalog,
+  so newly released models appear with no code edit and stale labels
+  (e.g. "Sonnet 4.6" → "Sonnet 5") self-correct. The hardcoded
+  `CLAUDE_FALLBACK_MODELS` and the dead `findClaudeModelOption` were removed:
+  the CLI is the sole source of truth, results now cache ~1h (claude was
+  previously uncached), and a probe failure surfaces as an API error rather
+  than a stale fallback. Consequence — models the CLI does not advertise
+  (Fable, non-1M Opus, Sonnet[1M]) no longer appear in the picker.
+
 ### Removed
 - **Backlog moved to GitHub issues; dev-only Backlog viewer deleted.** The
   32-item `docs/backlog.md` was migrated to GitHub issues in the new private
@@ -21,6 +35,17 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   `src/` or `vite.config.ts`; `npm run build` is green.
 
 ### Added
+- **Model picker shows each model's description inline.** The composer's native
+  model `<select>` (labels only) is replaced by the new
+  `fleet-hub/src/components/ModelSelect.tsx`, a custom dropdown that renders
+  each model's exact-version description under its label (like the Claude CLI
+  `/model` list) — the `description` already came back from
+  `GET /api/providers/:provider/models`, but a native `<select>` (and hover
+  `title` tooltips) can't surface it, least of all on touch. Opens upward from
+  the footer mirroring the slash-command popover (`CompletionMenu`), with a
+  check on the active model, keyboard nav (↑/↓/Enter/Esc), and click-outside
+  close. `ChatPane` swaps the `<select>` for `<ModelSelect>`; the effort
+  sub-selector is unchanged.
 - **Task-notification status card.** Harness-injected `<task-notification>`
   turns (which report the fate of a background agent/shell task) arrive as
   plain user-role text full of XML tags. `fleet-hub/src/components/Messages.tsx`

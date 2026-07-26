@@ -39,7 +39,7 @@ Browser (Agents Hub SPA)
 | `components/Sidebar.tsx` | Hosts → projects → chats tree: starred first, then recency; long tails behind "N more"; per-project disclosure lists recent sessions inline (embedded poll data, capped at 6; "all N chats…" opens the project pane), each chat prefixed with its provider icon (Claude/Codex/…) from `PROVIDER_META`; the active chat's project auto-expands; status dots. Hover "+" per project row opens a **draft** chat directly (handler in `App.tsx`) — the session is created on first send with the provider chosen in the composer toggle (seeded from the last-picked provider). |
 | `components/SessionList.tsx` + `SessionRow.tsx` | "All sessions" merged feed rows. |
 | `components/ProjectPane.tsx` | One project: paged session list, "New session" (opens a draft chat — provider is chosen in the composer, not here), Files button. |
-| `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts (allow / always-allow / deny), model/effort picker, persisted permission mode, persisted unsent draft per session, abort, `chat.subscribe` seq replay on reconnect, composer autocomplete dropdown (`CompletionMenu`), plan-mode toggle (Shift+Tab, persisted per host), header toggles that dock `FileBrowser`/`GitPanel` as a resizable right-hand panel (state in `App.tsx`, persisted in `chatPanel`). Holds `sessionId`/`provider` as state so a **draft** (empty id) can defer session creation to the first send: the composer shows a Claude/Codex toggle, then `createSession` runs and the message is flushed once the new session's socket re-subscribes. A provider-labelled context-window chip renders per-turn `token_budget` usage (bounded by the window). |
+| `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts (allow / always-allow / deny), model/effort picker (`ModelSelect`, a custom dropdown that lists each model with its description inline), persisted permission mode, persisted unsent draft per session, abort, `chat.subscribe` seq replay on reconnect, composer autocomplete dropdown (`CompletionMenu`), plan-mode toggle (Shift+Tab, persisted per host), header toggles that dock `FileBrowser`/`GitPanel` as a resizable right-hand panel (state in `App.tsx`, persisted in `chatPanel`). Holds `sessionId`/`provider` as state so a **draft** (empty id) can defer session creation to the first send: the composer shows a Claude/Codex toggle, then `createSession` runs and the message is flushed once the new session's socket re-subscribes. A provider-labelled context-window chip renders per-turn `token_budget` usage (bounded by the window). |
 | `components/PlanPanel.tsx` | Docked right-hand drawer for a finished plan (ExitPlanMode request): decision buttons in the header, plan markdown below; a chip in the transcript reopens it. |
 | `hooks/useComposerAutocomplete.ts` | `@`-file and `/`-command completion state for the chat composer: trigger detection at the caret, lazy per-target catalogs (file tree / skills+commands), filtering, keyboard navigation. |
 | `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
@@ -152,11 +152,16 @@ Browser (Agents Hub SPA)
   header usage chip. Empty codex chats preflight
   `GET /api/providers/codex/auth/status` into a banner.
 - Model catalog: `GET /api/providers/:provider/models` →
-  `{OPTIONS:[{value,label,effort?}], DEFAULT}`; the chosen model+effort is
-  stored per `hostId:provider` (legacy bare-hostId entries still read for
-  claude) and sent in `chat.send` options. `fleethub.v1.lastProvider` (per
-  host) seeds the project pane's provider picker and the sidebar
-  quick-create "+".
+  `{OPTIONS:[{value,label,description?,effort?}], DEFAULT}`; the chosen
+  model+effort is stored per `hostId:provider` (legacy bare-hostId entries
+  still read for claude) and sent in `chat.send` options. The `ModelSelect`
+  picker renders each option's `description` inline (the exact model version,
+  e.g. "Opus 4.8 with 1M context · …"). For claude, fleet-server ≥0.3.0
+  populates this list dynamically from the CLI (`query().supportedModels()`)
+  instead of a hardcoded set, so newly released models appear without a code
+  change; the result is cached ~1h and there is no static fallback (a probe
+  failure surfaces as an API error). `fleethub.v1.lastProvider` (per host)
+  seeds the project pane's provider picker and the sidebar quick-create "+".
 - Composer autocomplete (`useComposerAutocomplete`): typing `@` (after
   whitespace/start) completes project files from `GET /api/projects/:id/files`
   flattened to project-relative paths; typing `/` (claude) or `$` (codex
