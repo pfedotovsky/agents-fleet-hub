@@ -20,7 +20,7 @@ import path from 'path';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 
 import { buildClaudeUserContent, normalizeImageDescriptors } from './shared/image-attachments.js';
-import { CLAUDE_FALLBACK_MODELS } from './modules/providers/list/claude/claude-models.provider.js';
+import { CLAUDE_DEFAULT_MODEL } from './modules/providers/list/claude/claude-models.provider.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
 import { resolveClaudeCodeExecutablePath } from './shared/claude-cli-path.js';
 import {
@@ -45,7 +45,7 @@ const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEO
 
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
-function resolveClaudeEffort(model, effort, modelsDefinition = CLAUDE_FALLBACK_MODELS) {
+function resolveClaudeEffort(model, effort, modelsDefinition) {
   const selectedModel = modelsDefinition?.OPTIONS?.find((option) => option.value === model) || null;
   const allowedEfforts = selectedModel?.effort?.values
     ?.map((value) => value.value) || [];
@@ -209,12 +209,12 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.disallowedTools = settings.disallowedTools || [];
 
-  sdkOptions.model = options.model || CLAUDE_FALLBACK_MODELS.DEFAULT;
+  sdkOptions.model = options.model || CLAUDE_DEFAULT_MODEL;
 
   const resolvedEffort = resolveClaudeEffort(
     sdkOptions.model,
     effort,
-    options.effortModels || CLAUDE_FALLBACK_MODELS,
+    options.effortModels,
   );
   if (resolvedEffort) {
     sdkOptions.effort = resolvedEffort;
@@ -458,7 +458,7 @@ async function queryClaudeSDK(command, options = {}, ws) {
       sessionId,
       options.model,
     );
-    let effortModels = CLAUDE_FALLBACK_MODELS;
+    let effortModels = null;
     try {
       effortModels = (await providerModelsService.getProviderModels('claude')).models;
     } catch (error) {

@@ -130,13 +130,16 @@ test('provider models are cached for the three-day ttl', async () => {
   }
 });
 
-test('claude provider models are always loaded directly from the provider', async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-cache-claude-direct-'));
+test('claude provider models are cached with a one-hour ttl', async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-cache-claude-ttl-'));
+  let currentTime = 1_000;
   let loadCount = 0;
+  const CLAUDE_TTL_MS = 60 * 60 * 1000;
 
   try {
     const service = createProviderModelsService({
       cachePath: path.join(tempRoot, 'models-cache.json'),
+      now: () => currentTime,
       resolveProvider: (provider) => ({
         models: {
           getSupportedModels: async () => {
@@ -150,12 +153,25 @@ test('claude provider models are always loaded directly from the provider', asyn
     });
 
     const first = await service.getProviderModels('claude');
-    const second = await service.getProviderModels('claude');
-
-    assert.equal(loadCount, 2);
+    const cached = await service.getProviderModels('claude');
+    assert.equal(loadCount, 1);
     assert.equal(first.models.DEFAULT, 'claude-1');
-    assert.equal(second.models.DEFAULT, 'claude-2');
-    assert.equal(second.cache.source, 'fresh');
+    assert.equal(cached.models.DEFAULT, 'claude-1');
+    assert.equal(cached.cache.source, 'memory');
+
+    // Still cached just before the one-hour boundary.
+    currentTime += CLAUDE_TTL_MS - 1;
+    await service.getProviderModels('claude');
+    assert.equal(loadCount, 1);
+
+    // Re-probed once the one-hour TTL lapses.
+    currentTime += 2;
+    const refreshed = await service.getProviderModels('claude');
+    assert.equal(loadCount, 2);
+    assert.equal(refreshed.models.DEFAULT, 'claude-2');
+
+    // Codex keeps the default three-day TTL, so it is unaffected by the override.
+    assert.equal(CLAUDE_TTL_MS < PROVIDER_MODELS_CACHE_TTL_MS, true);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
