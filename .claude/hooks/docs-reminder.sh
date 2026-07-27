@@ -24,7 +24,21 @@ EDITED=$(jq -r '
 ' "$TRANSCRIPT" 2>/dev/null | grep -c "fleet-hub/")
 [ "${EDITED:-0}" -eq 0 ] && exit 0
 
-# 2) Docs already refreshed after the last source change? Then stop normally.
+# 2) Did this session also edit docs/changelog.md? If so, the agent already
+#    handled docs — stop normally. This is the authoritative signal; the mtime
+#    check below is unreliable on its own (files edited after the changelog, and
+#    `git checkout`/`git pull` rewriting working-tree mtimes, make a plain
+#    `-newer` test fire even when the changelog WAS updated in the same change).
+CHANGELOG_EDITED=$(jq -r '
+  select(.message.content? != null)
+  | .message.content[]?
+  | select(.type == "tool_use" and (.name == "Edit" or .name == "Write" or .name == "NotebookEdit"))
+  | .input.file_path // empty
+' "$TRANSCRIPT" 2>/dev/null | grep -c "docs/changelog.md")
+[ "${CHANGELOG_EDITED:-0}" -gt 0 ] && exit 0
+
+# 3) Changelog untouched this session — fall back to an mtime check so a genuine
+#    "forgot the changelog" still nags, but a fresh changelog stops normally.
 STALE=$(find "$ROOT/fleet-hub/src" "$ROOT/fleet-hub/package.json" "$ROOT/fleet-hub/vite.config.ts" \
   -type f -newer "$CHANGELOG" 2>/dev/null | head -1)
 [ -z "$STALE" ] && exit 0
