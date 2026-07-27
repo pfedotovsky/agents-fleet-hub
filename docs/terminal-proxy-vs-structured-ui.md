@@ -75,12 +75,12 @@ exists.
   for `/shell?token=…` mirroring `ChatSocket` (`init` / `input` / `resize`;
   `forceRestart` for the restart button so a transient drop reattaches to the
   live PTY instead of killing the CLI).
-- `fleet-hub/src/components/TerminalPanel.tsx` — xterm.js + `@xterm/addon-fit`,
-  resumes the open session's CLI, fixed dark theme, restart/close, auth-URL
-  banner. Docks in the same right-hand slot as Files/Git.
+- `fleet-hub/src/components/TerminalPanel.tsx` — xterm.js + `@xterm/addon-fit` +
+  `@xterm/addon-web-links`, resumes the open session's CLI, fixed dark theme,
+  restart/close. Docks in the same right-hand slot as Files/Git.
 - Wiring: `ChatPanelKind` gains `'terminal'` (`storage.ts`), a header toggle in
   `ChatPane.tsx`, and the panel render in `App.tsx`.
-- Deps: `@xterm/xterm`, `@xterm/addon-fit`.
+- Deps: `@xterm/xterm`, `@xterm/addon-fit`, `@xterm/addon-web-links`.
 
 Because it reuses the Files/Git panel slot, it inherits their behaviour: not the
 multi-terminal grid a real "fleet of terminals" would need — deliberately, since
@@ -94,13 +94,17 @@ the recommendation is escape-hatch, not primary surface.
   `POST /api/auth/local-token`): opened a session → Terminal toggle → the
   `claude --resume` TUI rendered live beside the structured chat.
 
+### Resolved
+- **Auth-URL false positive.** The `/shell` handler's heuristic (`emitAuthUrl`
+  in `shell-websocket.service.ts`) flags *any* URL in the stream as a possible
+  login URL, so resuming a transcript with links surfaced a spurious "Login URL"
+  banner. Rather than guess which URL is a login URL, the prototype drops the
+  banner entirely and loads `@xterm/addon-web-links` so every URL the CLI prints
+  (including a genuine login URL) is clickable in the terminal. `auth_url` frames
+  from the server are ignored.
+
 ### Known rough edges (if adopted)
-1. **Auth-URL false positive.** The `/shell` handler's auth-URL heuristic
-   (`emitAuthUrl` in `shell-websocket.service.ts`) fires on *any* URL in the
-   stream, so resuming a transcript that contains links surfaces a spurious
-   "Login URL" banner. Suppress the banner for resumed sessions, or only honour
-   `auth_url` during a fresh login flow.
-2. **Light theme.** The terminal is intentionally fixed-dark (raw ANSI is tuned
+1. **Light theme.** The terminal is intentionally fixed-dark (raw ANSI is tuned
    for a dark background and washes out on white). Fine as a decision; revisit
    if the hub's light theme should extend here.
 

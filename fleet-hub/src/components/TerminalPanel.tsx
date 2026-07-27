@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
-import { ExternalLink, RotateCw, SquareTerminal, X } from 'lucide-react'
+import { RotateCw, SquareTerminal, X } from 'lucide-react'
 import type { FleetSession } from '../types'
 import { getToken } from '../lib/storage'
 import { ShellSocket, type ShellSocketState } from '../lib/shellSocket'
@@ -57,7 +58,6 @@ export function TerminalPanel({ target, onBack }: Props) {
   const fitRef = useRef<FitAddon | null>(null)
   const socketRef = useRef<ShellSocket | null>(null)
   const [state, setState] = useState<ShellSocketState>('connecting')
-  const [authUrl, setAuthUrl] = useState<string | null>(null)
   // Bumped to force a full teardown + reconnect (the "restart" button); the
   // server kills the old PTY when the same key re-inits with forceRestart.
   const [restartNonce, setRestartNonce] = useState(0)
@@ -80,6 +80,12 @@ export function TerminalPanel({ target, onBack }: Props) {
     })
     const fitAddon = new FitAddon()
     term.loadAddon(fitAddon)
+    // Make URLs the CLI prints (docs links, and a real login URL during auth)
+    // clickable — opens in a new tab. This replaces the old server-driven
+    // "Login URL" banner, whose URL-in-the-stream heuristic false-fired on any
+    // link in a resumed transcript (PR/doc URLs). Genuine login URLs are still
+    // reachable here, without guessing which URL is one.
+    term.loadAddon(new WebLinksAddon())
     term.open(mount)
     termRef.current = term
     fitRef.current = fitAddon
@@ -109,17 +115,10 @@ export function TerminalPanel({ target, onBack }: Props) {
           term.write(message.data)
         } else if (message.type === 'error' && typeof message.message === 'string') {
           term.write(`\r\n\x1b[31m${message.message}\x1b[0m\r\n`)
-        } else if (message.type === 'auth_url' && typeof message.url === 'string') {
-          // The server flags every URL in the PTY stream as a possible auth URL,
-          // so resuming a transcript full of links (PR/doc URLs) would raise a
-          // spurious "Login URL" banner. Only surface it when it's plausibly a
-          // real login: a fresh CLI start, or the server's autoOpen hint (set
-          // only when the surrounding output looked like an auth prompt). A
-          // genuine mid-resume login still auto-opens and prints its URL in the
-          // terminal regardless.
-          if (message.autoOpen) window.open(message.url, '_blank', 'noopener')
-          if (!hasSession || message.autoOpen) setAuthUrl(message.url)
         }
+        // `auth_url` frames are intentionally ignored: the server flags every URL
+        // in the stream as a possible login URL (false-firing on any link in a
+        // resumed transcript). URLs are made clickable by WebLinksAddon instead.
       },
       (next) => {
         setState(next)
@@ -200,29 +199,6 @@ export function TerminalPanel({ target, onBack }: Props) {
           <X size={14} />
         </button>
       </header>
-
-      {authUrl && (
-        <div className="flex shrink-0 items-center gap-2 border-b border-line bg-surface px-3 py-2 text-[11px] text-fg-secondary">
-          <span className="shrink-0 text-fg-faint">Login URL:</span>
-          <a
-            href={authUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex min-w-0 items-center gap-1 truncate text-info hover:underline"
-          >
-            <span className="truncate">{authUrl}</span>
-            <ExternalLink size={11} className="shrink-0" />
-          </a>
-          <button
-            type="button"
-            onClick={() => setAuthUrl(null)}
-            className="ml-auto shrink-0 rounded p-0.5 text-fg-faint hover:text-fg"
-            title="Dismiss"
-          >
-            <X size={12} />
-          </button>
-        </div>
-      )}
 
       <div
         ref={mountRef}
