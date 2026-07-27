@@ -184,8 +184,8 @@ export function savePlanMode(hostId: string, on: boolean): void {
   localStorage.setItem(PLAN_MODE_KEY, JSON.stringify(all))
 }
 
-/** The chat's right-hand utility panel (files / git), Cursor-style. */
-export type ChatPanelKind = 'files' | 'git'
+/** The chat's right-hand utility panel (files / git / terminal), Cursor-style. */
+export type ChatPanelKind = 'files' | 'git' | 'terminal'
 
 export const CHAT_PANEL_MIN_WIDTH = 480
 const CHAT_PANEL_DEFAULT_WIDTH = 620
@@ -198,7 +198,10 @@ export interface ChatPanelState {
 export function loadChatPanel(): ChatPanelState {
   const state = readJson<Partial<ChatPanelState>>(CHAT_PANEL_KEY, {})
   return {
-    kind: state.kind === 'files' || state.kind === 'git' ? state.kind : null,
+    kind:
+      state.kind === 'files' || state.kind === 'git' || state.kind === 'terminal'
+        ? state.kind
+        : null,
     width: Math.max(
       CHAT_PANEL_MIN_WIDTH,
       typeof state.width === 'number' ? state.width : CHAT_PANEL_DEFAULT_WIDTH,

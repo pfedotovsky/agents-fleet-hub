@@ -18,6 +18,7 @@ import {
   ShieldQuestion,
   Sparkles,
   SquareSlash,
+  SquareTerminal,
   TriangleAlert,
   X,
 } from 'lucide-react'
@@ -1459,6 +1460,16 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
               }`}
             >
               <GitBranch size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => onTogglePanel('terminal')}
+              title="Terminal — run this session's agent CLI live in a real PTY"
+              className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
+                panel === 'terminal' ? 'bg-elevated text-accent-strong' : 'text-fg-faint hover:text-fg'
+              }`}
+            >
+              <SquareTerminal size={15} />
             </button>
           </div>
         )}

@@ -19,6 +19,7 @@ import { ChatPane } from './components/ChatPane'
 import { ProjectPane } from './components/ProjectPane'
 import { FileBrowser } from './components/FileBrowser'
 import { GitPanel } from './components/GitPanel'
+import { TerminalPanel } from './components/TerminalPanel'
 import { OfflineCard } from './components/OfflineCard'
 import { LoginModal } from './components/LoginModal'
 import { SettingsPanel } from './components/SettingsPanel'
@@ -280,14 +281,22 @@ export default function App() {
                 className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize transition-colors hover:bg-elevated-strong/50"
               />
               <aside className="flex min-w-0 flex-1 flex-col border-l border-line/80">
-                <PanelComponent
-                  key={`${chatPanel}:${view.target.hostId}:${view.target.projectId}`}
-                  runtime={runtime}
-                  hostColorIdx={hostIndex}
-                  project={project}
-                  onBack={() => toggleChatPanel(chatPanel)}
-                  embedded
-                />
+                {chatPanel === 'terminal' ? (
+                  <TerminalPanel
+                    key={`terminal:${view.target.hostId}:${view.target.session.id}`}
+                    target={view.target}
+                    onBack={() => toggleChatPanel('terminal')}
+                  />
+                ) : (
+                  <PanelComponent
+                    key={`${chatPanel}:${view.target.hostId}:${view.target.projectId}`}
+                    runtime={runtime}
+                    hostColorIdx={hostIndex}
+                    project={project}
+                    onBack={() => toggleChatPanel(chatPanel)}
+                    embedded
+                  />
+                )}
               </aside>
             </div>
           )}

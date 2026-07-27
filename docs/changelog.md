@@ -6,6 +6,20 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-07-27
 
+### Explored
+- **Terminal-proxy vs. structured-UI investigation + working prototype**
+  (not merged — lives in the working tree). Question: should the hub proxy a
+  raw terminal session instead of the structured chat UI? Finding: fleet-server
+  already ships a `/shell` PTY the hub never consumed, so the option is real and
+  cheap. Recommendation: hybrid — keep the structured hub as the product, add a
+  terminal as a per-session escape hatch. A frontend-only prototype
+  (`fleet-hub/src/lib/shellSocket.ts`, `components/TerminalPanel.tsx`, a
+  `'terminal'` `ChatPanelKind`, `@xterm/xterm` + `@xterm/addon-fit`) was built
+  and verified in a live browser against the local fleet-server. Full analysis,
+  prototype notes, known rough edges (spurious auth-URL banner on resumed
+  transcripts; fixed-dark theme), and the doc/parity updates needed if adopted:
+  `docs/terminal-proxy-vs-structured-ui.md`.
+
 ### Changed
 - **Claude model list is now populated dynamically from the CLI**
   (fleet-server, `server-v0.3.0`; closes backlog #33). `ClaudeProviderModels`
