@@ -139,6 +139,42 @@ test('Codex history assigns stable ids across reads and strips the plan preamble
   }
 });
 
+test('Codex history reports latest context occupancy instead of cumulative thread usage', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-token-usage-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(tempRoot, 'codex-usage-1', workspacePath, 'Inspect usage');
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: 'codex-usage-1', cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'event_msg',
+        payload: {
+          type: 'token_count',
+          info: {
+            total_token_usage: { total_tokens: 28466000 },
+            last_token_usage: { total_tokens: 84200 },
+            model_context_window: 258400,
+          },
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession('codex-usage-1', 'codex', workspacePath, undefined, undefined, undefined, jsonlPath);
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-usage-1');
+
+      assert.deepEqual(history.tokenUsage, { used: 84200, total: 258400 });
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('Codex synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-app-'));
   const workspacePath = path.join(tempRoot, 'workspace');

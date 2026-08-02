@@ -31,7 +31,7 @@ Browser (Agents Hub SPA)
 | `hooks/useFleet.ts` | The heart of the app: host configs + prefs from storage, 12 s polling loop per host, host status machine, merged cross-host session feed, star toggle, login. |
 | `lib/api.ts` | All REST calls. `fetchJson` adds timeout (AbortController), Bearer header, captures `X-Refreshed-Token`, maps 401/403 → `AuthError`, network failure → `HostUnreachableError`. |
 | `lib/chatSocket.ts` | `ChatSocket` class — one reconnecting WS per chat (fixed 3 s retry until `close()`), typed senders: `chat.send` / `chat.subscribe` / `chat.abort` / `chat.permission-response` (with optional `rememberEntry`). |
-| `lib/storage.ts` | localStorage wrapper, keys `fleethub.v1.{hosts,tokens,prefs,recentProjects,models,permissions,permissionModes,planMode,sidebarWidth,drafts,chatPanel,autoAdded}`. "Always allow" grants are keyed `hostId:projectPath`, permission mode per hostId, unsent chat drafts `hostId:sessionId`. |
+| `lib/storage.ts` | localStorage wrapper, keys `fleethub.v1.{hosts,tokens,prefs,recentProjects,models,permissions,permissionModes,planMode,sidebarWidth,drafts,chatPanel,autoAdded}`. "Always allow" grants are keyed `hostId:projectPath`, permission mode per hostId, unsent chat drafts `hostId:sessionId`; `prefs.defaultSessionView` persists `structured`/`terminal`. A legacy docked `chatPanel.kind === 'terminal'` is normalized to closed. |
 | `lib/format.ts` | Relative-time and path helpers. |
 | `lib/motion.ts` | Shared `motion` (Framer Motion) variants/transitions (message reveal, card enter/exit, overlay backdrop/modal/panel, list-row layout spring). Enters ~200-240ms ease-out, exits shorter ease-in. Reduced-motion is global via `<MotionConfig reducedMotion="user">` in `main.tsx`. Consumed by `Messages`, `ChatPane` (permission/plan cards in `AnimatePresence`), `SessionRow`/`SessionList` (`layout` reflow), and the overlays (`SettingsPanel`/`SearchOverlay`/`LoginModal`, wrapped in `AnimatePresence` in `App.tsx`). |
 | `lib/theme.ts` + `hooks/useTheme.ts` | Theme system. `index.css` holds a two-layer Tailwind v4 token set: one neutral-grayscale primitive ramp (`--color-ink-*`) and semantic tokens (`--color-canvas/surface/elevated/line/fg/accent/on-accent/…`) — components use **only** the semantic classes (`bg-surface`, `text-fg-muted`, `border-line`, …); no raw `ink-*` classes remain. It's a Codex-style **monochrome** system: there is no brand-color accent — the `accent` role is a high-contrast neutral (near-white primary on dark, near-black on light) that inverts for free because it points at the ramp ends. Color is limited to the functional status tokens and the host/provider identity marks (`lib/format.ts`, `Messages.tsx`). One type family (`--font-display` aliases `--font-sans`). `[data-theme="light"]` on `<html>` defines light by remapping the primitive ramp (plus color-scheme + status colors). Choice (`system`/`dark`/`light`) is persisted at `fleethub.v1.theme` and resolved before paint by an inline FOUC-guard script in `index.html`. `useResolvedTheme()` exposes the concrete dark/light value via a `data-theme` MutationObserver for the two spots that can't use a token — the Prism highlighter in `Markdown.tsx` (`oneLight`/`oneDark`) and the CodeMirror editor in `CodeEditor.tsx`. |
@@ -39,13 +39,14 @@ Browser (Agents Hub SPA)
 | `components/Sidebar.tsx` | Hosts → projects → chats tree: starred first, then recency; long tails behind "N more"; per-project disclosure lists recent sessions inline (embedded poll data, capped at 6; "all N chats…" opens the project pane), each chat prefixed with its provider icon (Claude/Codex/…) from `PROVIDER_META`; the active chat's project auto-expands; status dots. Hover "+" per project row opens a **draft** chat directly (handler in `App.tsx`) — the session is created on first send with the provider chosen in the composer toggle (seeded from the last-picked provider). |
 | `components/SessionList.tsx` + `SessionRow.tsx` | "All sessions" merged feed rows. |
 | `components/ProjectPane.tsx` | One project: paged session list, "New session" (opens a draft chat — provider is chosen in the composer, not here), Files button. |
-| `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts (allow / always-allow / deny), model/effort picker (`ModelSelect`, a custom dropdown that lists each model with its description inline), persisted permission mode, persisted unsent draft per session, abort, `chat.subscribe` seq replay on reconnect, composer autocomplete dropdown (`CompletionMenu`), plan-mode toggle (Shift+Tab, persisted per host), header toggles that dock `FileBrowser`/`GitPanel` as a resizable right-hand panel (state in `App.tsx`, persisted in `chatPanel`). Holds `sessionId`/`provider` as state so a **draft** (empty id) can defer session creation to the first send: the composer shows a Claude/Codex toggle, then `createSession` runs and the message is flushed once the new session's socket re-subscribes. A provider-labelled context-window chip renders per-turn `token_budget` usage (bounded by the window). |
+| `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts (allow / always-allow / deny), model/effort picker (`ModelSelect`, a custom dropdown that lists each model with its description inline), persisted permission mode, persisted unsent draft per session, abort, `chat.subscribe` seq replay on reconnect, composer autocomplete dropdown (`CompletionMenu`), plan-mode toggle (Shift+Tab, persisted per host), header toggles that dock `FileBrowser`/`GitPanel` as a resizable right-hand panel (state in `App.tsx`, persisted in `chatPanel`) and switch the primary session surface to Terminal. Holds `sessionId`/`provider` as state so a **draft** (empty id) can defer session creation to the first send: the composer shows a Claude/Codex toggle, then `createSession` runs and the message is flushed once the new session's socket re-subscribes. A provider-labelled context-window chip loads persisted usage through `GET /api/projects/:projectId/sessions/:sessionId/token-usage` on open; a later live `token_budget` frame supersedes it. The REST request is best-effort so stock/older hosts still load the transcript. |
 | `components/PlanPanel.tsx` | Docked right-hand drawer for a finished plan (ExitPlanMode request): decision buttons in the header, plan markdown below; a chip in the transcript reopens it. |
 | `hooks/useComposerAutocomplete.ts` | `@`-file and `/`-command completion state for the chat composer: trigger detection at the caret, lazy per-target catalogs (file tree / skills+commands), filtering, keyboard navigation. |
 | `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
 | `components/FileBrowser.tsx`, `FileTree.tsx`, `CodeEditor.tsx` | Project file tree + lazy-loaded CodeMirror editor (One Dark); Cmd+S saves via `PUT /file`. Also renders `embedded` as a chat side panel (close icon, narrower tree). |
 | `components/GitPanel.tsx` | Git status/stage/commit (AI message generation), branch switch/create, fetch/pull/push/publish, per-file diff. Full-screen via the project pane or `embedded` as a chat side panel. |
-| `components/LoginModal.tsx`, `SettingsPanel.tsx`, `OfflineCard.tsx` | Per-host login and first-time setup (register; password never stored), host/prefs management (incl. the Appearance theme toggle), hibernated-VM card with restart hint. |
+| `lib/shellSocket.ts`, `components/TerminalPanel.tsx` | Reconnecting `/shell` PTY client + xterm full session view. Existing sessions resume their provider CLI by id; drafts start a new CLI in the project path. The PTY stays deliberately dark under both app themes. On unmount, queued xterm viewport animation frames drain before renderer disposal; immediate disposal races `Viewport.syncScrollArea()` against a missing renderer. |
+| `components/LoginModal.tsx`, `SettingsPanel.tsx`, `OfflineCard.tsx` | Per-host login and first-time setup (register; password never stored), host/prefs management (incl. Appearance and default Structured/Terminal session view), hibernated-VM card with restart hint. |
 
 ## Data flow
 
@@ -165,8 +166,10 @@ Browser (Agents Hub SPA)
   place by `appendMessage`), history serializes `toolInput` as a JSON string
   and `toolResult.content` sometimes as `{type,text}[]` parts, history shell
   tools are named `exec_command`/`exec`/`write_stdin`, skills are
-  `$`-prefixed, and a turn-end `status {text:'token_budget'}` frame feeds the
-  header usage chip. Empty codex chats preflight
+  `$`-prefixed. Existing chats populate the header usage chip from the REST
+  token-usage endpoint on open, and a turn-end
+  `status {text:'token_budget'}` frame replaces that snapshot with the latest
+  live occupancy. Empty codex chats preflight
   `GET /api/providers/codex/auth/status` into a banner.
 - Model catalog: `GET /api/providers/:provider/models` →
   `{OPTIONS:[{value,label,description?,effort?}], DEFAULT}`; the chosen
@@ -286,18 +289,27 @@ Codex later announces its provider-native thread id, and fleet-server stores it
 as `provider_session_id`. The browser sees only the app-facing id; Codex
 CLI/app surfaces need the provider-native id if resuming outside the hub.
 
-**Potential bridge.** The official Codex app-server is the supported rich-client
-integration surface for authentication, conversation history, approvals, and
-streamed events. The `codex app-server generate-ts --experimental` schema from
-Codex CLI 0.144.1 exposes `thread/start`, `thread/resume`, `thread/list`, and
-`thread/search`; `thread/list` can scan-and-repair metadata from rollout JSONL
-unless `useStateDbOnly` is set, but it defaults to interactive source kinds.
-There is no stable `thread/import` or `thread/register` method for converting an
-already-created SDK rollout into a native desktop task. Making Agents Hub
-sessions show up reliably would therefore mean driving Codex through app-server
-from the start, or accepting a fragile/private migration/import path. Scanning
-`~/.codex/sessions` is enough for Agents Hub, but not a complete native-app task
-registration contract.
+**Verified bridge (Codex CLI 0.146.0, 2026-08-02).** The official Codex
+app-server is the supported rich-client integration surface for authentication,
+conversation history, approvals, and streamed events. A local stdio spike used
+a custom `agents_hub_spike` client (without imitating a first-party identity) to
+create and complete a thread in this repository. App-server persisted it with
+source `vscode`, returned it from default and explicit-`vscode` `thread/list`,
+and the Codex desktop app's own recent-task list returned the same id, title,
+preview, `cwd`, and timestamps. It was not returned by the explicit
+`appServer` source filter. This proves current same-machine desktop visibility
+when Agents Hub drives the thread through app-server from the start, although
+the surprising source classification is not yet treated as a cross-version
+guarantee. The same spike confirmed that `model/list` is a richer source of
+picker truth and `thread/tokenUsage/updated` carries an exact
+`modelContextWindow`.
+
+There is still no stable `thread/import` or `thread/register` method for
+converting an already-created SDK rollout into a native desktop task. Migration
+therefore means a feature-flagged app-server adapter for new turns/threads, with
+the current SDK adapter retained as rollback until local and SSH-host live
+verification passes. Detailed evidence and the staged recommendation are in
+`docs/codex-app-server-spike-2026-08-02.md`.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

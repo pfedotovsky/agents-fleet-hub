@@ -82,7 +82,12 @@ export function clearTokens(): void {
 }
 
 export function loadPrefs(): Prefs {
-  return { hideCursor: false, soundAlerts: true, ...readJson<Partial<Prefs>>(PREFS_KEY, {}) }
+  const stored = readJson<Partial<Prefs>>(PREFS_KEY, {})
+  return {
+    hideCursor: stored.hideCursor ?? false,
+    soundAlerts: stored.soundAlerts ?? true,
+    defaultSessionView: stored.defaultSessionView === 'terminal' ? 'terminal' : 'structured',
+  }
 }
 
 export function savePrefs(prefs: Prefs): void {
@@ -184,8 +189,8 @@ export function savePlanMode(hostId: string, on: boolean): void {
   localStorage.setItem(PLAN_MODE_KEY, JSON.stringify(all))
 }
 
-/** The chat's right-hand utility panel (files / git / terminal), Cursor-style. */
-export type ChatPanelKind = 'files' | 'git' | 'terminal'
+/** The chat's right-hand utility panel (files / git), Cursor-style. */
+export type ChatPanelKind = 'files' | 'git'
 
 export const CHAT_PANEL_MIN_WIDTH = 480
 const CHAT_PANEL_DEFAULT_WIDTH = 620
@@ -198,10 +203,9 @@ export interface ChatPanelState {
 export function loadChatPanel(): ChatPanelState {
   const state = readJson<Partial<ChatPanelState>>(CHAT_PANEL_KEY, {})
   return {
-    kind:
-      state.kind === 'files' || state.kind === 'git' || state.kind === 'terminal'
-        ? state.kind
-        : null,
+    // `terminal` was a docked panel in the prototype. Treat that persisted
+    // legacy value as closed now that Terminal is a primary session view.
+    kind: state.kind === 'files' || state.kind === 'git' ? state.kind : null,
     width: Math.max(
       CHAT_PANEL_MIN_WIDTH,
       typeof state.width === 'number' ? state.width : CHAT_PANEL_DEFAULT_WIDTH,

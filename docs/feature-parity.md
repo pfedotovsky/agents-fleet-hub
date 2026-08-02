@@ -2,7 +2,7 @@
 
 *Compared: Agents Hub (this repo, `fleet-hub/`) vs. CloudCLI v1.36.1 web UI
 (installed package at `/opt/homebrew/lib/node_modules/@cloudcli-ai/cloudcli/`).
-First compared 2026-07-11; status last updated 2026-07-12.*
+First compared 2026-07-11; status last updated 2026-08-02.*
 
 This file is canonical; `feature-parity.html` is a regenerated human view of
 the same content. **Planned work lives in GitHub issues** (private
@@ -37,7 +37,7 @@ host APIs; others (plugins, Electron) are out of scope for a static hub SPA.
 | **Project create / rename / delete / archive / git-clone** | ❌ | ✅ | Full REST routes incl. clone with progress stream |
 | **File tree + editor (view/edit/save)** | ✅ | ✅ | Parity (CodeMirror both sides); hub adds Cmd+S, dirty guard |
 | **File create / delete / rename / upload** | ❌ | ⚠️ | Neither is strong here; CloudCLI has image upload + shell as escape hatch |
-| **Integrated terminal / shell** | ❌ | ✅ | CloudCLI: PTY over WS (`node-pty` + xterm.js), agent CLI or plain shell |
+| **Integrated terminal / shell** | ✅ | ✅ | Hub: full per-session xterm view over `/shell`, resumable Claude/Codex CLI, persisted default Structured/Terminal choice |
 | **Git panel** | ⚠️ | ✅ | Hub: status, unified diffs, stage/unstage, commit (+AI messages), branches, fetch/pull/push/publish. Missing: commit history, discard, revert |
 | **MCP server management** | ❌ | ✅ | Per-provider + global scopes, stdio/HTTP transports |
 | **Slash commands** | ✅ | ✅ | `/` composer autocomplete over skills + `.claude/commands` (`POST /api/commands/list`); codex `$`-skills too ➕ |
@@ -45,12 +45,12 @@ host APIs; others (plugins, Electron) are out of scope for a static hub SPA.
 | **TaskMaster (tasks, PRD parsing, templates)** | ❌ | ✅ | Full `/api/taskmaster` suite |
 | **Browser-use (Playwright automation)** | ❌ | ✅ | Optional runtime; niche for a hub |
 | **Plugin system + marketplace** | ❌ | ✅ | Out of scope for a static SPA (plugins are host-side) |
-| **Token usage / context-window display** | ⚠️ | ⚠️ | Hub shows a codex context chip from `token_budget` frames; no claude usage display. CloudCLI: capability flag in core, cost dashboard is a plugin |
+| **Token usage / context-window display** | ✅ | ⚠️ | Hub: Claude + Codex context chip, persisted usage on open and live turn updates; fork uses Codex latest-turn occupancy + exact window. CloudCLI: capability flag in core, cost dashboard is a plugin |
 | **Notifications** | ⚠️ ➕ | ✅ | Hub: WebAudio chime + desktop Notification (works fleet-wide). CloudCLI: Web Push (VAPID), desktop-via-WS, Discord, per-channel prefs |
 | **Scheduled prompts / cron** | ❌ | ⚠️ | Optional `workspace-scheduled-prompts` plugin, not core |
-| **Themes (light/dark)** | ❌ dark-only | ✅ | CloudCLI has appearance settings |
+| **Themes (light/dark)** | ✅ | ✅ | Hub: persisted System/Dark/Light choice; terminal remains deliberately dark for ANSI fidelity |
 | **Mobile / responsive + PWA** | ❌ | ✅ | CloudCLI: responsive layout, manifest, service worker, standalone mode |
-| **URL routing / deep links** | ❌ | ✅ | Hub navigation is in-memory only; no back-button or shareable URLs |
+| **URL routing / deep links** | ✅ | ✅ | Hub session hashes are shareable and resolve after the target host loads |
 | **API keys / provider credentials management** | ❌ | ✅ | Host-admin feature; low value in hub |
 | **Onboarding / git identity config** | ❌ | ✅ | Host-admin feature |
 | **Electron desktop app** | ✅ | ✅ | Hub ships as a Tauri 2 desktop app ("Agents Hub", macOS + Linux) |

@@ -7,6 +7,22 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-02
 
 ### Changed
+- **Existing Claude and Codex sessions now show context occupancy on open.**
+  The chat header loads the host's persisted token-usage record immediately,
+  then lets a newer live `token_budget` frame replace it after a turn. Older
+  or stock hosts without the endpoint remain best-effort and do not block
+  transcript loading. Tracked in private backlog #17.
+- **Terminal can now be the default session view.** Settings → Sessions stores
+  `Structured` or `Terminal` in the existing preferences record; each newly
+  opened session starts on that surface and can switch back and forth from its
+  header. Terminal is now a full session view rather than a docked utility
+  panel, while Files and Git remain resizable side panels. Its deliberately
+  dark PTY surface and header stay legible under both app themes, draft sessions
+  still launch a new provider CLI, and existing sessions resume by provider id.
+  Teardown now lets xterm's queued viewport frames drain before disposal,
+  avoiding console errors during rapid view switches. The stale Terminal,
+  theme, and deep-link rows in the feature-parity report were corrected.
+  Tracked in private backlog #13.
 - **Development and released fleet-server instances now use distinct ports.**
   `bun run dev` starts the interpreted source server on 3012 while the
   installed/Homebrew release remains on 3011; their data is also separated as
@@ -26,6 +42,12 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   by `brew services restart fleet-server` to run the new binary.
 
 ### Fixed
+- **Persisted Codex context usage is no longer cumulative (`[fork-fix #19]`).**
+  fleet-server now reads `last_token_usage` from the latest `token_count`
+  record instead of lifetime `total_token_usage`, retaining the exact model
+  context window. A long live session changed from the impossible
+  `30,006k / 258k` to `61k / 258k` (24%) after the fix; a provider regression
+  test covers the distinction.
 - **fleet-server provider startup failures (`[fork-fix #17/#18]`).** Codex now
   pins `@openai/codex-sdk` 0.146.0 and selects the newest installed host CLI
   (explicit `CODEX_CLI_PATH` first, otherwise PATH versus bundled macOS
@@ -45,6 +67,17 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   for Codex SDK/CLI 0.146.0. Release is tracked in private backlog #34.
 
 ### Explored
+- **Codex app-server native desktop visibility.** A custom stdio app-server
+  client on Codex CLI 0.146.0 created and completed a read-only thread in this
+  repository. The thread was persisted as source `vscode`, appeared in default
+  app-server history and in the Codex desktop app's own recent-task list, and
+  retained its id, name, preview, and `cwd`. The same spike confirmed that
+  `model/list` supplies the authoritative picker catalog and
+  `thread/tokenUsage/updated` carries an exact context-window value. The
+  recommendation is a feature-flagged fleet-server app-server adapter with the
+  SDK path retained as rollback; local and SSH-host vertical slices must pass
+  before changing the default. Findings: `docs/codex-app-server-spike-2026-08-02.md`;
+  tracked in private backlog #36.
 - **fleet-server 0.3.0 silent Codex completion + stuck Claude run.** Live UI,
   server log, provider transcript, process, socket, and cache inspection found
   two independent causes: the embedded Codex 0.144.1 CLI cannot parse the

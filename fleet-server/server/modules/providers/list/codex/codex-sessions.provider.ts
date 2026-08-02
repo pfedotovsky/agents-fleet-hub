@@ -1,3 +1,4 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
 import fsSync from 'node:fs';
 import { createHash } from 'node:crypto';
 
@@ -164,8 +165,11 @@ async function getCodexSessionMessages(
 
         if (entry.type === 'event_msg' && entry.payload?.type === 'token_count' && entry.payload?.info) {
           const info = entry.payload.info as AnyRecord;
-          if (info.total_token_usage) {
-            const usage = info.total_token_usage as AnyRecord;
+          // [fork-fix #19] `total_token_usage` is cumulative across the whole
+          // thread and can exceed the context window many times over. The UI
+          // needs the latest turn's occupancy, which Codex records separately.
+          if (info.last_token_usage) {
+            const usage = info.last_token_usage as AnyRecord;
             tokenUsage = {
               used: usage.total_tokens || 0,
               total: info.model_context_window || 200000,

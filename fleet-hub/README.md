@@ -78,7 +78,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
   permission mode (ask / accept edits / bypass; persisted per host) and a
   **model + effort**
   (from `GET /api/providers/:provider/models`; sent as `options.model/effort`
-  in `chat.send`). Assistant replies render as Markdown (GFM tables, code
+  in `chat.send`). Existing Claude and Codex sessions show their latest
+  persisted context-window occupancy in the header as soon as they open; a
+  completed live turn refreshes it. Assistant replies render as Markdown (GFM tables, code
   blocks with syntax highlighting and a copy button). Tool calls render like
   CloudCLI: Edit/Write as red/green diffs with file badges, Bash as a green
   terminal line with collapsible output, TodoWrite as a checklist with
@@ -96,6 +98,11 @@ own root URL is only a status page; it does not expose an account-setup UI.
 - **Chat side panels**: two header toggles dock the file browser or the git
   panel to the right of the conversation (Cursor-style) — resizable by
   dragging the edge, choice and width persisted in localStorage.
+- **Session views**: switch any session between the structured chat and its
+  full live terminal. Settings → Sessions chooses which view opens by default.
+  Existing sessions run `claude --resume <id>` / `codex resume <id>` in the
+  host's real PTY; a draft starts a new provider CLI in that project folder.
+  The terminal stays dark in either app theme so ANSI output remains readable.
 - **File browser/editor**: per-project tree (`GET /files`, node_modules/.git
   pruned server-side) with a lazy-loaded CodeMirror editor (One Dark, language
   by extension); Cmd+S / Save button writes via `PUT /file`.

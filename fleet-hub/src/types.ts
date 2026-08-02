@@ -73,10 +73,14 @@ export interface ArchivedSession {
   isProjectArchived: boolean
 }
 
+export type SessionView = 'structured' | 'terminal'
+
 export interface Prefs {
   hideCursor: boolean
   /** Chime + desktop notification when a run finishes or asks for permission. */
   soundAlerts: boolean
+  /** Surface used when a session is opened; each open session can still switch views. */
+  defaultSessionView: SessionView
 }
 
 /** Provider-normalized transcript message from GET /api/providers/sessions/:id/messages. */
@@ -152,13 +156,22 @@ export interface ChatEvent extends NormalizedMessage {
   success?: boolean
   /** Claude and Codex both emit a `status` frame with text 'token_budget' per turn. */
   text?: string
-  tokenBudget?: { used?: number; total?: number; inputTokens?: number; outputTokens?: number }
+  tokenBudget?: Partial<TokenBudget>
   aborted?: boolean
   isProcessing?: boolean
   lastSeq?: number
   pendingPermissions?: PermissionRequest[]
   code?: string
   error?: string
+}
+
+export interface TokenBudget {
+  used: number
+  total: number
+  inputTokens?: number
+  outputTokens?: number
+  cacheReadTokens?: number
+  cacheCreationTokens?: number
 }
 
 export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'

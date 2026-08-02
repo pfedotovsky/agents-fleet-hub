@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Plus, Trash2, X, Radar, Monitor, Moon, Sun } from 'lucide-react'
+import {
+  MessageSquareText,
+  Monitor,
+  Moon,
+  Plus,
+  Radar,
+  SquareTerminal,
+  Sun,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { motion } from 'motion/react'
 import type { HostRuntime, Prefs } from '../types'
 import type { NewHostInput } from '../hooks/useFleet'
@@ -25,6 +35,11 @@ const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Monitor }[] = [
   { value: 'system', label: 'System', icon: Monitor },
   { value: 'dark', label: 'Dark', icon: Moon },
   { value: 'light', label: 'Light', icon: Sun },
+]
+
+const SESSION_VIEW_OPTIONS = [
+  { value: 'structured' as const, label: 'Structured', icon: MessageSquareText },
+  { value: 'terminal' as const, label: 'Terminal', icon: SquareTerminal },
 ]
 
 const inputClass =
@@ -141,6 +156,40 @@ export function SettingsPanel({
             )
           })}
         </div>
+
+        <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-fg-faint">
+          Sessions
+        </h3>
+        <div
+          role="radiogroup"
+          aria-label="Default session view"
+          className="grid grid-cols-2 gap-1 rounded-lg border border-line bg-surface p-1"
+        >
+          {SESSION_VIEW_OPTIONS.map((option) => {
+            const Icon = option.icon
+            const active = prefs.defaultSessionView === option.value
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => onUpdatePrefs({ ...prefs, defaultSessionView: option.value })}
+                className={`flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                  active
+                    ? 'bg-accent text-on-accent'
+                    : 'text-fg-muted hover:bg-elevated hover:text-fg'
+                }`}
+              >
+                <Icon size={13} />
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+        <p className="mb-5 mt-1.5 text-xs leading-relaxed text-fg-faint">
+          Newly opened sessions start here. You can switch views from the session header.
+        </p>
 
         <h3 className="mb-2 text-xs font-medium uppercase tracking-wider text-fg-faint">Hosts</h3>
         <div className="mb-5 flex flex-col gap-2">

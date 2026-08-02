@@ -32,6 +32,7 @@ import type {
   PermissionRequest,
   PlanDecision,
   Provider,
+  TokenBudget,
 } from '../types'
 import {
   AuthError,
@@ -40,6 +41,7 @@ import {
   getModels,
   getProviderAuthStatus,
   getSessionMessages,
+  getSessionTokenUsage,
   readFile,
   saveFile,
   uploadImages,
@@ -432,6 +434,8 @@ interface Props {
   panel?: ChatPanelKind | null
   /** Toggles the side panel; absent when the project is no longer available. */
   onTogglePanel?: (panel: ChatPanelKind) => void
+  /** Switches this session from structured chat to its live agent terminal. */
+  onOpenTerminal?: () => void
   /** Fired when a draft chat creates its real session on first send. */
   onSessionCreated?: (sessionId: string) => void
 }
@@ -439,7 +443,14 @@ interface Props {
 /** Providers offered by the new-chat composer toggle (draft sessions only). */
 const COMPOSER_PROVIDERS: Provider[] = ['claude', 'codex']
 
-export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreated }: Props) {
+export function ChatPane({
+  target,
+  onBack,
+  panel,
+  onTogglePanel,
+  onOpenTerminal,
+  onSessionCreated,
+}: Props) {
   // A draft chat opens with an empty id and no provider chosen yet; the real
   // session is created on the first send with the provider picked in the
   // composer. Both are state so that transition happens without a remount.
@@ -486,8 +497,9 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
   const imageCounter = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
-  /** Context-window usage from the turn-end token_budget status frame (both providers). */
-  const [tokenBudget, setTokenBudget] = useState<{ used: number; total: number } | null>(null)
+  /** Latest persisted usage on open, superseded by a live per-turn status frame. */
+  const [tokenBudget, setTokenBudget] = useState<TokenBudget | null>(null)
+  const receivedLiveTokenBudgetRef = useRef(false)
   /**
    * The first message typed into a draft chat, held until the freshly-created
    * session's socket re-subscribes so it can be flushed over the wire.
@@ -800,7 +812,8 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
             typeof event.tokenBudget?.used === 'number' &&
             typeof event.tokenBudget.total === 'number'
           ) {
-            setTokenBudget({ used: event.tokenBudget.used, total: event.tokenBudget.total })
+            receivedLiveTokenBudgetRef.current = true
+            setTokenBudget(event.tokenBudget as TokenBudget)
           }
           return
         case 'loading_progress':
@@ -839,11 +852,35 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
       setProcessing(false)
       setLoadedOlder(false)
       setTokenBudget(null)
+      receivedLiveTokenBudgetRef.current = false
       setCodexPlanReady(false)
       // A draft has no transcript to fetch — don't sit in a loading state.
       setLoading(sessionId !== '')
 
       if (sessionId !== '') {
+        const token = getToken(target.hostId)
+        if (token) {
+          void getSessionTokenUsage(
+            target.baseUrl,
+            token,
+            target.projectId,
+            sessionId,
+            (refreshed) => saveToken(target.hostId, refreshed),
+          )
+            .then((usage) => {
+              if (
+                !cancelled &&
+                !receivedLiveTokenBudgetRef.current &&
+                usage.used > 0 &&
+                usage.total > 0
+              ) {
+                setTokenBudget(usage)
+              }
+            })
+            .catch(() => {
+              // Best-effort for stock/older hosts; transcript loading is independent.
+            })
+        }
         void (async () => {
           try {
             const page = await fetchPage(0)
@@ -890,7 +927,15 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
       socket.close()
       socketRef.current = null
     }
-  }, [fetchPage, handleEvent, scrollToBottom, sessionId, target.baseUrl, target.hostId])
+  }, [
+    fetchPage,
+    handleEvent,
+    scrollToBottom,
+    sessionId,
+    target.baseUrl,
+    target.hostId,
+    target.projectId,
+  ])
 
   // Fallback poll: covers a downed socket or missed upsert broadcasts. Cheap —
   // one page fetch, and mergeNewest no-ops when nothing is new. The periodic
@@ -1432,45 +1477,55 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
         </div>
         {tokenBudget && (
           <span
-            title={`${PROVIDER_META[provider]?.label ?? provider} context window usage for this session`}
+            title={`${PROVIDER_META[provider]?.label ?? provider} latest context occupancy (${Math.round(
+              (tokenBudget.used / tokenBudget.total) * 100,
+            )}%)`}
             className="shrink-0 rounded-full border border-line bg-surface px-2 py-0.5 font-mono text-[11px] text-fg-faint"
           >
             {formatTokens(tokenBudget.used)} / {formatTokens(tokenBudget.total)}
           </span>
         )}
         <ProviderBadge provider={provider} />
-        {onTogglePanel && (
+        {(onTogglePanel || onOpenTerminal) && (
           <div className="flex shrink-0 items-center gap-0.5">
-            <button
-              type="button"
-              onClick={() => onTogglePanel('files')}
-              title="Project files"
-              className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
-                panel === 'files' ? 'bg-elevated text-accent-strong' : 'text-fg-faint hover:text-fg'
-              }`}
-            >
-              <FolderTree size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onTogglePanel('git')}
-              title="Source control"
-              className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
-                panel === 'git' ? 'bg-elevated text-accent-strong' : 'text-fg-faint hover:text-fg'
-              }`}
-            >
-              <GitBranch size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onTogglePanel('terminal')}
-              title="Terminal — run this session's agent CLI live in a real PTY"
-              className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
-                panel === 'terminal' ? 'bg-elevated text-accent-strong' : 'text-fg-faint hover:text-fg'
-              }`}
-            >
-              <SquareTerminal size={15} />
-            </button>
+            {onTogglePanel && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onTogglePanel('files')}
+                  title="Project files"
+                  className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
+                    panel === 'files'
+                      ? 'bg-elevated text-accent-strong'
+                      : 'text-fg-faint hover:text-fg'
+                  }`}
+                >
+                  <FolderTree size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onTogglePanel('git')}
+                  title="Source control"
+                  className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
+                    panel === 'git'
+                      ? 'bg-elevated text-accent-strong'
+                      : 'text-fg-faint hover:text-fg'
+                  }`}
+                >
+                  <GitBranch size={15} />
+                </button>
+              </>
+            )}
+            {onOpenTerminal && (
+              <button
+                type="button"
+                onClick={onOpenTerminal}
+                title="Switch to Terminal — run this session's agent CLI live in a real PTY"
+                className="rounded-md p-1.5 text-fg-faint transition-colors hover:bg-elevated hover:text-fg"
+              >
+                <SquareTerminal size={15} />
+              </button>
+            )}
           </div>
         )}
         {!isDraft && (
