@@ -73,10 +73,14 @@ export interface ArchivedSession {
   isProjectArchived: boolean
 }
 
+export type SessionView = 'structured' | 'terminal'
+
 export interface Prefs {
   hideCursor: boolean
   /** Chime + desktop notification when a run finishes or asks for permission. */
   soundAlerts: boolean
+  /** Surface used when a session is opened; each open session can still switch views. */
+  defaultSessionView: SessionView
 }
 
 /** Provider-normalized transcript message from GET /api/providers/sessions/:id/messages. */

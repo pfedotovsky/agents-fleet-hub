@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
-import { RotateCw, SquareTerminal, X } from 'lucide-react'
+import { ArrowLeft, MessageSquareText, RotateCw, SquareTerminal } from 'lucide-react'
 import type { FleetSession } from '../types'
 import { getToken } from '../lib/storage'
 import { ShellSocket, type ShellSocketState } from '../lib/shellSocket'
@@ -43,16 +43,17 @@ const TERMINAL_THEME = {
 interface Props {
   target: FleetSession
   onBack: () => void
+  onShowStructured: () => void
 }
 
 /**
  * Live terminal proxy for a session: streams the agent CLI running in a real PTY
  * on the host over the `/shell` WebSocket (see shell-websocket.service.ts). For
  * an existing session it runs `claude --resume <id>` / `codex resume <id>`; a
- * draft (empty id) starts a fresh CLI. This is the full-fidelity escape hatch
- * next to the structured ChatPane — the same on-host login, driven interactively.
+ * draft (empty id) starts a fresh CLI. This is a full session view using the
+ * same on-host login as the structured client, driven interactively.
  */
-export function TerminalPanel({ target, onBack }: Props) {
+export function TerminalPanel({ target, onBack, onShowStructured }: Props) {
   const mountRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -89,8 +90,10 @@ export function TerminalPanel({ target, onBack }: Props) {
     term.open(mount)
     termRef.current = term
     fitRef.current = fitAddon
+    let disposed = false
 
     const fit = () => {
+      if (disposed) return
       try {
         fitAddon.fit()
       } catch {
@@ -111,6 +114,7 @@ export function TerminalPanel({ target, onBack }: Props) {
       target.baseUrl,
       () => getToken(target.hostId),
       (message) => {
+        if (disposed) return
         if (message.type === 'output' && typeof message.data === 'string') {
           term.write(message.data)
         } else if (message.type === 'error' && typeof message.message === 'string') {
@@ -121,6 +125,7 @@ export function TerminalPanel({ target, onBack }: Props) {
         // resumed transcript). URLs are made clickable by WebLinksAddon instead.
       },
       (next) => {
+        if (disposed) return
         setState(next)
         if (next === 'open') {
           fit()
@@ -153,10 +158,16 @@ export function TerminalPanel({ target, onBack }: Props) {
     observer.observe(mount)
 
     return () => {
+      // A ResizeObserver or socket frame can already be queued when React
+      // unmounts the view. Guard first so it never reaches disposed xterm state.
+      disposed = true
       observer.disconnect()
       dataSub.dispose()
       socket.close()
-      term.dispose()
+      // xterm's Viewport schedules its own animation-frame scroll sync without
+      // a disposal guard. Let already-queued frames drain before destroying its
+      // renderer or they read an undefined dimensions object during a view swap.
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => term.dispose()))
       socketRef.current = null
       termRef.current = null
       fitRef.current = null
@@ -172,13 +183,37 @@ export function TerminalPanel({ target, onBack }: Props) {
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[#0a0a0a]">
-      <header className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2">
-        <SquareTerminal size={15} className="shrink-0 text-fg-faint" />
-        <span className="text-xs font-medium text-fg-secondary">Terminal</span>
-        <span className="truncate font-mono text-[11px] text-fg-faint">
-          {hasSession ? `${providerLabel} · resume` : `${providerLabel} · new`}
-        </span>
-        <span className="ml-auto flex items-center gap-1.5 text-[11px] text-fg-faint">
+      <header className="flex shrink-0 items-center gap-2 border-b border-white/10 px-4 py-3 text-[#a3a3a3]">
+        <button
+          type="button"
+          onClick={onBack}
+          title="Back"
+          className="shrink-0 rounded-md p-1.5 transition-colors hover:bg-white/10 hover:text-[#f2f2f2]"
+        >
+          <ArrowLeft size={16} />
+        </button>
+        <SquareTerminal size={15} className="shrink-0" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[11px]">
+            {target.hostName} · <span className="font-mono">{target.projectName}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-[#f2f2f2]">Terminal</span>
+            <span className="truncate font-mono text-[11px]">
+              {hasSession ? `${providerLabel} · resume` : `${providerLabel} · new`}
+            </span>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onShowStructured}
+          title="Switch to structured chat"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-white/10 px-2 py-1.5 text-xs font-medium transition-colors hover:bg-white/10 hover:text-[#f2f2f2]"
+        >
+          <MessageSquareText size={14} />
+          Structured
+        </button>
+        <span className="flex shrink-0 items-center gap-1.5 text-[11px]">
           <span className={`h-1.5 w-1.5 rounded-full ${stateColor}`} />
           {stateLabel}
         </span>
@@ -186,17 +221,9 @@ export function TerminalPanel({ target, onBack }: Props) {
           type="button"
           onClick={() => setRestartNonce((n) => n + 1)}
           title="Restart the terminal session"
-          className="shrink-0 rounded-md p-1.5 text-fg-faint transition-colors hover:bg-elevated hover:text-fg"
+          className="shrink-0 rounded-md p-1.5 transition-colors hover:bg-white/10 hover:text-[#f2f2f2]"
         >
           <RotateCw size={14} />
-        </button>
-        <button
-          type="button"
-          onClick={onBack}
-          title="Close terminal"
-          className="shrink-0 rounded-md p-1.5 text-fg-faint transition-colors hover:bg-elevated hover:text-fg"
-        >
-          <X size={14} />
         </button>
       </header>
 

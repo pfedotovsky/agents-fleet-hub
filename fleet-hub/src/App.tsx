@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Server, X } from 'lucide-react'
-import type { FleetSession, Provider, SessionSummary } from './types'
+import type { FleetSession, Provider, SessionSummary, SessionView } from './types'
 import { EASE_OUT } from './lib/motion'
 import type { ChatPanelKind } from './lib/storage'
 import {
@@ -30,7 +30,7 @@ export type View =
   | { kind: 'project'; hostId: string; projectId: string }
   | { kind: 'files'; hostId: string; projectId: string }
   | { kind: 'git'; hostId: string; projectId: string }
-  | { kind: 'chat'; target: FleetSession; from: View }
+  | { kind: 'chat'; target: FleetSession; from: View; sessionView: SessionView }
 
 export default function App() {
   const fleet = useFleet()
@@ -57,7 +57,6 @@ export default function App() {
   const [chatPanelWidth, setChatPanelWidth] = useState(() => loadChatPanel().width)
   const chatPanelWidthRef = useRef(chatPanelWidth)
   chatPanelWidthRef.current = chatPanelWidth
-
   const toggleChatPanel = (panel: ChatPanelKind) => {
     setChatPanel((current) => {
       const next = current === panel ? null : panel
@@ -101,7 +100,12 @@ export default function App() {
 
   const openChat = (target: FleetSession) => {
     fleet.markProjectOpened(target.hostId, target.session.id)
-    setView((current) => ({ kind: 'chat', target, from: current.kind === 'chat' ? current.from : current }))
+    setView((current) => ({
+      kind: 'chat',
+      target,
+      from: current.kind === 'chat' ? current.from : current,
+      sessionView: fleet.prefs.defaultSessionView,
+    }))
   }
 
   const openProject = (hostId: string, projectId: string) => {
@@ -263,6 +267,20 @@ export default function App() {
       const { hostIndex, runtime, project } = findProject(view.target.hostId, view.target.projectId)
       const panelAvailable = Boolean(runtime && project)
       const PanelComponent = chatPanel === 'files' ? FileBrowser : GitPanel
+      if (view.sessionView === 'terminal') {
+        return (
+          <TerminalPanel
+            key={`terminal:${view.target.hostId}:${view.target.session.id || view.target.key}`}
+            target={view.target}
+            onBack={() => setView(view.from)}
+            onShowStructured={() =>
+              setView((current) =>
+                current.kind === 'chat' ? { ...current, sessionView: 'structured' } : current,
+              )
+            }
+          />
+        )
+      }
       return (
         <div className="flex min-h-0 min-w-0 flex-1">
           <ChatPane
@@ -271,7 +289,26 @@ export default function App() {
             onBack={() => setView(view.from)}
             panel={panelAvailable ? chatPanel : null}
             onTogglePanel={panelAvailable ? toggleChatPanel : undefined}
-            onSessionCreated={() => fleet.refresh()}
+            onOpenTerminal={() =>
+              setView((current) =>
+                current.kind === 'chat' ? { ...current, sessionView: 'terminal' } : current,
+              )
+            }
+            onSessionCreated={(sessionId) => {
+              setView((current) =>
+                current.kind === 'chat' && current.target.key === view.target.key
+                  ? {
+                      ...current,
+                      target: {
+                        ...current.target,
+                        href: `${current.target.baseUrl}/session/${sessionId}`,
+                        session: { ...current.target.session, id: sessionId },
+                      },
+                    }
+                  : current,
+              )
+              fleet.refresh()
+            }}
           />
           {panelAvailable && chatPanel && runtime && project && (
             <div className="relative flex shrink-0" style={{ width: chatPanelWidth }}>
@@ -281,22 +318,14 @@ export default function App() {
                 className="absolute -left-1 top-0 z-10 h-full w-2 cursor-col-resize transition-colors hover:bg-elevated-strong/50"
               />
               <aside className="flex min-w-0 flex-1 flex-col border-l border-line/80">
-                {chatPanel === 'terminal' ? (
-                  <TerminalPanel
-                    key={`terminal:${view.target.hostId}:${view.target.session.id}`}
-                    target={view.target}
-                    onBack={() => toggleChatPanel('terminal')}
-                  />
-                ) : (
-                  <PanelComponent
-                    key={`${chatPanel}:${view.target.hostId}:${view.target.projectId}`}
-                    runtime={runtime}
-                    hostColorIdx={hostIndex}
-                    project={project}
-                    onBack={() => toggleChatPanel(chatPanel)}
-                    embedded
-                  />
-                )}
+                <PanelComponent
+                  key={`${chatPanel}:${view.target.hostId}:${view.target.projectId}`}
+                  runtime={runtime}
+                  hostColorIdx={hostIndex}
+                  project={project}
+                  onBack={() => toggleChatPanel(chatPanel)}
+                  embedded
+                />
               </aside>
             </div>
           )}

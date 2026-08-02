@@ -37,7 +37,7 @@
 <body>
 <main>
   <h1>Agents Hub vs. CloudCLI Web App — Feature Parity</h1>
-  <p class="meta">Agents Hub (this repo, <code>fleet-hub/</code>) vs. CloudCLI v1.36.1 web UI. First compared 2026-07-11; status updated 2026-07-12. Canonical source: <code>feature-parity.md</code> (this HTML is a regenerated view). Planned work lives in GitHub issues (private <code>pfedotovsky/agents-fleet-hub-backlog</code> repo).</p>
+  <p class="meta">Agents Hub (this repo, <code>fleet-hub/</code>) vs. CloudCLI v1.36.1 web UI. First compared 2026-07-11; status updated 2026-08-02. Canonical source: <code>feature-parity.md</code> (this HTML is a regenerated view). Planned work lives in GitHub issues (private <code>pfedotovsky/agents-fleet-hub-backlog</code> repo).</p>
   <p>Agents Hub is a <strong>multi-host aggregator</strong> over per-VM CloudCLI APIs; CloudCLI's own UI is a <strong>single-host</strong> full-featured client. Many CloudCLI features are server APIs Agents Hub can adopt with frontend-only work; a few (plugins, Electron) are out of scope for a static hub SPA.</p>
   <div class="legend"><span class="full">✅ full</span><span class="part">⚠️ partial</span><span class="miss">❌ missing</span><span class="plus">➕ Agents Hub advantage</span></div>
 
@@ -62,7 +62,7 @@
       <tr><td>Project create / rename / delete / clone</td><td class="s miss">❌</td><td class="s full">✅</td><td>Full REST routes incl. git-clone with progress stream</td></tr>
       <tr><td>File tree + editor (view/edit/save)</td><td class="s full">✅</td><td class="s full">✅</td><td>CodeMirror both sides; hub adds Cmd+S, dirty guard</td></tr>
       <tr><td>File create / delete / rename / upload</td><td class="s miss">❌</td><td class="s part">⚠️</td><td>Neither is strong; CloudCLI has image upload + shell escape hatch</td></tr>
-      <tr><td>Integrated terminal / shell</td><td class="s miss">❌</td><td class="s full">✅</td><td>PTY over WS (node-pty + xterm.js), agent CLI or plain shell</td></tr>
+      <tr><td>Integrated terminal / shell</td><td class="s full">✅</td><td class="s full">✅</td><td>Hub: full per-session xterm view over <code>/shell</code>, resumable Claude/Codex CLI, persisted default Structured/Terminal choice</td></tr>
       <tr><td>Git panel</td><td class="s part">⚠️</td><td class="s full">✅</td><td>Hub: status, unified diffs, stage/unstage, commit (+AI messages), branches, fetch/pull/push/publish. Missing: commit history, discard, revert</td></tr>
       <tr><td>MCP server management</td><td class="s miss">❌</td><td class="s full">✅</td><td>Per-provider + global, stdio/HTTP transports</td></tr>
       <tr><td>Slash commands</td><td class="s full">✅</td><td class="s full">✅</td><td><code>/</code> composer autocomplete over skills + <code>.claude/commands</code>; codex <code>$</code>-skills too ➕</td></tr>
@@ -73,9 +73,9 @@
       <tr><td>Token usage / context-window display</td><td class="s part">⚠️</td><td class="s part">⚠️</td><td>Hub shows a codex context chip from <code>token_budget</code> frames; no claude usage display</td></tr>
       <tr><td>Notifications</td><td class="s part">⚠️ <span class="plus">➕</span></td><td class="s full">✅</td><td>Hub: chime + desktop notification, fleet-wide. CloudCLI: Web Push (VAPID), Discord, per-channel prefs</td></tr>
       <tr><td>Scheduled prompts / cron</td><td class="s miss">❌</td><td class="s part">⚠️</td><td>Optional plugin, not core</td></tr>
-      <tr><td>Themes (light/dark)</td><td class="s miss">❌</td><td class="s full">✅</td><td>Hub is hardcoded dark</td></tr>
+      <tr><td>Themes (light/dark)</td><td class="s full">✅</td><td class="s full">✅</td><td>Hub: persisted System/Dark/Light choice; terminal remains deliberately dark for ANSI fidelity</td></tr>
       <tr><td>Mobile / responsive + PWA</td><td class="s miss">❌</td><td class="s full">✅</td><td>Manifest, service worker, standalone mode</td></tr>
-      <tr><td>URL routing / deep links</td><td class="s miss">❌</td><td class="s full">✅</td><td>Hub navigation is in-memory only</td></tr>
+      <tr><td>URL routing / deep links</td><td class="s full">✅</td><td class="s full">✅</td><td>Hub session hashes are shareable and resolve after the target host loads</td></tr>
       <tr><td>API keys / credentials management</td><td class="s miss">❌</td><td class="s full">✅</td><td>Host-admin feature; low hub value</td></tr>
       <tr><td>Electron desktop app</td><td class="s full">✅</td><td class="s full">✅</td><td>Hub ships as a Tauri 2 desktop app (macOS + Linux)</td></tr>
     </tbody>

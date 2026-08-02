@@ -96,6 +96,11 @@ own root URL is only a status page; it does not expose an account-setup UI.
 - **Chat side panels**: two header toggles dock the file browser or the git
   panel to the right of the conversation (Cursor-style) — resizable by
   dragging the edge, choice and width persisted in localStorage.
+- **Session views**: switch any session between the structured chat and its
+  full live terminal. Settings → Sessions chooses which view opens by default.
+  Existing sessions run `claude --resume <id>` / `codex resume <id>` in the
+  host's real PTY; a draft starts a new provider CLI in that project folder.
+  The terminal stays dark in either app theme so ANSI output remains readable.
 - **File browser/editor**: per-project tree (`GET /files`, node_modules/.git
   pruned server-side) with a lazy-loaded CodeMirror editor (One Dark, language
   by extension); Cmd+S / Save button writes via `PUT /file`.

@@ -7,6 +7,17 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-02
 
 ### Changed
+- **Terminal can now be the default session view.** Settings → Sessions stores
+  `Structured` or `Terminal` in the existing preferences record; each newly
+  opened session starts on that surface and can switch back and forth from its
+  header. Terminal is now a full session view rather than a docked utility
+  panel, while Files and Git remain resizable side panels. Its deliberately
+  dark PTY surface and header stay legible under both app themes, draft sessions
+  still launch a new provider CLI, and existing sessions resume by provider id.
+  Teardown now lets xterm's queued viewport frames drain before disposal,
+  avoiding console errors during rapid view switches. The stale Terminal,
+  theme, and deep-link rows in the feature-parity report were corrected.
+  Tracked in private backlog #13.
 - **Development and released fleet-server instances now use distinct ports.**
   `bun run dev` starts the interpreted source server on 3012 while the
   installed/Homebrew release remains on 3011; their data is also separated as

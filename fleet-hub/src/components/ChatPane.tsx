@@ -432,6 +432,8 @@ interface Props {
   panel?: ChatPanelKind | null
   /** Toggles the side panel; absent when the project is no longer available. */
   onTogglePanel?: (panel: ChatPanelKind) => void
+  /** Switches this session from structured chat to its live agent terminal. */
+  onOpenTerminal?: () => void
   /** Fired when a draft chat creates its real session on first send. */
   onSessionCreated?: (sessionId: string) => void
 }
@@ -439,7 +441,14 @@ interface Props {
 /** Providers offered by the new-chat composer toggle (draft sessions only). */
 const COMPOSER_PROVIDERS: Provider[] = ['claude', 'codex']
 
-export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreated }: Props) {
+export function ChatPane({
+  target,
+  onBack,
+  panel,
+  onTogglePanel,
+  onOpenTerminal,
+  onSessionCreated,
+}: Props) {
   // A draft chat opens with an empty id and no provider chosen yet; the real
   // session is created on the first send with the provider picked in the
   // composer. Both are state so that transition happens without a remount.
@@ -1439,38 +1448,46 @@ export function ChatPane({ target, onBack, panel, onTogglePanel, onSessionCreate
           </span>
         )}
         <ProviderBadge provider={provider} />
-        {onTogglePanel && (
+        {(onTogglePanel || onOpenTerminal) && (
           <div className="flex shrink-0 items-center gap-0.5">
-            <button
-              type="button"
-              onClick={() => onTogglePanel('files')}
-              title="Project files"
-              className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
-                panel === 'files' ? 'bg-elevated text-accent-strong' : 'text-fg-faint hover:text-fg'
-              }`}
-            >
-              <FolderTree size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onTogglePanel('git')}
-              title="Source control"
-              className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
-                panel === 'git' ? 'bg-elevated text-accent-strong' : 'text-fg-faint hover:text-fg'
-              }`}
-            >
-              <GitBranch size={15} />
-            </button>
-            <button
-              type="button"
-              onClick={() => onTogglePanel('terminal')}
-              title="Terminal — run this session's agent CLI live in a real PTY"
-              className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
-                panel === 'terminal' ? 'bg-elevated text-accent-strong' : 'text-fg-faint hover:text-fg'
-              }`}
-            >
-              <SquareTerminal size={15} />
-            </button>
+            {onTogglePanel && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onTogglePanel('files')}
+                  title="Project files"
+                  className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
+                    panel === 'files'
+                      ? 'bg-elevated text-accent-strong'
+                      : 'text-fg-faint hover:text-fg'
+                  }`}
+                >
+                  <FolderTree size={15} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onTogglePanel('git')}
+                  title="Source control"
+                  className={`rounded-md p-1.5 transition-colors hover:bg-elevated ${
+                    panel === 'git'
+                      ? 'bg-elevated text-accent-strong'
+                      : 'text-fg-faint hover:text-fg'
+                  }`}
+                >
+                  <GitBranch size={15} />
+                </button>
+              </>
+            )}
+            {onOpenTerminal && (
+              <button
+                type="button"
+                onClick={onOpenTerminal}
+                title="Switch to Terminal — run this session's agent CLI live in a real PTY"
+                className="rounded-md p-1.5 text-fg-faint transition-colors hover:bg-elevated hover:text-fg"
+              >
+                <SquareTerminal size={15} />
+              </button>
+            )}
           </div>
         )}
         {!isDraft && (
