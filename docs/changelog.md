@@ -4,6 +4,21 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-03
+
+### Added
+- **Codex app-server lifecycle foundation.** fleet-server now has a supervised
+  JSONL-over-stdio client for Codex CLI 0.146.x with an honest `agents_hub`
+  identity, initialize/initialized handshake, correlated requests, a bounded
+  pending queue, request deadlines, notification and server-request routing,
+  and clean failure/restart semantics. A checked-in minimal generated protocol
+  subset is pinned to the 0.146 baseline and fails closed on incompatible CLI
+  minor versions. The construction boundary is disabled by default, so the
+  existing Codex SDK path remains unchanged while subsequent vertical slices
+  add model/context and thread/turn mappings. A sanitized live probe against
+  Codex 0.146.0 completed the handshake without creating a thread; the full
+  fleet-server suite passes. Tracked in private backlog #37.
+
 ## 2026-08-02
 
 ### Changed

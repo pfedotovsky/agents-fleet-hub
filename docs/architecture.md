@@ -311,6 +311,27 @@ the current SDK adapter retained as rollback until local and SSH-host live
 verification passes. Detailed evidence and the staged recommendation are in
 `docs/codex-app-server-spike-2026-08-02.md`.
 
+**Adapter status (2026-08-03).** The first implementation slice lives under
+`fleet-server/server/modules/providers/list/codex/`: `codex-app-server-client.ts`
+supervises one local `codex app-server --listen stdio://` child and implements
+the JSONL lifecycle, while `app-server-protocol/` contains only the generated
+0.146 types currently consumed by the adapter. Initialization identifies the
+client as `agents_hub` / `Agents Hub`, opts into no experimental capabilities,
+correlates responses by id, bounds pending requests, and rejects in-flight work
+on timeout, transport failure, stop, or process exit. Provider stderr is drained
+but never logged because it may contain user or authentication data.
+
+`codex-app-server-config.ts` is the disabled-by-default construction boundary
+for `CODEX_APP_SERVER_ENABLED`; no current provider route calls it, so setting
+the variable alone does not change session behavior yet. The existing SDK
+adapter remains the only production send path. The client accepts Codex CLI
+0.146.x only, matching its generated protocol baseline, and fails before spawn
+for other minor versions. This deliberately fail-closed gate must be updated
+along with regenerated consumed types after compatibility verification. Later
+slices will wire `model/list`, token usage, and thread/turn normalization before
+the flag can control real sessions. App-server remains strictly behind the
+authenticated fleet-server REST/WebSocket boundary.
+
 ## Claude Code `--resume` visibility of Agent Hub sessions
 
 **Symptom:** sessions created through Agent Hub do not appear in the interactive

@@ -98,12 +98,36 @@ verified:
 Do not expose app-server directly to the browser or a public network. The
 fleet-server REST/WebSocket gateway remains the authenticated remote boundary.
 
+## Implementation status — 2026-08-03
+
+Vertical slice 1 is implemented on private backlog #37. The fleet-server
+foundation now includes:
+
+- a supervised local stdio child lifecycle with initialize/initialized,
+  correlated requests, bounded pending work, request timeouts, and restart;
+- an honest `agents_hub` / `Agents Hub` identity with no experimental protocol
+  opt-in;
+- a minimal checked-in protocol subset generated from Codex CLI 0.146.0 and an
+  exact 0.146.x compatibility gate;
+- notification and server-request dispatch points, with unsupported server
+  requests answered explicitly;
+- a disabled-by-default construction boundary. It is not connected to the
+  existing provider send path yet, so the SDK remains the production default.
+
+The focused lifecycle suite passes seven tests, the full fleet-server suite
+passes 131 tests, and typechecking passes. A sanitized live probe against the
+installed Codex CLI 0.146.0 returned the expected platform metadata and Codex
+user agent without creating a thread. The remaining numbered slices above are
+unchanged; model/context truth is next.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified
   but not clearly promised by the public source-kind documentation.
 - This spike verified same-machine desktop visibility. SSH-host visibility is
   still required before rollout to remote fleet hosts.
-- Exact compatibility behavior when the host CLI is older or newer than the
-  schemas compiled into fleet-server needs a version handshake and explicit
-  fallback policy.
+- Compatibility currently fails closed before spawn when the host CLI's
+  major/minor differs from the generated 0.146 baseline. A future CLI upgrade
+  therefore requires regenerating the consumed subset and running compatibility
+  verification; automatic fallback selection belongs to the later provider
+  wiring slice.

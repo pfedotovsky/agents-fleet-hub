@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "SERVER_PORT=${SERVER_PORT:-3012} FLEET_SERVER_HOME=${FLEET_SERVER_HOME:-$HOME/.fleet-server-dev} bun run server/index.js",
+    "probe:codex-app-server": "bun run scripts/probe-codex-app-server.ts",
     "typecheck": "bun x tsc --noEmit -p server/tsconfig.json",
     "test": "bun test server",
     "build": "bun run scripts/build.ts"
