@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agents Hub Backlog Loop"
+  short_description: "Run safe, verified Agents Hub backlog iterations"
+  default_prompt: "Use $agents-hub-backlog-loop to select and complete the next safe Agents Hub backlog item."

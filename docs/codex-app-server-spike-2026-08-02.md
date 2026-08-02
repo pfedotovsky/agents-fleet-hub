@@ -107,4 +107,3 @@ fleet-server REST/WebSocket gateway remains the authenticated remote boundary.
 - Exact compatibility behavior when the host CLI is older or newer than the
   schemas compiled into fleet-server needs a version handshake and explicit
   fallback policy.
-
