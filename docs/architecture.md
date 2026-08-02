@@ -286,18 +286,27 @@ Codex later announces its provider-native thread id, and fleet-server stores it
 as `provider_session_id`. The browser sees only the app-facing id; Codex
 CLI/app surfaces need the provider-native id if resuming outside the hub.
 
-**Potential bridge.** The official Codex app-server is the supported rich-client
-integration surface for authentication, conversation history, approvals, and
-streamed events. The `codex app-server generate-ts --experimental` schema from
-Codex CLI 0.144.1 exposes `thread/start`, `thread/resume`, `thread/list`, and
-`thread/search`; `thread/list` can scan-and-repair metadata from rollout JSONL
-unless `useStateDbOnly` is set, but it defaults to interactive source kinds.
-There is no stable `thread/import` or `thread/register` method for converting an
-already-created SDK rollout into a native desktop task. Making Agents Hub
-sessions show up reliably would therefore mean driving Codex through app-server
-from the start, or accepting a fragile/private migration/import path. Scanning
-`~/.codex/sessions` is enough for Agents Hub, but not a complete native-app task
-registration contract.
+**Verified bridge (Codex CLI 0.146.0, 2026-08-02).** The official Codex
+app-server is the supported rich-client integration surface for authentication,
+conversation history, approvals, and streamed events. A local stdio spike used
+a custom `agents_hub_spike` client (without imitating a first-party identity) to
+create and complete a thread in this repository. App-server persisted it with
+source `vscode`, returned it from default and explicit-`vscode` `thread/list`,
+and the Codex desktop app's own recent-task list returned the same id, title,
+preview, `cwd`, and timestamps. It was not returned by the explicit
+`appServer` source filter. This proves current same-machine desktop visibility
+when Agents Hub drives the thread through app-server from the start, although
+the surprising source classification is not yet treated as a cross-version
+guarantee. The same spike confirmed that `model/list` is a richer source of
+picker truth and `thread/tokenUsage/updated` carries an exact
+`modelContextWindow`.
+
+There is still no stable `thread/import` or `thread/register` method for
+converting an already-created SDK rollout into a native desktop task. Migration
+therefore means a feature-flagged app-server adapter for new turns/threads, with
+the current SDK adapter retained as rollback until local and SSH-host live
+verification passes. Detailed evidence and the staged recommendation are in
+`docs/codex-app-server-spike-2026-08-02.md`.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

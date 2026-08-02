@@ -45,6 +45,17 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   for Codex SDK/CLI 0.146.0. Release is tracked in private backlog #34.
 
 ### Explored
+- **Codex app-server native desktop visibility.** A custom stdio app-server
+  client on Codex CLI 0.146.0 created and completed a read-only thread in this
+  repository. The thread was persisted as source `vscode`, appeared in default
+  app-server history and in the Codex desktop app's own recent-task list, and
+  retained its id, name, preview, and `cwd`. The same spike confirmed that
+  `model/list` supplies the authoritative picker catalog and
+  `thread/tokenUsage/updated` carries an exact context-window value. The
+  recommendation is a feature-flagged fleet-server app-server adapter with the
+  SDK path retained as rollback; local and SSH-host vertical slices must pass
+  before changing the default. Findings: `docs/codex-app-server-spike-2026-08-02.md`;
+  tracked in private backlog #36.
 - **fleet-server 0.3.0 silent Codex completion + stuck Claude run.** Live UI,
   server log, provider transcript, process, socket, and cache inspection found
   two independent causes: the embedded Codex 0.144.1 CLI cannot parse the
