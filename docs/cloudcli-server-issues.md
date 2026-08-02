@@ -6,11 +6,11 @@ Agents Hub. Purpose: input for the **fork vs. keep-working-around** decision.
 
 > **Decision (2026-07-12): forked.** The server now lives in
 > [`../fleet-server/`](../fleet-server/README.md) (Bun single binary,
-> AGPL-3.0-or-later). Issues **#1, #2, #4/#5, #6, #13, #14, #15 are fixed in
-> the fork** (commits prefixed `[fork-fix #N]`); #7 is moot there (no bundled
-> SPA); #3 remains solved by Agents Hub itself; #8–#12 are still worked
-> around client-side. This catalog stays as the reference for hosts running
-> stock CloudCLI and for the upstream issue reports.
+> AGPL-3.0-or-later). Issues **#1, #2, #4/#5, #6, #13, #14, #15, #17, and
+> #18 are fixed in the fork** (commits prefixed `[fork-fix #N]`); #7 is moot
+> there (no bundled SPA); #3 remains solved by Agents Hub itself; #8–#12 are
+> still worked around client-side. This catalog stays as the reference for
+> hosts running stock CloudCLI and for the upstream issue reports.
 
 Verified against CloudCLI 1.36.1 (source at
 `/opt/homebrew/lib/node_modules/@cloudcli-ai/cloudcli/` + live testing),
@@ -36,6 +36,8 @@ workaround · ⚪ annoyance / cosmetic.
 | 13 | Codex keychain auth not detected — "not signed in" despite working login | 🟡 | No — host-side only (config or server patch) | [#1008](https://github.com/siteboon/claudecodeui/issues/1008) (ours, open) |
 | 14 | Vendored codex-cli 0.141 rejects newer models (400) → every Codex turn ends empty | 🔴 | No — host-side binary symlink patch only | [#1011](https://github.com/siteboon/claudecodeui/issues/1011) (ours, open) |
 | 15 | Turn completing with zero output surfaces nothing in the UI | 🟡 | No — client can't distinguish "empty turn" from "still streaming" | [#1012](https://github.com/siteboon/claudecodeui/issues/1012) (ours, open) |
+| 17 | Claude SDK init can be followed by an unbounded API-connect hang | 🟡 | No — the run stays registered forever | Not reported |
+| 18 | Older PATH Codex CLI crashes on a newer desktop app's shared model cache | 🔴 | No — provider exits before output | Not reported |
 
 ## 🔴 Blockers — cannot be fixed from the client
 
@@ -125,6 +127,33 @@ fail upstream and still end in a clean `turn.completed` with no output items
 output" and emit a synthetic error; today the chat is simply dead. The hub
 cannot distinguish this from a slow stream, so no client workaround exists —
 this is what made #14 look like a UI glitch.
+
+### 17. Claude SDK initialization does not prove the provider can respond
+
+When the host cannot establish an outbound Anthropic API connection, the
+Claude subprocess writes the user turn and the SDK emits an initialization
+event, but no assistant/result event follows. The process can remain alive for
+many minutes with TCP connections stuck in `SYN_SENT`, so the run registry and
+hub correctly remain at `working…`. A literal first-event timeout is
+insufficient because the init event disarms it.
+
+**Fork status (`[fork-fix #17]`):** a 45-second deadline remains armed until an
+assistant event, stream delta, or terminal result arrives. Expiry closes the
+query and emits a visible error + terminal completion. Configure the bound with
+`CLAUDE_STARTUP_TIMEOUT_MS`; it does not limit later turns or interactive waits.
+
+### 18. A newer desktop app can make an older PATH Codex CLI unusable
+
+Codex clients share `~/.codex/models_cache.json`. The native app's 0.146 cache
+schema omits `supports_reasoning_summaries`, which the PATH-installed 0.144.1
+CLI treats as required. fleet-server therefore spawned successfully but the
+provider exited before assistant output with a cache-deserialization error.
+Deleting the cache is temporary because the desktop app recreates it.
+
+**Fork status (`[fork-fix #18]`):** `@openai/codex-sdk` is pinned at 0.146.0.
+An explicit executable `CODEX_CLI_PATH` wins; otherwise the server compares the
+PATH CLI with bundled macOS ChatGPT/Codex application CLIs and uses the newest
+numeric version, keeping the provider compatible with the shared cache writer.
 
 ## 🟡 Design limitations — worked around in Agents Hub, at a cost
 

@@ -118,7 +118,11 @@ Browser (Agents Hub SPA)
 - CloudCLI runs Claude via `@anthropic-ai/claude-agent-sdk` `query()`
   in-process; the SDK in turn spawns the regular Claude Code executable
   (`pathToClaudeCodeExecutable`) using the VM's own `claude` login — same
-  binary and auth as a terminal session, driven programmatically.
+  binary and auth as a terminal session, driven programmatically. fleet-server
+  keeps `CLAUDE_STARTUP_TIMEOUT_MS` (45 s default) armed past SDK init events
+  until assistant output, a stream delta, or a terminal result arrives. If an
+  unreachable API never produces one, it closes the query and emits an error +
+  terminal completion; later long turns and interactive waits are unaffected.
 - Reconnect: on every WS open the owner re-subscribes with
   `chat.subscribe {sessions:[{sessionId,lastSeq}]}` — the server replays
   missed events by sequence number. The hub also resubscribes every 15 s
@@ -134,7 +138,13 @@ Browser (Agents Hub SPA)
 - New session: `POST /api/providers/sessions {provider, projectPath}` creates
   an empty app session; the first `chat.send` actually starts the agent.
 - **Codex sessions** run server-side via `@openai/codex-sdk` threads and
-  differ from claude in ways the hub accounts for: no interactive approvals
+  resolve a host CLI because the compiled server does not ship the SDK's
+  npm-vendored binary. `CODEX_CLI_PATH` is the explicit override; otherwise
+  fleet-server compares PATH with bundled macOS ChatGPT/Codex application CLIs
+  and selects the newest numeric version. This prevents an older PATH CLI from
+  parsing a newer shared `~/.codex/models_cache.json` written by the desktop
+  app. Codex differs from claude in ways the hub accounts for: no interactive
+  approvals
   (`permission_request` never fires; `permissionMode` is remapped to a
   sandbox — default→workspace-write+ask-untrusted, acceptEdits→never-ask,
   bypass→danger-full-access, and the plan toggle→`read-only` with a

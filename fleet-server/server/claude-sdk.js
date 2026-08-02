@@ -1,3 +1,5 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE
+
 /**
  * Claude SDK Integration
  *
@@ -23,6 +25,7 @@ import { buildClaudeUserContent, normalizeImageDescriptors } from './shared/imag
 import { CLAUDE_DEFAULT_MODEL } from './modules/providers/list/claude/claude-models.provider.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
 import { resolveClaudeCodeExecutablePath } from './shared/claude-cli-path.js';
+import { withFirstEventTimeout } from './shared/first-event-timeout.js';
 import {
   createNotificationEvent,
   notifyRunFailed,
@@ -42,8 +45,13 @@ const pendingToolApprovals = new Map();
 const abortedSessionIds = new Set();
 
 const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS, 10) || 55000;
+const configuredStartupTimeout = Number.parseInt(process.env.CLAUDE_STARTUP_TIMEOUT_MS || '', 10);
+const CLAUDE_STARTUP_TIMEOUT_MS = Number.isFinite(configuredStartupTimeout) && configuredStartupTimeout > 0
+  ? configuredStartupTimeout
+  : 45000;
 
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
+const CLAUDE_RESPONSE_EVENT_TYPES = new Set(['assistant', 'result', 'stream_event']);
 
 function resolveClaudeEffort(model, effort, modelsDefinition) {
   const selectedModel = modelsDefinition?.OPTIONS?.find((option) => option.value === model) || null;
@@ -706,9 +714,21 @@ async function queryClaudeSDK(command, options = {}, ws) {
       addSession(capturedSessionId, queryInstance, ws);
     }
 
+    // [fork-fix #17] A spawned Claude process can stay alive forever after its
+    // SDK init event when the API is unreachable. Bound startup until the first
+    // substantive response; long turns and interactive prompts stay unbounded
+    // once assistant output, a stream delta, or a terminal result arrives.
+    const startupTimeoutSeconds = Math.ceil(CLAUDE_STARTUP_TIMEOUT_MS / 1000);
+    const messageStream = withFirstEventTimeout(queryInstance, {
+      timeoutMs: CLAUDE_STARTUP_TIMEOUT_MS,
+      message: `Claude did not produce a response within ${startupTimeoutSeconds} seconds. Check the host's network connection and Claude API configuration.`,
+      onTimeout: () => queryInstance.close(),
+      isReady: (message) => CLAUDE_RESPONSE_EVENT_TYPES.has(message?.type),
+    });
+
     // Process streaming messages
     console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
-    for await (const message of queryInstance) {
+    for await (const message of messageStream) {
       // Capture session ID from first message
       if (message.session_id && !capturedSessionId) {
 

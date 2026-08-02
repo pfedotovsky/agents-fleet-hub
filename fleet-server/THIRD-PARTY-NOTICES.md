@@ -12,9 +12,9 @@ and NOTICE.
 | @anthropic-ai/claude-agent-sdk | 0.3.207 | SEE LICENSE IN README.md |
 | @anthropic-ai/claude-agent-sdk-darwin-arm64 | 0.3.207 | SEE LICENSE IN LICENSE.md |
 | @iarna/toml | 2.2.5 | ISC |
-| @openai/codex | 0.144.1 | Apache-2.0 |
-| @openai/codex | 0.144.1-darwin-arm64 | Apache-2.0 |
-| @openai/codex-sdk | 0.144.1 | Apache-2.0 |
+| @openai/codex | 0.146.0 | Apache-2.0 |
+| @openai/codex | 0.146.0-darwin-arm64 | Apache-2.0 |
+| @openai/codex-sdk | 0.146.0 | Apache-2.0 |
 | accepts | 1.3.8 | MIT |
 | append-field | 1.0.0 | MIT |
 | argparse | 1.0.10 | MIT |
@@ -163,15 +163,15 @@ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 ```
 
-## @openai/codex@0.144.1 (Apache-2.0)
+## @openai/codex@0.146.0 (Apache-2.0)
 
 _No license file shipped in the package; see the SPDX identifier above._
 
-## @openai/codex@0.144.1-darwin-arm64 (Apache-2.0)
+## @openai/codex@0.146.0-darwin-arm64 (Apache-2.0)
 
 _No license file shipped in the package; see the SPDX identifier above._
 
-## @openai/codex-sdk@0.144.1 (Apache-2.0)
+## @openai/codex-sdk@0.146.0 (Apache-2.0)
 
 ```
 Apache License

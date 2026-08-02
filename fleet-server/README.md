@@ -82,7 +82,8 @@ prefer to install them by hand.
 | `FLEET_SERVER_HOME` | `~/.fleet-server` | Data directory (`auth.db`, `local-server.json`, `.env`) |
 | `DATABASE_PATH` | `$FLEET_SERVER_HOME/auth.db` | SQLite database location |
 | `CLAUDE_CLI_PATH` | `claude` on PATH | Claude Code binary used for chats |
-| `CODEX_CLI_PATH` | `codex` on PATH | Codex binary used for chats |
+| `CLAUDE_STARTUP_TIMEOUT_MS` | `45000` | Maximum wait for Claude's first substantive response before surfacing a connection/configuration error |
+| `CODEX_CLI_PATH` | newest installed CLI | Explicit Codex binary override; otherwise compares PATH with bundled macOS desktop-app CLIs |
 | `RG_PATH` | `rg` on PATH | ripgrep binary for session search |
 | `CONTEXT_WINDOW` | `160000` | Context window size reported to clients |
 

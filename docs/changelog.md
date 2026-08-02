@@ -4,6 +4,44 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-02
+
+### Released
+- **fleet-server 0.3.1** — tag `server-v0.3.1`; ships the provider startup
+  fixes and reproducible release inputs below. The Homebrew formula is updated
+  to 0.3.1. Existing installations need `brew upgrade fleet-server` followed
+  by `brew services restart fleet-server` to run the new binary.
+
+### Fixed
+- **fleet-server provider startup failures (`[fork-fix #17/#18]`).** Codex now
+  pins `@openai/codex-sdk` 0.146.0 and selects the newest installed host CLI
+  (explicit `CODEX_CLI_PATH` first, otherwise PATH versus bundled macOS
+  ChatGPT/Codex CLIs), preventing an older PATH binary from crashing on the
+  desktop app's newer shared model-cache schema. Claude now keeps a startup
+  deadline armed past SDK-only initialization events until assistant output,
+  a stream delta, or a terminal result arrives; an unreachable API therefore
+  closes the query and emits a visible error + terminal completion after 45 s
+  (`CLAUDE_STARTUP_TIMEOUT_MS`). Live Agents Hub verification against an
+  isolated compiled binary reproduced both original sessions: Codex returned
+  `2` through the newer app CLI, while Claude's unreachable API stopped at a
+  five-second test deadline with the intended connection/configuration error.
+- **fleet-server release dependency resolution is reproducible.** Runtime SDK
+  versions are exact, `fleet-server/bun.lock` is tracked, CI pins Bun 1.3.14,
+  and the release workflow now requires `bun install --frozen-lockfile`
+  without a floating-install fallback. Third-party notices were regenerated
+  for Codex SDK/CLI 0.146.0. Release is tracked in private backlog #34.
+
+### Explored
+- **fleet-server 0.3.0 silent Codex completion + stuck Claude run.** Live UI,
+  server log, provider transcript, process, socket, and cache inspection found
+  two independent causes: the embedded Codex 0.144.1 CLI cannot parse the
+  shared model cache written by the native app's 0.146.0 alpha CLI, while the
+  Claude child remains alive with its API TCP connections stuck in `SYN_SENT`.
+  The investigation also found that server release tags omit the Bun lockfile,
+  allowing caret-ranged runtime SDKs to float between builds. Findings and
+  implemented hardening are recorded in
+  `docs/latest-version-failure-investigation-2026-08-02.md`.
+
 ## 2026-07-27
 
 ### Explored
