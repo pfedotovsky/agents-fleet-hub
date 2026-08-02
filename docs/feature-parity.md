@@ -45,7 +45,7 @@ host APIs; others (plugins, Electron) are out of scope for a static hub SPA.
 | **TaskMaster (tasks, PRD parsing, templates)** | ❌ | ✅ | Full `/api/taskmaster` suite |
 | **Browser-use (Playwright automation)** | ❌ | ✅ | Optional runtime; niche for a hub |
 | **Plugin system + marketplace** | ❌ | ✅ | Out of scope for a static SPA (plugins are host-side) |
-| **Token usage / context-window display** | ⚠️ | ⚠️ | Hub shows a codex context chip from `token_budget` frames; no claude usage display. CloudCLI: capability flag in core, cost dashboard is a plugin |
+| **Token usage / context-window display** | ✅ | ⚠️ | Hub: Claude + Codex context chip, persisted usage on open and live turn updates; fork uses Codex latest-turn occupancy + exact window. CloudCLI: capability flag in core, cost dashboard is a plugin |
 | **Notifications** | ⚠️ ➕ | ✅ | Hub: WebAudio chime + desktop Notification (works fleet-wide). CloudCLI: Web Push (VAPID), desktop-via-WS, Discord, per-channel prefs |
 | **Scheduled prompts / cron** | ❌ | ⚠️ | Optional `workspace-scheduled-prompts` plugin, not core |
 | **Themes (light/dark)** | ✅ | ✅ | Hub: persisted System/Dark/Light choice; terminal remains deliberately dark for ANSI fidelity |

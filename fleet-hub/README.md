@@ -78,7 +78,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
   permission mode (ask / accept edits / bypass; persisted per host) and a
   **model + effort**
   (from `GET /api/providers/:provider/models`; sent as `options.model/effort`
-  in `chat.send`). Assistant replies render as Markdown (GFM tables, code
+  in `chat.send`). Existing Claude and Codex sessions show their latest
+  persisted context-window occupancy in the header as soon as they open; a
+  completed live turn refreshes it. Assistant replies render as Markdown (GFM tables, code
   blocks with syntax highlighting and a copy button). Tool calls render like
   CloudCLI: Edit/Write as red/green diffs with file badges, Bash as a green
   terminal line with collapsible output, TodoWrite as a checklist with

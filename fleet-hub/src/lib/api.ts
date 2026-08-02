@@ -12,6 +12,7 @@ import type {
   SessionSummary,
   SlashCommand,
   StoredImage,
+  TokenBudget,
 } from '../types'
 
 export class HostUnreachableError extends Error {
@@ -220,6 +221,21 @@ export async function getSessionMessages(
     { token, onTokenRefresh, timeoutMs: 15000 },
   )) as { success: boolean; data: MessagesPage }
   return body.data
+}
+
+/** Latest persisted context-window occupancy for an existing session. */
+export async function getSessionTokenUsage(
+  baseUrl: string,
+  token: string,
+  projectId: string,
+  sessionId: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<TokenBudget> {
+  return (await fetchJson(
+    baseUrl,
+    `/api/projects/${encodeURIComponent(projectId)}/sessions/${encodeURIComponent(sessionId)}/token-usage`,
+    { token, onTokenRefresh, timeoutMs: 10000 },
+  )) as TokenBudget
 }
 
 /** Creates a new (empty) app session in a project; the first chat.send starts the agent. */

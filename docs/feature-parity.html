@@ -70,7 +70,7 @@
       <tr><td>TaskMaster (tasks, PRD parsing, templates)</td><td class="s miss">❌</td><td class="s full">✅</td><td>Full <code>/api/taskmaster</code> suite</td></tr>
       <tr><td>Browser-use (Playwright automation)</td><td class="s miss">❌</td><td class="s full">✅</td><td>Niche for a hub</td></tr>
       <tr><td>Plugin system + marketplace</td><td class="s miss">❌</td><td class="s full">✅</td><td>Out of scope for a static SPA</td></tr>
-      <tr><td>Token usage / context-window display</td><td class="s part">⚠️</td><td class="s part">⚠️</td><td>Hub shows a codex context chip from <code>token_budget</code> frames; no claude usage display</td></tr>
+      <tr><td>Token usage / context-window display</td><td class="s full">✅</td><td class="s part">⚠️</td><td>Hub: Claude + Codex context chip, persisted usage on open and live turn updates; fork uses Codex latest-turn occupancy + exact window</td></tr>
       <tr><td>Notifications</td><td class="s part">⚠️ <span class="plus">➕</span></td><td class="s full">✅</td><td>Hub: chime + desktop notification, fleet-wide. CloudCLI: Web Push (VAPID), Discord, per-channel prefs</td></tr>
       <tr><td>Scheduled prompts / cron</td><td class="s miss">❌</td><td class="s part">⚠️</td><td>Optional plugin, not core</td></tr>
       <tr><td>Themes (light/dark)</td><td class="s full">✅</td><td class="s full">✅</td><td>Hub: persisted System/Dark/Light choice; terminal remains deliberately dark for ANSI fidelity</td></tr>

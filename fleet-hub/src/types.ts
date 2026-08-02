@@ -156,13 +156,22 @@ export interface ChatEvent extends NormalizedMessage {
   success?: boolean
   /** Claude and Codex both emit a `status` frame with text 'token_budget' per turn. */
   text?: string
-  tokenBudget?: { used?: number; total?: number; inputTokens?: number; outputTokens?: number }
+  tokenBudget?: Partial<TokenBudget>
   aborted?: boolean
   isProcessing?: boolean
   lastSeq?: number
   pendingPermissions?: PermissionRequest[]
   code?: string
   error?: string
+}
+
+export interface TokenBudget {
+  used: number
+  total: number
+  inputTokens?: number
+  outputTokens?: number
+  cacheReadTokens?: number
+  cacheCreationTokens?: number
 }
 
 export type PermissionMode = 'default' | 'acceptEdits' | 'plan' | 'bypassPermissions'

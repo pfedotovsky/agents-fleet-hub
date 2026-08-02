@@ -1017,10 +1017,12 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
                     // Codex stores token info in event_msg with type: "token_count"
                     if (entry.type === 'event_msg' && entry.payload?.type === 'token_count' && entry.payload?.info) {
                         const tokenInfo = entry.payload.info;
-                        if (tokenInfo.total_token_usage) {
-                            inputTokens = tokenInfo.total_token_usage.input_tokens || 0;
-                            outputTokens = tokenInfo.total_token_usage.output_tokens || 0;
-                            totalTokens = tokenInfo.total_token_usage.total_tokens || inputTokens + outputTokens;
+                        // [fork-fix #19] Lifetime totals regularly exceed the
+                        // context window. Report the latest turn's occupancy.
+                        if (tokenInfo.last_token_usage) {
+                            inputTokens = tokenInfo.last_token_usage.input_tokens || 0;
+                            outputTokens = tokenInfo.last_token_usage.output_tokens || 0;
+                            totalTokens = tokenInfo.last_token_usage.total_tokens || inputTokens + outputTokens;
                         }
                         if (tokenInfo.model_context_window) {
                             contextWindow = tokenInfo.model_context_window;

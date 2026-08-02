@@ -241,6 +241,19 @@ it still can't confirm. Restart the service after upgrading.
 - **12.** Cursor-IDE-created sessions have no `store.db`, so transcripts and
   deep links fail for them.
 
+### 19. Codex persisted context usage used cumulative thread tokens
+
+Codex `token_count` records contain both `total_token_usage` (lifetime tokens
+across the thread) and `last_token_usage` (the latest turn's context
+occupancy). The inherited history parser exposed the cumulative value through
+the REST token-usage endpoint, so a long session could render impossible
+values such as `28,466k / 258k`.
+
+**Fork status (`[fork-fix #19]`):** persisted Codex usage now uses
+`last_token_usage.total_tokens` with the record's exact
+`model_context_window`. A regression test keeps cumulative usage from leaking
+back into the UI.
+
 ## Fork decision — considerations, not a verdict
 
 **What a fork buys:**
@@ -293,3 +306,5 @@ it still can't confirm. Restart the service after upgrading.
   #13/#14 patch pair now needs re-applying after every cloudcli update (#13
   also needs a server restart) — this shifts the fork calculus toward at
   least maintaining a patch set, if not forking.
+- 2026-08-02 — added and fixed #19 after live Agents Hub verification exposed
+  lifetime Codex thread tokens as an impossible context-window percentage.

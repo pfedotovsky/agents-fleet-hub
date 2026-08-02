@@ -7,6 +7,11 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-02
 
 ### Changed
+- **Existing Claude and Codex sessions now show context occupancy on open.**
+  The chat header loads the host's persisted token-usage record immediately,
+  then lets a newer live `token_budget` frame replace it after a turn. Older
+  or stock hosts without the endpoint remain best-effort and do not block
+  transcript loading. Tracked in private backlog #17.
 - **Terminal can now be the default session view.** Settings → Sessions stores
   `Structured` or `Terminal` in the existing preferences record; each newly
   opened session starts on that surface and can switch back and forth from its
@@ -37,6 +42,12 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   by `brew services restart fleet-server` to run the new binary.
 
 ### Fixed
+- **Persisted Codex context usage is no longer cumulative (`[fork-fix #19]`).**
+  fleet-server now reads `last_token_usage` from the latest `token_count`
+  record instead of lifetime `total_token_usage`, retaining the exact model
+  context window. A long live session changed from the impossible
+  `30,006k / 258k` to `61k / 258k` (24%) after the fix; a provider regression
+  test covers the distinction.
 - **fleet-server provider startup failures (`[fork-fix #17/#18]`).** Codex now
   pins `@openai/codex-sdk` 0.146.0 and selects the newest installed host CLI
   (explicit `CODEX_CLI_PATH` first, otherwise PATH versus bundled macOS
