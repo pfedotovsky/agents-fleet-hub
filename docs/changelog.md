@@ -6,6 +6,19 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-08-03
 
+### Changed
+- **Feature-flagged Codex model discovery now uses app-server truth.** With
+  `CODEX_APP_SERVER_ENABLED=1`, the existing provider-model endpoint pages
+  through app-server `model/list` and preserves its picker order, explicit
+  default, display name, description, reasoning efforts, personality support,
+  and input modalities. Hidden rows remain hidden, older catalogs without
+  modality metadata retain the documented text+image compatibility default,
+  and provider-process catalogs refresh hourly. If app-server is unavailable or
+  protocol-incompatible, fleet-server safely falls back to the existing Codex
+  model cache; with the flag off, behavior is unchanged. A live 0.146.0 probe
+  returned seven visible models and `gpt-5.6-sol` as the default without
+  creating a thread. Tracked in private backlog #37.
+
 ### Added
 - **Codex app-server lifecycle foundation.** fleet-server now has a supervised
   JSONL-over-stdio client for Codex CLI 0.146.x with an honest `agents_hub`

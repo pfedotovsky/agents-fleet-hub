@@ -322,15 +322,24 @@ on timeout, transport failure, stop, or process exit. Provider stderr is drained
 but never logged because it may contain user or authentication data.
 
 `codex-app-server-config.ts` is the disabled-by-default construction boundary
-for `CODEX_APP_SERVER_ENABLED`; no current provider route calls it, so setting
-the variable alone does not change session behavior yet. The existing SDK
-adapter remains the only production send path. The client accepts Codex CLI
-0.146.x only, matching its generated protocol baseline, and fails before spawn
-for other minor versions. This deliberately fail-closed gate must be updated
-along with regenerated consumed types after compatibility verification. Later
-slices will wire `model/list`, token usage, and thread/turn normalization before
-the flag can control real sessions. App-server remains strictly behind the
-authenticated fleet-server REST/WebSocket boundary.
+for `CODEX_APP_SERVER_ENABLED`. `CodexProviderModels` now uses it when the
+existing provider-model endpoint refreshes its Codex catalog: with the flag on,
+it pages through picker-visible `model/list` rows and maps the provider's order,
+explicit default, display metadata, reasoning efforts, personality capability,
+and input modalities onto the CloudCLI-compatible model response. Codex and
+Claude process-backed catalogs use a one-hour backend cache. A failed spawn,
+incompatible protocol, invalid response, or empty catalog falls back to the
+existing `~/.codex/models_cache.json` reader; the flag-off path is unchanged.
+
+This is model discovery only. The existing SDK adapter remains the only
+production session send path, so enabling the flag does not yet create native
+desktop-visible Agents Hub threads. The client accepts Codex CLI 0.146.x only,
+matching its generated protocol baseline, and fails before spawn for other
+minor versions. This deliberately fail-closed gate must be updated along with
+regenerated consumed types after compatibility verification. Later slices will
+wire token usage, effective settings/warnings, and thread/turn normalization.
+App-server remains strictly behind the authenticated fleet-server
+REST/WebSocket boundary.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

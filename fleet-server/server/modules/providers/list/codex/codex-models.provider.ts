@@ -4,6 +4,13 @@ import path from 'node:path';
 
 import TOML from '@iarna/toml';
 
+import type { CodexAppServerClient } from './codex-app-server-client.js';
+import { createCodexAppServerClientIfEnabled } from './codex-app-server-config.js';
+import type {
+  InputModality,
+  ModelListParams,
+  ModelListResponse,
+} from './app-server-protocol/index.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
 import type {
   ProviderChangeActiveModelInput,
@@ -63,8 +70,21 @@ type CodexCachedModel = {
   }>;
 };
 
+export type CodexAppServerModelClient = Pick<
+  CodexAppServerClient,
+  'start' | 'request' | 'stop'
+>;
+
+type CodexProviderModelsDependencies = {
+  createAppServerClient?: () => CodexAppServerModelClient | null;
+  readModelsCache?: () => Promise<string>;
+  onDiagnostic?: (message: string) => void;
+};
+
 const CODEX_MODELS_CACHE_PATH = path.join(os.homedir(), '.codex', 'models_cache.json');
 const CODEX_CONFIG_PATH = path.join(os.homedir(), '.codex', 'config.toml');
+const MODEL_LIST_PAGE_LIMIT = 100;
+const DEFAULT_INPUT_MODALITIES: InputModality[] = ['text', 'image'];
 
 const isCodexCachedModel = (value: unknown): value is CodexCachedModel => {
   const record = readObjectRecord(value);
@@ -133,10 +153,144 @@ const buildCodexModelsDefinition = (models: CodexCachedModel[]): ProviderModelsD
   };
 };
 
+const isInputModality = (value: unknown): value is InputModality => (
+  value === 'text' || value === 'image' || value === 'audio'
+);
+
+const mapCodexAppServerModel = (value: unknown): ProviderModelOption | null => {
+  const model = readObjectRecord(value);
+  const id = readOptionalString(model?.model) ?? readOptionalString(model?.id);
+  if (!model || !id || model.hidden === true) {
+    return null;
+  }
+
+  const effortValues = Array.isArray(model.supportedReasoningEfforts)
+    ? model.supportedReasoningEfforts
+      .map((entry) => {
+        const effort = readObjectRecord(entry);
+        const effortValue = readOptionalString(effort?.reasoningEffort);
+        if (!effortValue) return null;
+        return {
+          value: effortValue,
+          description: readOptionalString(effort?.description),
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+    : [];
+
+  const advertisedModalities = Array.isArray(model.inputModalities)
+    ? model.inputModalities.filter(isInputModality)
+    : [];
+
+  return {
+    value: id,
+    label: readOptionalString(model.displayName) ?? id,
+    description: readOptionalString(model.description),
+    inputModalities: advertisedModalities.length > 0
+      ? advertisedModalities
+      : DEFAULT_INPUT_MODALITIES,
+    supportsPersonality: model.supportsPersonality === true,
+    effort: effortValues.length > 0
+      ? {
+          default: readOptionalString(model.defaultReasoningEffort) ?? undefined,
+          values: effortValues,
+        }
+      : undefined,
+  };
+};
+
+export const buildCodexAppServerModelsDefinition = (
+  models: readonly unknown[],
+): ProviderModelsDefinition => {
+  const options: ProviderModelOption[] = [];
+  const seenValues = new Set<string>();
+  let defaultModel: string | null = null;
+
+  for (const model of models) {
+    const mapped = mapCodexAppServerModel(model);
+    if (!mapped || seenValues.has(mapped.value)) continue;
+    seenValues.add(mapped.value);
+    options.push(mapped);
+
+    const record = readObjectRecord(model);
+    if (record?.isDefault === true && defaultModel === null) {
+      defaultModel = mapped.value;
+    }
+  }
+
+  if (options.length === 0) {
+    throw new Error('Codex app-server returned no picker-visible models');
+  }
+
+  return {
+    OPTIONS: options,
+    DEFAULT: defaultModel ?? options[0].value,
+  };
+};
+
+export const listCodexAppServerModels = async (
+  client: CodexAppServerModelClient,
+): Promise<unknown[]> => {
+  await client.start();
+  const models: unknown[] = [];
+  const seenCursors = new Set<string>();
+  let cursor: string | null = null;
+
+  do {
+    const params: ModelListParams = {
+      cursor,
+      limit: MODEL_LIST_PAGE_LIMIT,
+      includeHidden: false,
+    };
+    const response = await client.request<ModelListResponse>('model/list', params);
+    const responseRecord = readObjectRecord(response);
+    if (!responseRecord || !Array.isArray(responseRecord.data)) {
+      throw new Error('Codex app-server returned an invalid model/list response');
+    }
+    models.push(...responseRecord.data);
+
+    const nextCursor = readOptionalString(responseRecord.nextCursor) ?? null;
+    if (nextCursor && seenCursors.has(nextCursor)) {
+      throw new Error('Codex app-server repeated a model/list cursor');
+    }
+    if (nextCursor) seenCursors.add(nextCursor);
+    cursor = nextCursor;
+  } while (cursor);
+
+  return models;
+};
+
 export class CodexProviderModels implements IProviderModels {
+  private readonly createAppServerClient: () => CodexAppServerModelClient | null;
+  private readonly readModelsCache: () => Promise<string>;
+  private readonly onDiagnostic: (message: string) => void;
+
+  constructor(dependencies: CodexProviderModelsDependencies = {}) {
+    this.createAppServerClient = dependencies.createAppServerClient
+      ?? (() => createCodexAppServerClientIfEnabled());
+    this.readModelsCache = dependencies.readModelsCache
+      ?? (() => readFile(CODEX_MODELS_CACHE_PATH, 'utf8'));
+    this.onDiagnostic = dependencies.onDiagnostic
+      ?? ((message) => console.warn(`[Codex] ${message}`));
+  }
+
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
+    const appServerClient = this.createAppServerClient();
+    if (appServerClient) {
+      try {
+        const models = await listCodexAppServerModels(appServerClient);
+        return buildCodexAppServerModelsDefinition(models);
+      } catch {
+        this.onDiagnostic(
+          'Codex app-server model catalog unavailable; using the existing cache fallback',
+        );
+      } finally {
+        appServerClient.stop();
+      }
+    }
+
     try {
-      const raw = await readFile(CODEX_MODELS_CACHE_PATH, 'utf8');
+      const raw = await this.readModelsCache();
       const parsed = readObjectRecord(JSON.parse(raw));
       const models = Array.isArray(parsed?.models)
         ? parsed.models.filter(isCodexCachedModel)

@@ -114,11 +114,20 @@ foundation now includes:
 - a disabled-by-default construction boundary. It is not connected to the
   existing provider send path yet, so the SDK remains the production default.
 
-The focused lifecycle suite passes seven tests, the full fleet-server suite
-passes 131 tests, and typechecking passes. A sanitized live probe against the
-installed Codex CLI 0.146.0 returned the expected platform metadata and Codex
-user agent without creating a thread. The remaining numbered slices above are
-unchanged; model/context truth is next.
+Vertical slice 2a now routes feature-flagged Codex model discovery through
+paginated `model/list`. The mapper preserves provider order, explicit default,
+display metadata, reasoning efforts, personality support, and input modalities;
+hidden rows remain excluded and missing modality metadata uses the documented
+text+image compatibility default. A failed app-server lookup returns to the
+existing Codex cache, and the flag-off path is unchanged. This does not route
+conversations through app-server yet.
+
+The focused lifecycle and model suites pass 11 tests, the full fleet-server
+suite passes 135 tests, and typechecking passes. A sanitized live probe against
+the installed Codex CLI 0.146.0 returned seven picker-visible models,
+`gpt-5.6-sol` as the explicit default, the current effort catalogs, and model
+modalities without creating a thread. Token-usage notifications and effective
+settings/warnings are the remaining vertical-slice-2 work.
 
 ## Remaining uncertainty
 
