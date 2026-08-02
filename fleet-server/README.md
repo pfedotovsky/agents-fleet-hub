@@ -132,6 +132,8 @@ bun install
 bun run dev          # interpreted source server, port 3012, data in ~/.fleet-server-dev
 bun run typecheck
 bun test server
+bun run probe:codex-app-server       # sanitized handshake + model-list probe; no thread
+bun run probe:codex-app-server-turn  # ephemeral read-only turn; persists no session
 bun run build        # compiled binary for this platform (dist/)
 bun run scripts/build.ts --all   # full release matrix
 ```

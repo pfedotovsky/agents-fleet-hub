@@ -7,6 +7,18 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-03
 
 ### Changed
+- **Codex app-server conversation core is now contract-tested.** A fleet-server
+  runner can start or resume an app-server thread at an arbitrary absolute
+  `cwd`, start one turn, preserve the provider-native thread id, and normalize
+  assistant deltas, fallback completed text, exact last-turn/context-window
+  usage, recoverable warnings, effective returned settings, and terminal turn
+  status. Unsupported server requests still fail closed, so this runner is not
+  selected by production chat yet; approval and request-user-input forwarding
+  must land before the feature flag can route sessions safely. A live ephemeral
+  read-only turn returned the expected assistant text, exact `17,833 / 258,400`
+  usage, and the managed-policy fallback from requested `never` to effective
+  `untrusted`, without persisting an Agents Hub session. Tracked in private
+  backlog #37.
 - **Feature-flagged Codex model discovery now uses app-server truth.** With
   `CODEX_APP_SERVER_ENABLED=1`, the existing provider-model endpoint pages
   through app-server `model/list` and preserves its picker order, explicit

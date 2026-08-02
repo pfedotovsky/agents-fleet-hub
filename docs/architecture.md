@@ -341,6 +341,28 @@ wire token usage, effective settings/warnings, and thread/turn normalization.
 App-server remains strictly behind the authenticated fleet-server
 REST/WebSocket boundary.
 
+`codex-app-server-conversation.ts` is the next internal boundary. It sequences
+`thread/start` or `thread/resume` followed by `turn/start`, accepts an arbitrary
+host-local `cwd`, and returns the provider-native thread id plus the effective
+model, approval policy, sandbox, reasoning effort, and working directory from
+the app-server response. Its notification loop filters by thread and turn,
+streams `item/agentMessage/delta` (falling back to a completed agent message
+when no delta arrived), maps `thread/tokenUsage/updated.last` together with the
+exact `modelContextWindow`, surfaces generic and configuration warnings, and
+terminates only on the matching `turn/completed`. It never invents a context
+window when app-server reports none.
+
+This runner is deliberately not selected by `openai-codex.js` yet. The current
+chat gateway can answer Claude tool approvals, but Codex app-server sends
+server-initiated approval and request-user-input methods that still need a
+provider-neutral pending-request bridge. The app-server client answers those
+unknown requests with method-not-supported, so routing real chats now would
+break an otherwise valid turn when managed policy requires an approval. The SDK
+therefore remains the only production conversation path until that bridge is
+implemented and live UI-verified. An ephemeral read-only live turn confirmed
+the runner captures the effective managed fallback (`never` requested,
+`untrusted` returned), its warning, assistant deltas, and exact token budget.
+
 ## Claude Code `--resume` visibility of Agent Hub sessions
 
 **Symptom:** sessions created through Agent Hub do not appear in the interactive

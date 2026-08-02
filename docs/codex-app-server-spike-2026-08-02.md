@@ -129,6 +129,21 @@ the installed Codex CLI 0.146.0 returned seven picker-visible models,
 modalities without creating a thread. Token-usage notifications and effective
 settings/warnings are the remaining vertical-slice-2 work.
 
+Vertical slice 3a adds a reusable conversation runner for `thread/start` or
+`thread/resume` plus `turn/start`. It normalizes provider session identity,
+effective returned settings, assistant deltas (with a completed-item fallback),
+exact last-turn/context-window usage, warnings, and terminal status while
+filtering unrelated thread/turn notifications. Unsupported server-initiated
+requests still fail closed, so production chat intentionally remains on the SDK
+until approval and request-user-input forwarding is implemented.
+
+A live ephemeral read-only turn completed with the expected assistant text and
+reported `17,833 / 258,400` tokens. Managed requirements rejected the requested
+`never` approval policy, returned effective `untrusted`, and emitted the warning
+the runner surfaced. This simultaneously verifies effective-setting truth and
+the reason production routing must wait for the approval bridge. The full
+fleet-server suite now passes 139 tests; typechecking passes.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified
