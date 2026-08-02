@@ -6,6 +6,19 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-08-02
 
+### Changed
+- **Development and released fleet-server instances now use distinct ports.**
+  `bun run dev` starts the interpreted source server on 3012 while the
+  installed/Homebrew release remains on 3011; their data is also separated as
+  `~/.fleet-server-dev` versus `~/.fleet-server`. Vite Agents Hub on 5173
+  discovers 3012 as `localhost (dev)`; packaged builds discover 3011, and an
+  existing 3011 entry in Vite storage is relabeled `localhost (release)`.
+  This allows both servers to run simultaneously without ambiguous host names
+  or a shared SQLite database. Root `npm run dev` now launches both source
+  processes, waits for server readiness before Vite discovery, installs
+  missing project dependencies, and stops both on `Ctrl+C`. Tracked in private
+  backlog #35.
+
 ### Released
 - **fleet-server 0.3.1** — tag `server-v0.3.1`; ships the provider startup
   fixes and reproducible release inputs below. The Homebrew formula is updated

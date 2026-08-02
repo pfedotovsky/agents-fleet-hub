@@ -110,10 +110,14 @@ export interface DiscoveredHost {
 }
 
 /**
- * Well-known localhost ports for an agent server: fleet-server defaults to
- * 3011, stock CloudCLI to 3001. `/health` is public (no auth).
+ * Well-known localhost ports for an agent server. The Vite UI deliberately
+ * targets source fleet-server on 3012; packaged builds target the released
+ * fleet-server on 3011. Stock CloudCLI remains on 3001.
  */
-const LOCAL_DISCOVERY_URLS = ['http://localhost:3011', 'http://localhost:3001'] as const
+const LOCAL_FLEET_SERVER_URL = import.meta.env.DEV
+  ? 'http://localhost:3012'
+  : 'http://localhost:3011'
+const LOCAL_DISCOVERY_URLS = [LOCAL_FLEET_SERVER_URL, 'http://localhost:3001'] as const
 
 async function probeLocalHealth(baseUrl: string): Promise<DiscoveredHost | null> {
   const controller = new AbortController()

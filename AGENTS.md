@@ -27,6 +27,17 @@ where `docs/cloudcli-server-issues.md` marks an issue as fixed in the fork.
 
 ## Commands
 
+From the workspace root:
+
+```bash
+npm run dev       # source fleet-server :3012 + Vite UI :5173; Ctrl+C stops both
+```
+
+Development and release ports are intentionally distinct. Never move source
+fleet-server back to 3011: Homebrew/released fleet-server owns 3011 and
+`~/.fleet-server`; `bun run dev` owns 3012 and `~/.fleet-server-dev`. Vite on
+5173 discovers only 3012, while packaged Agents Hub discovers 3011.
+
 From `fleet-hub/`:
 
 ```bash
@@ -43,7 +54,7 @@ From `fleet-server/` (requires Bun, not Node):
 
 ```bash
 bun install
-bun run dev        # start interpreted, port 3011
+bun run dev        # start interpreted, port 3012, data in ~/.fleet-server-dev
 bun run typecheck  # tsc --noEmit
 bun test server    # the test suite
 bun run build      # compiled binary for this platform → dist/

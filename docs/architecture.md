@@ -59,9 +59,16 @@ Browser (Agents Hub SPA)
   (same-machine fleet-server), mint a token via `POST /api/auth/local-token`
   and poll as online; otherwise `needs-setup` or `needs-auth`.
 - On launch, `useFleet` runs discovery once and auto-adds a local
-  **fleet-server** (port 3011) as a host — CloudCLI (3001) stays a manual
-  suggestion in Settings. Auto-added URLs are remembered
+  **fleet-server** as a host: Vite development builds discover the interpreted
+  source server on port 3012 (data in `~/.fleet-server-dev`) and label it
+  `localhost (dev)`; packaged builds discover the released server on port
+  3011 (data in `~/.fleet-server`). CloudCLI (3001) stays a manual
+  suggestion in Settings. An older Vite-local `localhost` entry for port 3011
+  is relabeled `localhost (release)`. Auto-added URLs are remembered
   (`fleethub.v1.autoAdded`) so removing the host sticks.
+- Root `npm run dev` orchestrates the source stack without another dependency:
+  it starts fleet-server, waits for `http://localhost:3012/health`, then starts
+  Vite on 5173; termination of either process shuts down the other.
 - In-flight guard per host: hibernating remote VMs eat the full fetch timeout,
   so polls must not stack.
 - When a host goes offline its last-known projects are kept so sessions stay

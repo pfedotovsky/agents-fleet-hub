@@ -12,6 +12,13 @@ npm install
 npm run dev     # http://localhost:5173
 ```
 
+The Vite UI discovers the source fleet-server at `http://localhost:3012`
+(`cd ../fleet-server && bun run dev`). That command uses
+`~/.fleet-server-dev`; released fleet-server stays on 3011 with
+`~/.fleet-server`, so development and Homebrew installations can run
+simultaneously. Packaged Agents Hub builds continue to discover the released
+server on 3011.
+
 Or install the desktop app — the same SPA in a Tauri shell:
 
 ```bash

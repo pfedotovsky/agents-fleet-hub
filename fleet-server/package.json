@@ -6,7 +6,7 @@
   "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
-    "dev": "bun run server/index.js",
+    "dev": "SERVER_PORT=${SERVER_PORT:-3012} FLEET_SERVER_HOME=${FLEET_SERVER_HOME:-$HOME/.fleet-server-dev} bun run server/index.js",
     "typecheck": "bun x tsc --noEmit -p server/tsconfig.json",
     "test": "bun test server",
     "build": "bun run scripts/build.ts"

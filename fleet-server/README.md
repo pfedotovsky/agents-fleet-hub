@@ -128,12 +128,19 @@ commits are prefixed `[fork-fix #N]`):
 
 ```bash
 bun install
-bun run dev          # interpreted, port 3011
+bun run dev          # interpreted source server, port 3012, data in ~/.fleet-server-dev
 bun run typecheck
 bun test server
 bun run build        # compiled binary for this platform (dist/)
 bun run scripts/build.ts --all   # full release matrix
 ```
+
+Port 3011 and `~/.fleet-server` are reserved for the installed/released
+fleet-server, so both instances can run at once without sharing a socket or
+SQLite database. The Vite development UI on port 5173 discovers source port
+3012; packaged Agents Hub builds discover release port 3011. Explicit
+`SERVER_PORT` and `FLEET_SERVER_HOME` values still override the development
+defaults.
 
 Releases: tag `server-v<semver>` → `.github/workflows/server-release.yml`
 builds/tests/publishes. Cherry-picking upstream changes: see

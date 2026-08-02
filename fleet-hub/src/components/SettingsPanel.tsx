@@ -74,7 +74,11 @@ export function SettingsPanel({
   }
 
   function handleAddDiscovered(host: DiscoveredHost) {
-    const label = host.kind === 'cloudcli' ? 'localhost (cloudcli)' : 'localhost'
+    const label = host.kind === 'cloudcli'
+      ? 'localhost (cloudcli)'
+      : import.meta.env.DEV
+        ? 'localhost (dev)'
+        : 'localhost'
     onAddHost({ name: label, baseUrl: host.baseUrl })
     setDiscovered((prev) => prev.filter((entry) => entry.baseUrl !== host.baseUrl))
   }

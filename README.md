@@ -125,24 +125,30 @@ release follow [`docs/releasing.md`](docs/releasing.md).
 
 ## Development
 
-To hack on the hub UI, run the Vite dev server from `fleet-hub/` (Node.js
-required; the URL only works while this command is running):
+Run the complete source stack from the repository root (Node.js, npm, and Bun
+are required):
 
 ```bash
-cd fleet-hub
-npm install
-npm run dev     # → http://localhost:5173
+npm run dev
 ```
 
-You still need a fleet-server (or stock CloudCLI) to talk to — the installed
-service on `:3011` works fine, or run one from source with
-[Bun](https://bun.sh):
+The command installs missing project dependencies, starts the source server
+first, waits for its health check, and then starts Vite. `Ctrl+C` stops both.
+The installed Homebrew release can stay running:
+
+| Purpose | Address | Data |
+| --- | --- | --- |
+| Released/Homebrew UI | `http://localhost:3011/fleet-hub/` | `~/.fleet-server` |
+| Released server/API | `http://localhost:3011` | `~/.fleet-server` |
+| Vite development UI | `http://localhost:5173` | Browser-local |
+| Source development server | `http://localhost:3012` | `~/.fleet-server-dev` |
+
+Vite discovers 3012 as `localhost (dev)`; packaged builds discover 3011. To
+run either part separately:
 
 ```bash
-cd fleet-server
-bun install
-bun run dev     # server on :3011
-bun test server # run the test suite
+cd fleet-hub && npm run dev       # UI only, :5173
+cd fleet-server && bun run dev    # server only, :3012
 ```
 
 To develop the desktop (Tauri) shell instead of the browser build, use

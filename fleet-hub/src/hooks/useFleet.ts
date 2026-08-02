@@ -34,8 +34,23 @@ export interface NewHostInput {
   username?: string
 }
 
+function loadInitialHosts(): HostConfig[] {
+  const hosts = storage.loadHosts()
+  if (!import.meta.env.DEV) return hosts
+
+  // Vite and the packaged UI have separate storage, but older Vite sessions
+  // may already contain the released server under the ambiguous name.
+  const renamed = hosts.map((host) =>
+    host.baseUrl === 'http://localhost:3011' && host.name === 'localhost'
+      ? { ...host, name: 'localhost (release)' }
+      : host,
+  )
+  if (renamed.some((host, index) => host !== hosts[index])) storage.saveHosts(renamed)
+  return renamed
+}
+
 export function useFleet() {
-  const [hostConfigs, setHostConfigs] = useState<HostConfig[]>(() => storage.loadHosts())
+  const [hostConfigs, setHostConfigs] = useState<HostConfig[]>(loadInitialHosts)
   const [prefs, setPrefs] = useState<Prefs>(() => storage.loadPrefs())
   const [runtimes, setRuntimes] = useState<Record<string, HostRuntime>>({})
   const inFlight = useRef(new Set<string>())
@@ -176,8 +191,9 @@ export function useFleet() {
   }, [])
 
   // Auto-add the local fleet-server on launch so the same-machine host shows up
-  // with no manual step. Only fleet-server (3011), never stock CloudCLI. Skips
-  // URLs we've auto-added before, so removing the host in Settings sticks.
+  // with no manual step. Vite discovers source port 3012; packaged builds use
+  // release port 3011. Stock CloudCLI is never auto-added. Skips URLs we've
+  // auto-added before, so removing the host in Settings sticks.
   useEffect(() => {
     let cancelled = false
     discoverLocalHosts(hostsRef.current.map((host) => host.baseUrl))
@@ -188,7 +204,10 @@ export function useFleet() {
           if (host.kind !== 'fleet-server') continue
           if (already.has(host.baseUrl)) continue
           storage.addAutoAdded(host.baseUrl)
-          addHost({ name: 'localhost', baseUrl: host.baseUrl })
+          addHost({
+            name: import.meta.env.DEV ? 'localhost (dev)' : 'localhost',
+            baseUrl: host.baseUrl,
+          })
         }
       })
       .catch(() => {})
