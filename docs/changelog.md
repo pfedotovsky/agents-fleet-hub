@@ -6,6 +6,16 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-08-03
 
+### Added
+- **The Git panel now includes read-only commit history.** A Changes/History
+  switch exposes recent commits across branches, remotes, and tags with refs,
+  author, time, short hash, and file statistics. Selecting a commit opens its
+  patch in the existing diff viewer, older commits load in bounded pages, and
+  the view includes loading, empty, retry, no-patch, and truncation states.
+  The source-server contract now returns a pure unified patch so commit
+  metadata cannot be misrendered as diff context. Tracked in private backlog
+  #12; discard/revert remains a separate safety-sensitive slice.
+
 ### Changed
 - **Heartbeat decisions now always include a usable answer path.** The
   repo-local backlog-loop skill treats scheduled runs as potentially
