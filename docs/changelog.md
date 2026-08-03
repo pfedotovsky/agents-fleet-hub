@@ -14,7 +14,10 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   exact reply such as `D-39-decision-delivery: A`. Notifications cannot rely on
   buttons outside the surfaced heartbeat message. An unresolved decision now
   blocks only its dependent slice; unchanged decisions stay quiet while safe
-  unrelated work may continue. Tracked in private backlog #39.
+  unrelated work may continue. The loop now also distinguishes a genuine active
+  lease from review inventory: a clean pushed worktree and open PR marked
+  complete/awaiting review do not freeze the campaign when `agent:active` is
+  absent. Tracked in private backlog #39.
 
 ## 2026-08-02
 

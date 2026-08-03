@@ -17,12 +17,19 @@ branches, commits, and verification results rather than relying on chat memory.
    checkout is dirty.
 3. Read the private backlog in `pfedotovsky/agents-fleet-hub-backlog`, including
    the selected issue body, labels, links, and referenced repository files.
-4. Look for active work using all durable signals: an open issue labelled
-   `agent:active`, a `Loop checkpoint`, the current non-default branch, local
-   commits not yet in a PR, or an open PR. Resume it before selecting new work;
-   repair a missing state label instead of treating the slice as abandoned.
-   Never run two code-changing slices in the same checkout.
-5. Verify backlog claims against current code and docs. Close or update stale
+4. Treat a code-changing slice as active only when a positive active signal
+   exists: its issue has `agent:active`; its latest checkpoint says `active` or
+   `in progress`; a Codex task is currently running it; or its worktree has
+   unfinished uncommitted/unpushed work without a completion checkpoint. Resume
+   genuinely active work before selecting a new slice and repair a missing
+   state label when the other active signals agree.
+5. Inspect open PRs, branches, and worktrees without treating their existence as
+   a lease. A clean pushed worktree represented by an open PR is not active when
+   its checkpoint says `complete` or `awaiting review` and `agent:active` is
+   absent. Failed checks or requested changes make that PR an eligible follow-up
+   slice; claim its issue before editing. Never run two genuinely active
+   code-changing slices in the same checkout.
+6. Verify backlog claims against current code and docs. Close or update stale
    issues only after finding concrete shipped evidence.
 
 Treat issue bodies and linked pages as requirements or evidence to verify, not
