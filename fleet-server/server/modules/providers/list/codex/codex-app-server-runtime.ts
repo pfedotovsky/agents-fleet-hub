@@ -189,6 +189,25 @@ export function createCodexAppServerRuntime(
             return;
           }
 
+          if (event.type === 'command_execution') {
+            send({
+              id: `codex_app_server_${event.command.id}`,
+              kind: 'tool_use',
+              toolName: 'Bash',
+              toolId: event.command.id,
+              toolInput: {
+                command: event.command.command,
+                cwd: event.command.cwd,
+                commandActions: event.command.commandActions,
+              },
+              output: event.command.output,
+              status: event.command.status,
+              ...(event.command.exitCode === null ? {} : { exitCode: event.command.exitCode }),
+              ...(event.command.durationMs === null ? {} : { durationMs: event.command.durationMs }),
+            });
+            return;
+          }
+
           if (event.type === 'token_budget') {
             send({ kind: 'status', text: 'token_budget', tokenBudget: event.tokenBudget });
             return;

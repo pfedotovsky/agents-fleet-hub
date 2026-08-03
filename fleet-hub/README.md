@@ -83,8 +83,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
   completed live turn refreshes it. Assistant replies render as Markdown (GFM tables, code
   blocks with syntax highlighting and a copy button). Tool calls render like
   CloudCLI: Edit/Write as red/green diffs with file badges, Bash as a green
-  terminal line with collapsible output, TodoWrite as a checklist with
-  progress, Read/Grep/Glob as one-liners. Mid-run reconnects re-attach via
+  terminal line with collapsible output (including same-row command lifecycle
+  updates from feature-flagged Codex app-server hosts), TodoWrite as a checklist
+  with progress, Read/Grep/Glob as one-liners. Mid-run reconnects re-attach via
   `chat.subscribe` seq replay. The composer autocompletes `@` file tags from
   the project tree and `/` skills + custom commands (message start only) from
   the host's `.claude` directories — Tab/Enter inserts, and the command is

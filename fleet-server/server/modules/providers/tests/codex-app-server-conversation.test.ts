@@ -249,6 +249,140 @@ describe('Codex app-server conversation runner', () => {
     expect(result.error).toBe('Turn failed safely');
   });
 
+  test('normalizes command lifecycle and accumulates ordered output deltas', async () => {
+    const events: CodexAppServerConversationEvent[] = [];
+
+    await runCodexAppServerConversation({
+      cwd: '/workspace/project',
+      prompt: 'Run printf',
+    }, {
+      createClient: (options) => ({
+        start: async () => handshake,
+        request: async <Result>(method: string): Promise<Result> => {
+          if (method === 'thread/start') {
+            return {
+              thread: { id: 'thread-command' },
+              cwd: '/workspace/project',
+              model: 'gpt-5.6-sol',
+              approvalPolicy: 'untrusted',
+              sandbox: { type: 'workspaceWrite' },
+              reasoningEffort: null,
+            } as Result;
+          }
+          if (method === 'turn/start') {
+            queueMicrotask(() => {
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-command',
+                  turnId: 'turn-command',
+                  startedAtMs: 1,
+                  item: {
+                    type: 'commandExecution',
+                    id: 'command-1',
+                    command: "printf 'alpha\\nbeta\\n'",
+                    cwd: '/workspace/project',
+                    status: 'inProgress',
+                    commandActions: [{ type: 'unknown', command: 'printf' }],
+                    aggregatedOutput: null,
+                    exitCode: null,
+                    durationMs: null,
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/commandExecution/outputDelta',
+                params: {
+                  threadId: 'thread-command',
+                  turnId: 'turn-command',
+                  itemId: 'command-1',
+                  delta: 'alpha\n',
+                },
+              });
+              options.onNotification?.({
+                method: 'item/commandExecution/outputDelta',
+                params: {
+                  threadId: 'thread-command',
+                  turnId: 'turn-command',
+                  itemId: 'command-1',
+                  delta: 'beta\n',
+                },
+              });
+              options.onNotification?.({
+                method: 'item/completed',
+                params: {
+                  threadId: 'thread-command',
+                  turnId: 'turn-command',
+                  completedAtMs: 5,
+                  item: {
+                    type: 'commandExecution',
+                    id: 'command-1',
+                    command: "printf 'alpha\\nbeta\\n'",
+                    cwd: '/workspace/project',
+                    status: 'completed',
+                    commandActions: [{ type: 'unknown', command: 'printf' }],
+                    aggregatedOutput: null,
+                    exitCode: 0,
+                    durationMs: 4,
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'turn/completed',
+                params: {
+                  threadId: 'thread-command',
+                  turn: { id: 'turn-command', status: 'completed', error: null },
+                },
+              });
+            });
+            return { turn: { id: 'turn-command' } } as Result;
+          }
+          throw new Error(`Unexpected method ${method}`);
+        },
+        stop: () => {},
+      }),
+      onEvent: (event) => events.push(event),
+      turnTimeoutMs: 1_000,
+    });
+
+    expect(events.filter((event) => event.type === 'command_execution')).toEqual([
+      {
+        type: 'command_execution',
+        command: {
+          id: 'command-1',
+          command: "printf 'alpha\\nbeta\\n'",
+          cwd: '/workspace/project',
+          status: 'inProgress',
+          commandActions: [{ type: 'unknown', command: 'printf' }],
+          output: '',
+          exitCode: null,
+          durationMs: null,
+        },
+      },
+      expect.objectContaining({
+        type: 'command_execution',
+        command: expect.objectContaining({ output: 'alpha\n' }),
+      }),
+      expect.objectContaining({
+        type: 'command_execution',
+        command: expect.objectContaining({ output: 'alpha\nbeta\n' }),
+      }),
+      {
+        type: 'command_execution',
+        command: {
+          id: 'command-1',
+          command: "printf 'alpha\\nbeta\\n'",
+          cwd: '/workspace/project',
+          status: 'completed',
+          commandActions: [{ type: 'unknown', command: 'printf' }],
+          output: 'alpha\nbeta\n',
+          exitCode: 0,
+          durationMs: 4,
+        },
+      },
+    ]);
+  });
+
   test('stops the transport when a thread response is invalid', async () => {
     let stopped = false;
     await expect(runCodexAppServerConversation({

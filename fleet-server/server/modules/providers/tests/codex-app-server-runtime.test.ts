@@ -45,6 +45,45 @@ describe('Codex app-server runtime', () => {
           providerSessionId: 'thread-1',
           effectiveSettings,
         });
+        emit({
+          type: 'command_execution',
+          command: {
+            id: 'command-1',
+            command: "printf 'done\\n'",
+            cwd: '/workspace/project',
+            status: 'inProgress',
+            commandActions: [{ type: 'unknown', command: 'printf' }],
+            output: '',
+            exitCode: null,
+            durationMs: null,
+          },
+        });
+        emit({
+          type: 'command_execution',
+          command: {
+            id: 'command-1',
+            command: "printf 'done\\n'",
+            cwd: '/workspace/project',
+            status: 'inProgress',
+            commandActions: [{ type: 'unknown', command: 'printf' }],
+            output: 'done\n',
+            exitCode: null,
+            durationMs: null,
+          },
+        });
+        emit({
+          type: 'command_execution',
+          command: {
+            id: 'command-1',
+            command: "printf 'done\\n'",
+            cwd: '/workspace/project',
+            status: 'completed',
+            commandActions: [{ type: 'unknown', command: 'printf' }],
+            output: 'done\n',
+            exitCode: 0,
+            durationMs: 5,
+          },
+        });
         emit({ type: 'warning', message: 'Managed setting applied' });
         emit({
           type: 'permission_request',
@@ -93,6 +132,9 @@ describe('Codex app-server runtime', () => {
     expect(sessionIds).toEqual(['thread-1']);
     expect(messages.map((message) => message.kind)).toEqual([
       'status',
+      'tool_use',
+      'tool_use',
+      'tool_use',
       'status',
       'permission_request',
       'status',
@@ -105,12 +147,25 @@ describe('Codex app-server runtime', () => {
       sessionId: 'thread-1',
       text: 'effective_settings',
     });
-    expect(messages[5]).toMatchObject({
+    expect(messages[3]).toMatchObject({
+      id: 'codex_app_server_command-1',
+      toolName: 'Bash',
+      toolId: 'command-1',
+      output: 'done\n',
+      status: 'completed',
+      exitCode: 0,
+      durationMs: 5,
+      toolInput: {
+        command: "printf 'done\\n'",
+        cwd: '/workspace/project',
+      },
+    });
+    expect(messages[8]).toMatchObject({
       id: 'codex_app_server_item-1',
       role: 'assistant',
       content: 'All done.',
     });
-    expect(messages[6]).toMatchObject({ exitCode: 0, actualSessionId: 'thread-1' });
+    expect(messages[9]).toMatchObject({ exitCode: 0, actualSessionId: 'thread-1' });
     expect(runtime.isActive('thread-1')).toBeFalse();
   });
 

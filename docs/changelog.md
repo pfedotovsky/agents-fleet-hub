@@ -23,8 +23,13 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   app-server so managed overrides are visible. A live source-UI run created a
   native Codex-app-visible thread, showed a real Bash approval and exact
   `19k / 258k` occupancy, passed a deny back to Codex, and confirmed the target
-  temp file was absent. Routing, normalization, and single-terminal abort
-  behavior are also contract-tested. Tracked in private backlog #37.
+  temp file was absent. Codex command-execution lifecycle events now also map
+  onto one stable `Bash` tool row: ordered output deltas update it in place and
+  the authoritative completed item supplies final status, output, exit code,
+  and duration. A second live source-UI run showed approved shell commands and
+  their complete output in the structured transcript. Routing, normalization,
+  command lifecycle, and single-terminal abort behavior are contract-tested.
+  Tracked in private backlog #37.
 - **Codex app-server approvals now have a provider-neutral Hub bridge.** Pending
   interactions are scoped by provider and provider-native session, survive a
   browser reconnect through the existing `chat_subscribed.pendingPermissions`

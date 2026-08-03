@@ -349,9 +349,12 @@ model, approval policy, sandbox, reasoning effort, and working directory from
 the app-server response. Its notification loop filters by thread and turn,
 streams `item/agentMessage/delta` (falling back to a completed agent message
 when no delta arrived), maps `thread/tokenUsage/updated.last` together with the
-exact `modelContextWindow`, surfaces generic and configuration warnings, and
-terminates only on the matching `turn/completed`. It never invents a context
-window when app-server reports none.
+exact `modelContextWindow`, and tracks `commandExecution` items from their
+started notification through ordered output deltas to the authoritative
+completed item. Command output accumulated before completion is retained when
+the final item omits `aggregatedOutput`. The loop surfaces generic and
+configuration warnings and terminates only on the matching `turn/completed`.
+It never invents a context window when app-server reports none.
 
 `shared/pending-permissions.ts` now owns pending interaction state for every
 provider. Entries are scoped by provider plus provider-native session id, so
@@ -379,9 +382,13 @@ runner stops.
 assistant deltas per item and emits final text through the existing normalized
 writer, forwards exact token budgets, effective settings, warnings, approvals,
 errors, and exactly one terminal frame, and registers the provider-native id so
-reconnect and abort lookup use the same identity. An active abort signal sends
-`turn/interrupt`; runtime cleanup suppresses a duplicate terminal frame after
-the gateway has acknowledged the stop.
+reconnect and abort lookup use the same identity. Each command lifecycle update
+becomes the existing normalized `tool_use` shape with tool name `Bash`, the
+stable app-server item id, command/cwd/action input, inline output, status, and
+final exit/duration metadata. ChatPane's same-id upsert therefore updates one
+tool row rather than appending lifecycle duplicates. An active abort signal
+sends `turn/interrupt`; runtime cleanup suppresses a duplicate terminal frame
+after the gateway has acknowledged the stop.
 
 `codex-runtime-router.ts` selects this runtime for every send when
 `CODEX_APP_SERVER_ENABLED=1`; otherwise it calls the unchanged SDK adapter.
@@ -397,6 +404,10 @@ assistant deltas, and exact token budget.
 A second ephemeral probe attempted one temp-file command: app-server emitted a
 real `item/commandExecution/requestApproval`, the bridge returned `decline`,
 the turn completed as denied, and the target file was not created.
+A source-UI run then approved two harmless shell commands. The structured
+transcript rendered their app-server command lifecycle as `Bash` rows with
+complete inline output, while the resulting thread remained visible as a
+native task in the Codex app.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

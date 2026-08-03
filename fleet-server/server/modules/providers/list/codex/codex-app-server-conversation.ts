@@ -42,6 +42,17 @@ export type CodexAppServerTokenBudget = {
   };
 };
 
+export type CodexAppServerCommandExecution = {
+  id: string;
+  command: string;
+  cwd: string;
+  status: 'inProgress' | 'completed' | 'failed' | 'declined';
+  commandActions: unknown[];
+  output: string;
+  exitCode: number | null;
+  durationMs: number | null;
+};
+
 export type CodexAppServerConversationEvent =
   | {
       type: 'session';
@@ -49,6 +60,7 @@ export type CodexAppServerConversationEvent =
       effectiveSettings: CodexAppServerEffectiveSettings;
     }
   | { type: 'assistant_delta'; itemId: string; delta: string }
+  | { type: 'command_execution'; command: CodexAppServerCommandExecution }
   | { type: 'token_budget'; tokenBudget: CodexAppServerTokenBudget }
   | { type: 'warning'; message: string }
   | CodexAppServerInteractionEvent
@@ -123,6 +135,41 @@ class NotificationQueue {
 
 function readFiniteNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function readNullableFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function readCommandExecution(value: unknown): CodexAppServerCommandExecution | null {
+  const item = readObjectRecord(value);
+  if (item?.type !== 'commandExecution') return null;
+  const id = readOptionalString(item.id);
+  const command = readOptionalString(item.command);
+  const cwd = readOptionalString(item.cwd);
+  const status = readOptionalString(item.status);
+  if (
+    !id
+    || !command
+    || !cwd
+    || (status !== 'inProgress'
+      && status !== 'completed'
+      && status !== 'failed'
+      && status !== 'declined')
+  ) {
+    return null;
+  }
+
+  return {
+    id,
+    command,
+    cwd,
+    status,
+    commandActions: Array.isArray(item.commandActions) ? item.commandActions : [],
+    output: readOptionalString(item.aggregatedOutput) ?? '',
+    exitCode: readNullableFiniteNumber(item.exitCode),
+    durationMs: readNullableFiniteNumber(item.durationMs),
+  };
 }
 
 function readThreadResponse(value: unknown): {
@@ -244,6 +291,7 @@ export async function runCodexAppServerConversation(
   let effectiveSettings: CodexAppServerEffectiveSettings | null = null;
   let emittedAssistantText = false;
   const deltaItemIds = new Set<string>();
+  const commandExecutions = new Map<string, CodexAppServerCommandExecution>();
   const client = createClient({
     onNotification: (notification) => notifications.push(notification),
     onServerRequest: createCodexAppServerRequestHandler({
@@ -341,8 +389,40 @@ export async function runCodexAppServerConversation(
         continue;
       }
 
+      if (notification.method === 'item/started') {
+        const command = readCommandExecution(params.item);
+        if (command) {
+          commandExecutions.set(command.id, command);
+          onEvent({ type: 'command_execution', command });
+        }
+        continue;
+      }
+
+      if (notification.method === 'item/commandExecution/outputDelta') {
+        const itemId = readOptionalString(params.itemId);
+        const delta = typeof params.delta === 'string' ? params.delta : '';
+        const command = itemId ? commandExecutions.get(itemId) : undefined;
+        if (command && delta) {
+          const updated = { ...command, output: `${command.output}${delta}` };
+          commandExecutions.set(command.id, updated);
+          onEvent({ type: 'command_execution', command: updated });
+        }
+        continue;
+      }
+
       if (notification.method === 'item/completed') {
         const item = readObjectRecord(params.item);
+        const command = readCommandExecution(item);
+        if (command) {
+          const prior = commandExecutions.get(command.id);
+          const completed = {
+            ...command,
+            output: command.output || prior?.output || '',
+          };
+          commandExecutions.set(command.id, completed);
+          onEvent({ type: 'command_execution', command: completed });
+          continue;
+        }
         const itemId = readOptionalString(item?.id);
         const text = item?.type === 'agentMessage' ? readOptionalString(item.text) : undefined;
         if (itemId && text && !deltaItemIds.has(itemId)) {

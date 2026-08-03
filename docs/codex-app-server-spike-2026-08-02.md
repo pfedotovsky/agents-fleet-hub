@@ -185,6 +185,22 @@ reported that execution was declined, and the target temp file remained
 absent. SSH-host validation is still required before app-server can become the
 default.
 
+Vertical slice 3d adds live command-execution parity. The conversation runner
+tracks `item/started`, ordered `item/commandExecution/outputDelta` notifications,
+and the authoritative `item/completed` payload for each command item. The
+runtime emits those states as repeated same-id `Bash` tool-use frames, which the
+existing Hub transcript upserts into one row with command/cwd/action input,
+inline output, status, exit code, and duration. Contract tests cover ordered
+delta accumulation and a completed item that omits its aggregate output.
+
+A source-UI verification created native Codex task
+`a83ad990-865c-4af0-8773-12bfa3107586`, approved two harmless shell commands,
+and rendered their complete `PARITY_START`/`PARITY_END` and
+`STREAM_START`/`STREAM_END` output in structured `Bash` rows. The temporary
+source host entry was removed and the source server stopped after the check;
+the native task was retained because permanent deletion is an explicit user
+decision gate.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified
