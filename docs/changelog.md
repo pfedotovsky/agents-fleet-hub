@@ -4,6 +4,18 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-03
+
+### Changed
+- **Heartbeat decisions now always include a usable answer path.** The
+  repo-local backlog-loop skill treats scheduled runs as potentially
+  non-interactive: it uses a standard question when available, but always
+  repeats lettered choices, the recommendation, a stable decision id, and an
+  exact reply such as `D-39-decision-delivery: A`. Notifications cannot rely on
+  buttons outside the surfaced heartbeat message. An unresolved decision now
+  blocks only its dependent slice; unchanged decisions stay quiet while safe
+  unrelated work may continue. Tracked in private backlog #39.
+
 ## 2026-08-02
 
 ### Changed

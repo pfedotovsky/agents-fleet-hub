@@ -67,21 +67,44 @@ selected issue. Request a decision only for:
 - a conflict between Pavel's stated priorities and a verified constraint;
 - failure after two materially different, evidence-backed attempts.
 
+Treat scheduled and background runs as potentially non-interactive. Never
+assume their notification surface renders question buttons. If
+`request_user_input` is callable, use it with two or three mutually exclusive
+choices and put the recommendation first. The text fallback below remains
+mandatory even when the interactive question succeeds.
+
 Use this decision packet:
 
 ```text
 DECISION NEEDED — D-<issue>-<short-name>
 Question: <one concrete choice>
 Recommendation: <preferred option and why>
-Alternatives: <at most two, with consequences>
+Choices:
+A (Recommended): <preferred option and consequence>
+B: <alternative and consequence>
+C: <optional second alternative and consequence>
 Impact: <scope, compatibility, data/security, rollback>
 Blocked: <the exact slice that stops>
 Continuing: <independent work the loop can still perform>
+How to answer: Open this task and reply `D-<issue>-<short-name>: A` (or B/C).
 ```
 
-Add `needs-decision`, remove `agent:active`, checkpoint the evidence, and move
-to another independent issue. Never choose a destructive default because Pavel
-did not respond.
+Persist the packet on the canonical issue before notifying. Add
+`needs-decision`, remove `agent:active` from the dependent slice, and mark in
+the checkpoint when the first notification was sent. The user-facing
+notification must repeat the decision id, compact choices, and exact reply
+syntax. If a heartbeat wrapper exposes only a short `message` field, put the
+reply syntax inside that field; do not rely on prose outside the wrapper.
+
+An unresolved decision blocks only its dependent slice. On later heartbeats,
+do not notify again when the packet is unchanged. Continue one unrelated
+eligible slice when no other code-changing slice is active, or wait quietly if
+none exists. Never choose a destructive default because Pavel did not respond.
+
+Resolve a decision from either the exact `<decision-id>: <choice>` reply or an
+unambiguous natural-language answer. Record the chosen option and its stated
+boundary on the canonical issue, clear `needs-decision` when no other decision
+remains, and resume the dependent slice when it becomes the next eligible work.
 
 ## Execute
 
