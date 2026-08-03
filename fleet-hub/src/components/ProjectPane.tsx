@@ -14,6 +14,7 @@ interface Props {
   onOpenFiles: () => void
   onOpenGit: () => void
   onArchiveSession: (sessionId: string) => void
+  onRenameSession: (sessionId: string, summary: string) => Promise<void>
 }
 
 export function ProjectPane({
@@ -24,6 +25,7 @@ export function ProjectPane({
   onOpenFiles,
   onOpenGit,
   onArchiveSession,
+  onRenameSession,
 }: Props) {
   const [extraSessions, setExtraSessions] = useState<SessionSummary[]>([])
   const [hasMore, setHasMore] = useState(project.sessionMeta.hasMore)
@@ -176,6 +178,14 @@ export function ProjectPane({
               // locally paged-in extras must be dropped here too.
               setExtraSessions((prev) => prev.filter((s) => s.id !== item.session.id))
               onArchiveSession(item.session.id)
+            }}
+            onRename={async (item, summary) => {
+              await onRenameSession(item.session.id, summary)
+              setExtraSessions((prev) =>
+                prev.map((session) =>
+                  session.id === item.session.id ? { ...session, summary } : session,
+                ),
+              )
             }}
           />
         ))}

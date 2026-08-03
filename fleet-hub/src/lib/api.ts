@@ -256,6 +256,23 @@ export async function createSession(
   return body.data
 }
 
+/** Replaces a session's user-visible title. The host trims and caps it at 500 characters. */
+export async function renameSession(
+  baseUrl: string,
+  token: string,
+  sessionId: string,
+  summary: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<void> {
+  await fetchJson(baseUrl, `/api/providers/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'PUT',
+    token,
+    body: { summary },
+    onTokenRefresh,
+    timeoutMs: 10000,
+  })
+}
+
 /** Soft-archives a session: it leaves all active lists but stays restorable. */
 export async function archiveSession(
   baseUrl: string,

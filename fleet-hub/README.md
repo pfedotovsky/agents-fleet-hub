@@ -63,7 +63,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
   toggles persist on the host (`toggle-star` API); "recently opened in the
   hub" is tracked in localStorage. "All sessions" is a merged recent-activity
   feed across hosts. Each chat in the tree is tagged with its provider icon
-  (Claude / Codex / …). The feed's **New session** action opens a draft whose
+  (Claude / Codex / …). Online session rows can be renamed in place from their
+  hover actions; the new title is reflected in the feed, project view, sidebar,
+  and an already-open chat. The feed's **New session** action opens a draft whose
   composer chooses any project folder from an online host. Hovering a project
   row still reveals a **+** that opens a draft already bound to that project.
   In either path, the provider (Claude / Codex) is chosen in the composer and
@@ -139,7 +141,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
 - Transcripts: `GET /api/providers/sessions/:id/messages` (normalized across
   providers; `offset=0` is the newest page). New sessions:
   `POST /api/providers/sessions {provider, projectPath}`, then the first
-  `chat.send` starts the agent.
+  `chat.send` starts the agent. Rename uses
+  `PUT /api/providers/sessions/:id {summary}`; the host trims the title, rejects
+  empty values, and caps it at 500 characters.
 - An unreachable host (hibernated remote VM) shows an offline card with the
   restart hint (`HOST=:: cloudcli`); its last-known sessions stay dimmed as stale.
 - Cursor sessions carry a warning badge — ones created from the Cursor IDE have

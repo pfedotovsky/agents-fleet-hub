@@ -139,6 +139,13 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   creating a thread. Tracked in private backlog #37.
 
 ### Added
+- **Sessions can now be renamed from the hub.** Online session rows in the
+  all-sessions feed, project view, and expanded sidebar expose a compact inline
+  editor with explicit Save/Cancel actions and Escape cancellation. A
+  successful `PUT /api/providers/sessions/:id {summary}` updates every loaded
+  copy immediately, including an already-open chat header, while errors keep
+  the editor open. The contract and reload persistence were verified against
+  an isolated source fleet-server. Tracked in private backlog #11.
 - **New sessions can now start from the all-sessions feed.** A top-level
   **New session** action opens an unbound draft whose composer lists every
   project folder currently reported by online hosts, grouped by host. The
@@ -157,6 +164,7 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   add model/context and thread/turn mappings. A sanitized live probe against
   Codex 0.146.0 completed the handshake without creating a thread; the full
   fleet-server suite passes. Tracked in private backlog #37.
+
 ## 2026-08-02
 
 ### Changed
