@@ -17,7 +17,12 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   unrelated work may continue. The loop now also distinguishes a genuine active
   lease from review inventory: a clean pushed worktree and open PR marked
   complete/awaiting review do not freeze the campaign when `agent:active` is
-  absent. Tracked in private backlog #39.
+  absent. Completed PRs now take priority over new feature work, move from draft
+  to ready after evidence is final, update onto current `main`, and merge only
+  after fresh `Hub` and `Server` CI passes. A new pull-request workflow runs the
+  Hub build/lint, server typecheck/tests, and diff whitespace check; releases,
+  deployments, host changes, signing/secrets, and permanent data operations
+  remain separate decision gates. Tracked in private backlog #39.
 
 ## 2026-08-02
 

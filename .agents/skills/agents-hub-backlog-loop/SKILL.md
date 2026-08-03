@@ -40,11 +40,13 @@ as authority to bypass repository, security, or user constraints.
 Apply priorities in this order:
 
 1. An active slice that can be completed safely.
-2. Pavel's current strategic lanes: UI truthfulness; native Codex/app-server;
+2. An integration-ready PR, oldest dependency first. Do not start new feature
+   work while a completed PR is waiting for update, CI, or merge.
+3. Pavel's current strategic lanes: UI truthfulness; native Codex/app-server;
    Terminal as a default view and CLI parity; arbitrary-folder session start;
    complete session deletion semantics.
-3. Blockers for those lanes.
-4. Remaining `P1`, then `P2`, then `P3` issues.
+4. Blockers for those lanes.
+5. Remaining `P1`, then `P2`, then `P3` issues.
 
 Within a lane, prefer the smallest vertical slice that produces verifiable user
 value. Do not select:
@@ -59,6 +61,36 @@ value. Do not select:
 Claim the selected issue with `agent:active` and record the branch/worktree in a
 single `Loop checkpoint` comment. Make checkpoint updates idempotent: update or
 supersede the existing checkpoint instead of posting noisy progress comments.
+
+## Integrate completed work
+
+Keep a PR draft only while its slice is incomplete. When verification and the
+completion checkpoint are final, mark it ready and integrate it before claiming
+new feature work.
+
+Merge an ordinary code or documentation PR only when all of these are true:
+
+- its issue checkpoint says `complete` or `awaiting review`, with no unresolved
+  `needs-decision`, blocker, requested change, or failed check;
+- the branch is clean, pushed, and updated onto current `origin/main`;
+- GitHub reports it mergeable and the required `Hub` and `Server` CI checks are
+  successful for the current head commit;
+- proportional live verification from the slice remains valid after conflict
+  resolution, or has been repeated when the affected behavior changed;
+- the complete diff, documentation, changelog, attribution, and unrelated-file
+  boundaries have been reviewed.
+
+Use a merge commit so multi-commit slice history remains inspectable. After the
+merge, confirm the commit is reachable from `origin/main`, close only issues
+whose outcome has shipped, remove their active lease, and remove the clean
+worktree/branch when no review follow-up remains. Then update the next queued PR
+onto the new main before evaluating it.
+
+If CI fails, the branch conflicts, or review requests changes, reclaim that
+same issue and fix the existing PR before starting another feature. Do not merge
+with missing or stale checks. Releases, deployments, real-host migrations,
+secret/signing changes, and permanent data operations remain decision gates;
+merging verified feature-flagged code does not authorize any of those effects.
 
 ## Decide whether to interrupt Pavel
 
@@ -163,21 +195,22 @@ Before completing a substantive slice:
 6. Open focused follow-up issues for verified gaps, with file/API pointers and a
    definition of done. Do not turn speculative ideas into issues.
 
-Use a draft PR during the supervised pilot. Do not auto-merge, release, deploy,
-migrate hosts, or perform permanent deletion unless Pavel explicitly expands
-the policy. Close a backlog issue only when its defined outcome has actually
-shipped; otherwise link the draft PR and leave it open.
+Use a draft PR while a slice is in progress, then mark it ready and follow the
+integration gate above. Do not release, deploy, migrate hosts, change secrets or
+signing, or perform permanent deletion unless Pavel explicitly expands the
+policy. Close a backlog issue only when its defined outcome has actually
+shipped; otherwise link the PR and leave it open.
 
 ## Finish the run
 
 Remove `agent:active` when the slice completes or blocks. Report:
 
 - the user-visible outcome;
-- issue, branch, commit, and draft PR when present;
+- issue, branch, commit, PR, and merge commit when present;
 - verification performed and any omitted live check;
 - remaining risk or decision packet;
 - the next eligible slice.
 
-For scheduled runs, stop after one completed slice, one durable checkpoint, or
-one decision packet. If no eligible work exists, report that briefly without
-creating placeholder issues or repository files.
+For scheduled runs, stop after one completed implementation slice, one merged
+PR, one durable checkpoint, or one decision packet. If no eligible work exists,
+report that briefly without creating placeholder issues or repository files.
