@@ -294,4 +294,56 @@ describe('Codex app-server conversation runner', () => {
     })).rejects.toThrow('Timed out waiting for Codex app-server turn completion');
     expect(stopped).toBeTrue();
   });
+
+  test('interrupts the active app-server turn when aborted', async () => {
+    const controller = new AbortController();
+    const requests: string[] = [];
+    let stopped = false;
+
+    const result = await runCodexAppServerConversation({
+      cwd: '/workspace/project',
+      prompt: 'Wait',
+    }, {
+      signal: controller.signal,
+      createClient: (options) => ({
+        start: async () => handshake,
+        request: async <Result>(method: string): Promise<Result> => {
+          requests.push(method);
+          if (method === 'thread/start') {
+            return {
+              thread: { id: 'thread-abort' },
+              cwd: '/workspace/project',
+              model: 'gpt-5.6-sol',
+              approvalPolicy: 'untrusted',
+              sandbox: { type: 'workspaceWrite' },
+              reasoningEffort: null,
+            } as Result;
+          }
+          if (method === 'turn/start') {
+            queueMicrotask(() => controller.abort());
+            return { turn: { id: 'turn-abort' } } as Result;
+          }
+          if (method === 'turn/interrupt') {
+            queueMicrotask(() => options.onNotification?.({
+              method: 'turn/completed',
+              params: {
+                threadId: 'thread-abort',
+                turn: { id: 'turn-abort', status: 'interrupted', error: null },
+              },
+            }));
+            return {} as Result;
+          }
+          throw new Error(`Unexpected method ${method}`);
+        },
+        stop: () => {
+          stopped = true;
+        },
+      }),
+      turnTimeoutMs: 1_000,
+    });
+
+    expect(requests).toEqual(['thread/start', 'turn/start', 'turn/interrupt']);
+    expect(result.status).toBe('interrupted');
+    expect(stopped).toBeTrue();
+  });
 });

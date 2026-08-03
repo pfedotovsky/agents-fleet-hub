@@ -145,18 +145,23 @@ Browser (Agents Hub SPA)
   restart at 0 per run, so the mark resets on complete/send/mount/idle acks.
 - New session: `POST /api/providers/sessions {provider, projectPath}` creates
   an empty app session; the first `chat.send` actually starts the agent.
-- **Codex sessions** run server-side via `@openai/codex-sdk` threads and
-  resolve a host CLI because the compiled server does not ship the SDK's
-  npm-vendored binary. `CODEX_CLI_PATH` is the explicit override; otherwise
+- **Codex sessions** run server-side through a feature-flagged runtime router.
+  The default/flag-off path uses `@openai/codex-sdk`; with
+  `CODEX_APP_SERVER_ENABLED=1`, the same gateway contract uses the local Codex
+  0.146.x app-server adapter. Both resolve a host CLI because the compiled
+  server does not ship the SDK's npm-vendored binary. `CODEX_CLI_PATH` is the
+  explicit override; otherwise
   fleet-server compares PATH with bundled macOS ChatGPT/Codex application CLIs
   and selects the newest numeric version. This prevents an older PATH CLI from
   parsing a newer shared `~/.codex/models_cache.json` written by the desktop
-  app. Codex differs from claude in ways the hub accounts for: no interactive
-  approvals
-  (`permission_request` never fires; `permissionMode` is remapped to a
+  app. The SDK path has no interactive approvals; app-server maps its command,
+  file-change, managed-network, and supported question requests onto the
+  provider-neutral permission protocol. `permissionMode` is remapped to a
   sandbox — default→workspace-write+ask-untrusted, acceptEdits→never-ask,
   bypass→danger-full-access, and the plan toggle→`read-only` with a
-  planning preamble prepended to the prompt). The mode select is relabeled.
+  planning preamble prepended to the prompt on the SDK path). The mode select
+  is relabeled, and app-server turns display their effective returned policy
+  and sandbox next to it so managed overrides are explicit.
   Plan mode is supported, but since Codex emits no `ExitPlanMode` request to
   drive `PlanPanel`, a completed plan-mode run shows a lightweight "plan
   ready" Build card in the transcript instead (Build leaves plan mode and
@@ -331,9 +336,7 @@ Claude process-backed catalogs use a one-hour backend cache. A failed spawn,
 incompatible protocol, invalid response, or empty catalog falls back to the
 existing `~/.codex/models_cache.json` reader; the flag-off path is unchanged.
 
-The existing SDK adapter remains the only production session send path, so
-enabling the flag still does not create native desktop-visible Agents Hub
-threads. The client accepts Codex CLI 0.146.x only,
+The client accepts Codex CLI 0.146.x only,
 matching its generated protocol baseline, and fails before spawn for other
 minor versions. This deliberately fail-closed gate must be updated along with
 regenerated consumed types after compatibility verification. App-server remains
@@ -372,13 +375,25 @@ permission grants, MCP elicitation, dynamic tools, and every other unsupported
 method fail closed. Pending entries are also aborted when the conversation
 runner stops.
 
-The runner is still deliberately not selected by `openai-codex.js`. Production
-routing must normalize the remaining conversation events into the gateway
-writer, connect abort semantics, and pass a live UI approval check before the
-feature flag can switch real sessions. The SDK therefore remains the only
-production conversation path. An ephemeral read-only live turn confirmed the
-runner captures the effective managed fallback (`never` requested,
-`untrusted` returned), its warning, assistant deltas, and exact token budget.
+`codex-app-server-runtime.ts` is the production protocol adapter. It accumulates
+assistant deltas per item and emits final text through the existing normalized
+writer, forwards exact token budgets, effective settings, warnings, approvals,
+errors, and exactly one terminal frame, and registers the provider-native id so
+reconnect and abort lookup use the same identity. An active abort signal sends
+`turn/interrupt`; runtime cleanup suppresses a duplicate terminal frame after
+the gateway has acknowledged the stop.
+
+`codex-runtime-router.ts` selects this runtime for every send when
+`CODEX_APP_SERVER_ENABLED=1`; otherwise it calls the unchanged SDK adapter.
+Abort checks app-server first and then the SDK. There is deliberately no
+same-send fallback after an app-server failure because the provider may already
+have started the turn, and replaying the prompt through the SDK could duplicate
+work. Turning the flag off is the rollback for later sends. App-server stays
+strictly behind fleet-server rather than being exposed to the browser.
+
+An ephemeral read-only live turn confirmed the runner captures the effective
+managed fallback (`never` requested, `untrusted` returned), its warning,
+assistant deltas, and exact token budget.
 A second ephemeral probe attempted one temp-file command: app-server emitted a
 real `item/commandExecution/requestApproval`, the bridge returned `decline`,
 the turn completed as denied, and the target file was not created.

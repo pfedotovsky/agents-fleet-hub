@@ -7,6 +7,24 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-03
 
 ### Changed
+- **Feature-flagged Codex chats now run through app-server.** With
+  `CODEX_APP_SERVER_ENABLED=1`, the production chat gateway starts or resumes
+  Codex app-server threads, so new local Agents Hub sessions use the native
+  rich-client surface instead of the SDK. The adapter normalizes provider
+  identity, effective sandbox/approval settings, warnings, exact token usage,
+  approvals, accumulated assistant text, failures, and terminal state into the
+  existing Hub protocol. Stop requests send app-server `turn/interrupt`; the
+  flag-off path remains the unchanged SDK rollback, and errors never
+  automatically replay a possibly-started prompt through the other runtime.
+  The Hub's placeholder `default` model is resolved to the provider's actual
+  default before app-server sees it, avoiding a ChatGPT-account 400 on fresh
+  drafts.
+  The composer quietly shows the effective policy and sandbox returned by
+  app-server so managed overrides are visible. A live source-UI run created a
+  native Codex-app-visible thread, showed a real Bash approval and exact
+  `19k / 258k` occupancy, passed a deny back to Codex, and confirmed the target
+  temp file was absent. Routing, normalization, and single-terminal abort
+  behavior are also contract-tested. Tracked in private backlog #37.
 - **Codex app-server approvals now have a provider-neutral Hub bridge.** Pending
   interactions are scoped by provider and provider-native session, survive a
   browser reconnect through the existing `chat_subscribed.pendingPermissions`
@@ -19,9 +37,7 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   prompts that disallow free-form answers, and unsupported request methods fail
   closed. A live ephemeral 0.146 turn emitted a real Bash approval for a temp
   file command; the bridge declined it, the turn completed, and no file was
-  created. Production Codex chat still uses the SDK until
-  event-writer/abort wiring and a live UI approval check land. Tracked in
-  private backlog #37.
+  created. Tracked in private backlog #37.
 - **Codex app-server conversation core is now contract-tested.** A fleet-server
   runner can start or resume an app-server thread at an arbitrary absolute
   `cwd`, start one turn, preserve the provider-native thread id, and normalize

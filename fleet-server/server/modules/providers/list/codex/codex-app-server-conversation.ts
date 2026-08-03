@@ -87,6 +87,7 @@ export type CodexAppServerConversationOptions = {
   createClient?: ClientFactory;
   onEvent?: (event: CodexAppServerConversationEvent) => void;
   turnTimeoutMs?: number;
+  signal?: AbortSignal;
 };
 
 type QueuedNotification = CodexAppServerNotification;
@@ -236,6 +237,7 @@ export async function runCodexAppServerConversation(
   const onEvent = options.onEvent ?? (() => {});
   const timeoutMs = Math.max(1, options.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS);
   const interactionAbort = new AbortController();
+  let interruptError: Error | null = null;
 
   let providerSessionId = '';
   let turnId = '';
@@ -251,6 +253,18 @@ export async function runCodexAppServerConversation(
       onEvent,
     }),
   });
+  const interruptTurn = () => {
+    if (!providerSessionId || !turnId) return;
+    void client.request('turn/interrupt', {
+      threadId: providerSessionId,
+      turnId,
+    }).catch((error) => {
+      interruptError = error instanceof Error
+        ? error
+        : new Error('Codex app-server turn interruption failed');
+      notifications.push({ method: 'agents-hub/interrupt-failed' });
+    });
+  };
 
   try {
     await client.start();
@@ -283,10 +297,15 @@ export async function runCodexAppServerConversation(
       effort: input.effort ?? null,
     });
     turnId = readTurnId(turnResponse);
+    if (options.signal?.aborted) interruptTurn();
+    else options.signal?.addEventListener('abort', interruptTurn, { once: true });
 
     const deadline = Date.now() + timeoutMs;
     while (true) {
       const notification = await notifications.shift(deadline - Date.now());
+      if (notification.method === 'agents-hub/interrupt-failed') {
+        throw interruptError ?? new Error('Codex app-server turn interruption failed');
+      }
       const params = readObjectRecord(notification.params);
       if (!params) continue;
 
@@ -353,6 +372,7 @@ export async function runCodexAppServerConversation(
       }
     }
   } finally {
+    options.signal?.removeEventListener('abort', interruptTurn);
     interactionAbort.abort();
     client.stop();
   }

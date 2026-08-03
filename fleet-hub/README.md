@@ -94,7 +94,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
   opens in a docked right-hand drawer with
   approve / approve-and-accept-edits / revise buttons. Codex runs read-only
   while planning; when it finishes, a "plan ready" **Build** card appears in
-  the transcript to leave plan mode and have it implement.
+  the transcript to leave plan mode and have it implement. Hosts using the
+  experimental app-server adapter also show Codex's effective approval policy
+  and sandbox beside the requested mode, including managed-policy overrides.
 - **Chat side panels**: two header toggles dock the file browser or the git
   panel to the right of the conversation (Cursor-style) — resizable by
   dragging the edge, choice and width persisted in localStorage.

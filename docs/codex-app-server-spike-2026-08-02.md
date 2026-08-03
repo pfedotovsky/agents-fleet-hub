@@ -111,16 +111,15 @@ foundation now includes:
   exact 0.146.x compatibility gate;
 - notification and server-request dispatch points, with unsupported server
   requests answered explicitly;
-- a disabled-by-default construction boundary. It is not connected to the
-  existing provider send path yet, so the SDK remains the production default.
+- a disabled-by-default construction boundary; flag-off keeps the SDK as the
+  production default.
 
 Vertical slice 2a now routes feature-flagged Codex model discovery through
 paginated `model/list`. The mapper preserves provider order, explicit default,
 display metadata, reasoning efforts, personality support, and input modalities;
 hidden rows remain excluded and missing modality metadata uses the documented
 text+image compatibility default. A failed app-server lookup returns to the
-existing Codex cache, and the flag-off path is unchanged. This does not route
-conversations through app-server yet.
+existing Codex cache, and the flag-off path is unchanged.
 
 The focused lifecycle and model suites pass 11 tests, the full fleet-server
 suite passes 135 tests, and typechecking passes. A sanitized live probe against
@@ -162,10 +161,29 @@ deny; Codex reported the denial and completed the turn; a filesystem check
 confirmed that the target file was never created. This verifies the actual
 wire request and response mapping, not only the generated schema and fixtures.
 
-This is still an internal prerequisite: `openai-codex.js` does not select the
-runner, so no production Agents Hub session or live permission card changed in
-this slice. Event-writer normalization, abort wiring, and a live UI approval
-check remain required before feature-flagged conversation routing.
+Vertical slice 3c connects the runner to the production gateway through a
+per-send runtime router. With `CODEX_APP_SERVER_ENABLED=1`, the adapter maps
+provider session identity, effective settings, warnings, exact token usage,
+permission events, accumulated assistant text, errors, and terminal state onto
+the existing normalized chat protocol. Stop requests propagate as
+`turn/interrupt`, and the runtime suppresses a second completion after the
+gateway acknowledges the abort. Flag-off remains the unchanged SDK path; an
+app-server error is not automatically retried through the SDK because a turn
+may already have started. The Hub shows the effective returned policy and
+sandbox as a quiet inline label beside its requested permission mode. The
+Hub's placeholder `default` model is resolved before `thread/start`; a live
+draft initially exposed that app-server otherwise rejects the literal value
+for ChatGPT accounts.
+
+Routing, normalization, and abort behavior are contract-tested. A same-machine
+source-UI run created provider thread
+`019fc6ea-a4f7-7e10-8ef7-85d58ad51dd1`; the Codex app cross-source task list
+returned that same id, title, cwd, and local backing. The Hub displayed the
+effective `untrusted` / `workspace write` settings, a real Bash approval, and
+exact `19k / 258k` context occupancy. Denying the request reached Codex, which
+reported that execution was declined, and the target temp file remained
+absent. SSH-host validation is still required before app-server can become the
+default.
 
 ## Remaining uncertainty
 

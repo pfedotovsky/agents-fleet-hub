@@ -157,6 +157,13 @@ export interface ChatEvent extends NormalizedMessage {
   /** Claude and Codex both emit a `status` frame with text 'token_budget' per turn. */
   text?: string
   tokenBudget?: Partial<TokenBudget>
+  effectiveSettings?: {
+    approvalPolicy?: unknown
+    sandbox?: unknown
+    model?: string
+    cwd?: string
+    reasoningEffort?: string | null
+  }
   aborted?: boolean
   isProcessing?: boolean
   lastSeq?: number

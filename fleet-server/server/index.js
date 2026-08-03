@@ -37,7 +37,7 @@ import {
 import {
     queryCodex,
     abortCodexSession,
-} from './openai-codex.js';
+} from './modules/providers/list/codex/codex-runtime-router.js';
 import {
     stripAnsiSequences,
     normalizeDetectedUrl,

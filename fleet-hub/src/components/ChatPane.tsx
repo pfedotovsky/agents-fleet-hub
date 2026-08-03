@@ -101,8 +101,8 @@ interface PendingImage {
 
 // Plan mode is intentionally absent: it's an independent toggle in the
 // composer (Shift+Tab), not a permission mode — see the planMode state.
-// Codex has no interactive approvals; the server remaps the same values onto
-// its sandbox instead (default → workspace-write + ask for untrusted,
+// Codex app-server can surface interactive approvals; the server maps these
+// values onto its effective sandbox/policy (default → workspace-write + ask untrusted,
 // acceptEdits → workspace-write + never ask, bypass → danger-full-access,
 // and the plan toggle → read-only), hence the second label set.
 const PERMISSION_MODES: { value: PermissionMode; label: string; codexLabel: string }[] = [
@@ -113,6 +113,19 @@ const PERMISSION_MODES: { value: PermissionMode; label: string; codexLabel: stri
 
 function formatTokens(count: number): string {
   return count >= 1000 ? `${(count / 1000).toFixed(count >= 10_000 ? 0 : 1)}k` : String(count)
+}
+
+function formatCodexSetting(value: unknown): string {
+  const raw =
+    typeof value === 'string'
+      ? value
+      : value && typeof value === 'object' && typeof (value as { type?: unknown }).type === 'string'
+        ? (value as { type: string }).type
+        : ''
+  return raw
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/-/g, ' ')
+    .toLowerCase()
 }
 
 /**
@@ -499,6 +512,9 @@ export function ChatPane({
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
   /** Latest persisted usage on open, superseded by a live per-turn status frame. */
   const [tokenBudget, setTokenBudget] = useState<TokenBudget | null>(null)
+  const [effectiveCodexSettings, setEffectiveCodexSettings] = useState<
+    ChatEvent['effectiveSettings'] | null
+  >(null)
   const receivedLiveTokenBudgetRef = useRef(false)
   /**
    * The first message typed into a draft chat, held until the freshly-created
@@ -814,6 +830,10 @@ export function ChatPane({
           ) {
             receivedLiveTokenBudgetRef.current = true
             setTokenBudget(event.tokenBudget as TokenBudget)
+          } else if (event.text === 'effective_settings' && event.effectiveSettings) {
+            setEffectiveCodexSettings(event.effectiveSettings)
+          } else if (event.text === 'provider_warning' && typeof event.content === 'string') {
+            setBanner(event.content)
           }
           return
         case 'loading_progress':
@@ -847,6 +867,7 @@ export function ChatPane({
       notifiedPermissionIds.current = new Set()
       setMessages([])
       setPermissions([])
+      setEffectiveCodexSettings(null)
       setBanner(null)
       setFatalError(null)
       setProcessing(false)
@@ -1889,6 +1910,15 @@ export function ChatPane({
                 </option>
               ))}
             </select>
+            {isCodex && effectiveCodexSettings && (
+              <span
+                className="max-w-48 truncate text-[10px] text-fg-faint"
+                title="Effective Codex settings returned by app-server"
+              >
+                Effective {formatCodexSetting(effectiveCodexSettings.approvalPolicy) || 'policy'} ·{' '}
+                {formatCodexSetting(effectiveCodexSettings.sandbox) || 'sandbox'}
+              </span>
+            )}
             {modelOptions.length > 0 && (
               <ModelSelect options={modelOptions} value={model} onChange={changeModel} />
             )}
