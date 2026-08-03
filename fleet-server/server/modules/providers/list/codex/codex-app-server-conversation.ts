@@ -123,6 +123,14 @@ export type CodexAppServerCollaboration = {
   }>;
 };
 
+export type CodexAppServerSubAgentActivity = {
+  id: string;
+  kind: 'started' | 'interacted' | 'interrupted';
+  agentThreadId: string;
+  agentPath: string;
+  status: 'inProgress' | 'completed';
+};
+
 export type CodexAppServerConversationEvent =
   | {
       type: 'session';
@@ -135,6 +143,7 @@ export type CodexAppServerConversationEvent =
   | { type: 'mcp_tool_call'; mcpToolCall: CodexAppServerMcpToolCall }
   | { type: 'plan_update'; planUpdate: CodexAppServerPlanUpdate }
   | { type: 'collaboration'; collaboration: CodexAppServerCollaboration }
+  | { type: 'subagent_activity'; activity: CodexAppServerSubAgentActivity }
   | { type: 'command_execution'; command: CodexAppServerCommandExecution }
   | { type: 'file_change'; fileChange: CodexAppServerFileChange }
   | { type: 'token_budget'; tokenBudget: CodexAppServerTokenBudget }
@@ -367,6 +376,27 @@ function readCollaboration(value: unknown): CodexAppServerCollaboration | null {
     reasoningEffort: readOptionalString(item.reasoningEffort) ?? null,
     agents,
   };
+}
+
+function readSubAgentActivity(
+  value: unknown,
+  status: CodexAppServerSubAgentActivity['status'],
+): CodexAppServerSubAgentActivity | null {
+  const item = readObjectRecord(value);
+  if (item?.type !== 'subAgentActivity') return null;
+  const id = readOptionalString(item.id);
+  const kind = readOptionalString(item.kind);
+  const agentThreadId = readOptionalString(item.agentThreadId);
+  const agentPath = readOptionalString(item.agentPath);
+  if (
+    !id
+    || !agentThreadId
+    || !agentPath
+    || (kind !== 'started' && kind !== 'interacted' && kind !== 'interrupted')
+  ) {
+    return null;
+  }
+  return { id, kind, agentThreadId, agentPath, status };
 }
 
 function readCommandExecution(value: unknown): CodexAppServerCommandExecution | null {
@@ -730,6 +760,11 @@ export async function runCodexAppServerConversation(
           onEvent({ type: 'collaboration', collaboration });
           continue;
         }
+        const subAgentActivity = readSubAgentActivity(params.item, 'inProgress');
+        if (subAgentActivity) {
+          onEvent({ type: 'subagent_activity', activity: subAgentActivity });
+          continue;
+        }
         const command = readCommandExecution(params.item);
         if (command) {
           commandExecutions.set(command.id, command);
@@ -825,6 +860,11 @@ export async function runCodexAppServerConversation(
           };
           collaborations.set(completed.id, completed);
           onEvent({ type: 'collaboration', collaboration: completed });
+          continue;
+        }
+        const subAgentActivity = readSubAgentActivity(item, 'completed');
+        if (subAgentActivity) {
+          onEvent({ type: 'subagent_activity', activity: subAgentActivity });
           continue;
         }
         const command = readCommandExecution(item);

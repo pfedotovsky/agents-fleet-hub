@@ -493,6 +493,16 @@ loading the parent session afresh, canonical history rendered exactly `Spawn
 agent · confirm` and `Wait for agents` rows beside `COLLAB_OK`; the raw
 `spawn_agent`/`wait_agent` names, encrypted prompt payload, and transient
 duplicate were absent.
+A later one-subagent turn confirmed that 0.146 `subAgentActivity` items emit a
+separate child-agent activity lifecycle. The runner validates the exact
+`started`/`interacted`/`interrupted` kind plus child thread id and agent path,
+then maps start/completion onto one stable `Agent` row. Canonical rollouts keep
+the collaboration function calls but not these activity markers, so ChatPane
+retains live activity across completion reconciliation for the mounted
+transcript; a later full reload cannot reconstruct an item the provider did not
+persist. Parent task `019fc7b5-f68c-7140-8352-b3dbf3fee439` displayed `Agent
+started · /root/activitycheck` with child task
+`019fc7b6-1785-7370-b07e-ef1783103d5a` beside `ACTIVITY_OK`.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

@@ -312,6 +312,22 @@ showed exactly `Spawn agent · confirm` and `Wait for agents` beside
 source host and server data were removed; both native tasks remain because
 permanent deletion is gated.
 
+Vertical slice 3k adds native child-agent activity parity. App-server
+`subAgentActivity` start/completion items validate the exact 0.146
+`started`/`interacted`/`interrupted` kind plus child thread id and agent path,
+then update one stable compact Agent row. These activity markers are not
+present in canonical rollout history, so the Hub retains them across the
+completion refresh for the lifetime of the mounted transcript; a later full
+reload cannot recover provider state that was never persisted.
+
+A live source-UI turn created parent task
+`019fc7b5-f68c-7140-8352-b3dbf3fee439` and child task
+`019fc7b6-1785-7370-b07e-ef1783103d5a`. After the turn completed and history
+reconciled, the transcript showed `Agent started · /root/activitycheck` with
+the child thread id beside `Spawn agent`, `Wait for agents`, and `ACTIVITY_OK`.
+The temporary source host and server data were removed; native test tasks remain
+because permanent deletion is gated.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified

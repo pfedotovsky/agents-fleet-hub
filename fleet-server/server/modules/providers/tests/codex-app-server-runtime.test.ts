@@ -385,6 +385,75 @@ describe('Codex app-server runtime', () => {
     ]);
   });
 
+  test('maps subagent activity lifecycle onto one normalized Agent id', async () => {
+    const messages: NormalizedMessage[] = [];
+    const sessionIds: string[] = [];
+    const runtime = createCodexAppServerRuntime({
+      resolveSelection: async () => ({ model: 'gpt-5.6-sol', effort: 'high' }),
+      runConversation: async (_input, options) => {
+        options?.onEvent?.({
+          type: 'session',
+          providerSessionId: 'thread-activity',
+          effectiveSettings,
+        });
+        options?.onEvent?.({
+          type: 'subagent_activity',
+          activity: {
+            id: 'activity-1',
+            kind: 'started',
+            agentThreadId: 'agent-thread-1',
+            agentPath: '/root/confirm',
+            status: 'inProgress',
+          },
+        });
+        options?.onEvent?.({
+          type: 'subagent_activity',
+          activity: {
+            id: 'activity-1',
+            kind: 'started',
+            agentThreadId: 'agent-thread-1',
+            agentPath: '/root/confirm',
+            status: 'completed',
+          },
+        });
+        options?.onEvent?.({ type: 'turn_complete', status: 'completed', error: null });
+        return {
+          providerSessionId: 'thread-activity',
+          turnId: 'turn-activity',
+          status: 'completed',
+          error: null,
+          emittedAssistantText: false,
+          effectiveSettings,
+        };
+      },
+    });
+
+    await runtime.query('Delegate one bounded check', {
+      projectPath: '/workspace/project',
+      permissionMode: 'default',
+    }, createWriter(messages, sessionIds));
+
+    expect(messages.filter((message) => message.kind === 'tool_use')).toEqual([
+      expect.objectContaining({
+        id: 'codex_app_server_activity_activity-1',
+        toolName: 'Agent',
+        toolId: 'activity-1',
+        server: 'Codex subagent activity',
+        toolInput: {
+          activityKind: 'started',
+          agentThreadId: 'agent-thread-1',
+          agentPath: '/root/confirm',
+        },
+        status: 'inProgress',
+      }),
+      expect.objectContaining({
+        id: 'codex_app_server_activity_activity-1',
+        toolName: 'Agent',
+        status: 'completed',
+      }),
+    ]);
+  });
+
   test('maps web-search lifecycle onto one normalized tool id', async () => {
     const messages: NormalizedMessage[] = [];
     const sessionIds: string[] = [];

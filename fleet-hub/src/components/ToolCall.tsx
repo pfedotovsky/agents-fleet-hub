@@ -343,13 +343,20 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
 
   if (name === 'Agent') {
     const action = asString(input.action)
-    const title = {
-      spawnAgent: 'Spawn agent',
-      sendInput: 'Send input',
-      resumeAgent: 'Resume agent',
-      wait: 'Wait for agents',
-      closeAgent: 'Close agent',
-    }[action] ?? 'Agent'
+    const activityKind = asString(input.activityKind)
+    const title = activityKind
+      ? ({
+          started: 'Agent started',
+          interacted: 'Agent interacted',
+          interrupted: 'Agent interrupted',
+        }[activityKind] ?? 'Agent activity')
+      : ({
+          spawnAgent: 'Spawn agent',
+          sendInput: 'Send input',
+          resumeAgent: 'Resume agent',
+          wait: 'Wait for agents',
+          closeAgent: 'Close agent',
+        }[action] ?? 'Agent')
     const prompt = asString(input.prompt)
     const taskName = asString(input.taskName)
     const agents = Array.isArray(input.agents) ? input.agents : []
@@ -365,13 +372,20 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
       }),
     )
     const threadIds = [...new Set([...receiverThreadIds, ...statusByThread.keys()])]
+    const activityThreadId = asString(input.agentThreadId)
+    if (activityThreadId && !threadIds.includes(activityThreadId)) threadIds.push(activityThreadId)
     const model = asString(input.model)
     const effort = asString(input.reasoningEffort)
+    const agentPath = asString(input.agentPath)
     return (
       <Collapsible
         category="agent"
         title={title}
-        subtitle={[taskName, model, effort].filter(Boolean).join(' · ') || message.server || undefined}
+        subtitle={
+          [taskName, agentPath, model, effort].filter(Boolean).join(' · ')
+          || message.server
+          || undefined
+        }
         defaultOpen={message.status === 'inProgress'}
         copyText={prompt || undefined}
       >
@@ -386,7 +400,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
                     {threadId}
                   </span>
                   <span className="shrink-0 text-right text-fg-faint">
-                    {agent?.message || agent?.status || 'pending'}
+                    {agent?.message || agent?.status || (activityKind ? activityKind : 'pending')}
                   </span>
                 </div>
               )

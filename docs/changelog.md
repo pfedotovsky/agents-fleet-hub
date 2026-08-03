@@ -64,8 +64,14 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   opaque encrypted prompt arguments are deliberately excluded. A live
   single-subagent turn showed `Wait for agents` while active, then exactly
   `Spawn agent` and `Wait for agents` after a clean reload, with no raw or
-  duplicate collaboration cards. Routing, normalization,
-  command/file/reasoning/search/MCP/plan/collaboration lifecycle, and
+  duplicate collaboration cards. Native `subAgentActivity` lifecycle items
+  now add compact `Agent started`, `Agent interacted`, or `Agent interrupted`
+  rows with the child thread id and agent path. These provider-only markers
+  are retained across the completion refresh for the mounted transcript even
+  though canonical rollout history has no equivalent. A live source-UI turn
+  displayed `Agent started · /root/activitycheck` beside `Spawn agent`, `Wait
+  for agents`, and `ACTIVITY_OK`. Routing, normalization,
+  command/file/reasoning/search/MCP/plan/collaboration/activity lifecycle, and
   single-terminal abort behavior are contract-tested. Tracked in private
   backlog #37.
 - **Codex app-server approvals now have a provider-neutral Hub bridge.** Pending

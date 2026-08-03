@@ -714,10 +714,21 @@ export function ChatPane({
               m.id?.startsWith('codex_app_server_plan_') &&
               !page.messages.some((p) => p.id === m.id),
           )
+          // subAgentActivity is an app-server-only lifecycle item. Canonical
+          // rollouts retain the collaboration calls but not these child-agent
+          // activity markers, so keep them through the completion refresh.
+          const carriedSubAgentActivity = messagesRef.current.filter(
+            (m) =>
+              m.kind === 'tool_use' &&
+              m.toolName === 'Agent' &&
+              m.id?.startsWith('codex_app_server_activity_') &&
+              !page.messages.some((p) => p.id === m.id),
+          )
           const next = [
             ...page.messages,
             ...carriedFileChanges,
             ...carriedPlanUpdates,
+            ...carriedSubAgentActivity,
             ...carriedErrors,
           ]
           seenIds.current = new Set(next.filter((m) => m.id).map((m) => m.id as string))

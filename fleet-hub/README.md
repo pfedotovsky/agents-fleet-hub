@@ -92,7 +92,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
   calls as stable tool rows labelled with their MCP server that also survive a
   reload. Codex collaboration calls render as compact Agent rows for spawning,
   messaging, waiting, resuming, and closing subagents, including after a
-  history reload. TodoWrite renders as a checklist with progress; feature-flagged Codex
+  history reload. Live child-agent activity adds compact started/interacted/
+  interrupted rows with the child path and remains visible when the completed
+  turn reconciles with history. TodoWrite renders as a checklist with progress; feature-flagged Codex
   app-server plan updates advance one provider-authored checklist in place and
   keep it visible after the turn completes. Read/Grep/Glob render as one-liners.
   Mid-run reconnects

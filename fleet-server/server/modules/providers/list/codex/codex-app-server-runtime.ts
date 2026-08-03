@@ -277,6 +277,23 @@ export function createCodexAppServerRuntime(
             return;
           }
 
+          if (event.type === 'subagent_activity') {
+            send({
+              id: `codex_app_server_activity_${event.activity.id}`,
+              kind: 'tool_use',
+              toolName: 'Agent',
+              toolId: event.activity.id,
+              server: 'Codex subagent activity',
+              toolInput: {
+                activityKind: event.activity.kind,
+                agentThreadId: event.activity.agentThreadId,
+                agentPath: event.activity.agentPath,
+              },
+              status: event.activity.status,
+            });
+            return;
+          }
+
           if (event.type === 'command_execution') {
             send({
               id: `codex_app_server_${event.command.id}`,

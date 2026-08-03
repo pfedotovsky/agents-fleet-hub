@@ -613,6 +613,112 @@ describe('Codex app-server conversation runner', () => {
     ]);
   });
 
+  test('normalizes subagent activity lifecycle and rejects malformed kinds', async () => {
+    const events: CodexAppServerConversationEvent[] = [];
+
+    await runCodexAppServerConversation({
+      cwd: '/workspace/project',
+      prompt: 'Delegate one bounded check',
+    }, {
+      createClient: (options) => ({
+        start: async () => handshake,
+        request: async <Result>(method: string): Promise<Result> => {
+          if (method === 'thread/start') {
+            return {
+              thread: { id: 'thread-activity' },
+              cwd: '/workspace/project',
+              model: 'gpt-5.6-sol',
+              approvalPolicy: 'untrusted',
+              sandbox: { type: 'workspaceWrite' },
+              reasoningEffort: null,
+            } as Result;
+          }
+          if (method === 'turn/start') {
+            queueMicrotask(() => {
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-activity',
+                  turnId: 'turn-activity',
+                  item: {
+                    type: 'subAgentActivity',
+                    id: 'activity-1',
+                    kind: 'started',
+                    agentThreadId: 'agent-thread-1',
+                    agentPath: '/root/confirm',
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-activity',
+                  turnId: 'turn-activity',
+                  item: {
+                    type: 'subAgentActivity',
+                    id: 'invalid-activity',
+                    kind: 'finished',
+                    agentThreadId: 'agent-thread-1',
+                    agentPath: '/root/confirm',
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/completed',
+                params: {
+                  threadId: 'thread-activity',
+                  turnId: 'turn-activity',
+                  item: {
+                    type: 'subAgentActivity',
+                    id: 'activity-1',
+                    kind: 'started',
+                    agentThreadId: 'agent-thread-1',
+                    agentPath: '/root/confirm',
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'turn/completed',
+                params: {
+                  threadId: 'thread-activity',
+                  turn: { id: 'turn-activity', status: 'completed', error: null },
+                },
+              });
+            });
+            return { turn: { id: 'turn-activity' } } as Result;
+          }
+          throw new Error(`Unexpected method ${method}`);
+        },
+        stop: () => {},
+      }),
+      onEvent: (event) => events.push(event),
+      turnTimeoutMs: 1_000,
+    });
+
+    expect(events.filter((event) => event.type === 'subagent_activity')).toEqual([
+      {
+        type: 'subagent_activity',
+        activity: {
+          id: 'activity-1',
+          kind: 'started',
+          agentThreadId: 'agent-thread-1',
+          agentPath: '/root/confirm',
+          status: 'inProgress',
+        },
+      },
+      {
+        type: 'subagent_activity',
+        activity: {
+          id: 'activity-1',
+          kind: 'started',
+          agentThreadId: 'agent-thread-1',
+          agentPath: '/root/confirm',
+          status: 'completed',
+        },
+      },
+    ]);
+  });
+
   test('normalizes web-search lifecycle without forwarding opaque results', async () => {
     const events: CodexAppServerConversationEvent[] = [];
 
