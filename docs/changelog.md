@@ -6,6 +6,138 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-08-03
 
+### Changed
+- **Heartbeat decisions now always include a usable answer path.** The
+  repo-local backlog-loop skill treats scheduled runs as potentially
+  non-interactive: it uses a standard question when available, but always
+  repeats lettered choices, the recommendation, a stable decision id, and an
+  exact reply such as `D-39-decision-delivery: A`. Notifications cannot rely on
+  buttons outside the surfaced heartbeat message. An unresolved decision now
+  blocks only its dependent slice; unchanged decisions stay quiet while safe
+  unrelated work may continue. The loop now also distinguishes a genuine active
+  lease from review inventory: a clean pushed worktree and open PR marked
+  complete/awaiting review do not freeze the campaign when `agent:active` is
+  absent. Completed PRs now take priority over new feature work, move from draft
+  to ready after evidence is final, update onto current `main`, and merge only
+  after fresh `Hub` and `Server` CI passes. A new pull-request workflow runs the
+  Hub build/lint, server typecheck/tests, and diff whitespace check; releases,
+  deployments, host changes, signing/secrets, and permanent data operations
+  remain separate decision gates. Tracked in private backlog #39.
+- **Feature-flagged Codex chats now run through app-server.** With
+  `CODEX_APP_SERVER_ENABLED=1`, the production chat gateway starts or resumes
+  Codex app-server threads, so new local Agents Hub sessions use the native
+  rich-client surface instead of the SDK. The adapter normalizes provider
+  identity, effective sandbox/approval settings, warnings, exact token usage,
+  approvals, accumulated assistant text, failures, and terminal state into the
+  existing Hub protocol. Stop requests send app-server `turn/interrupt`; the
+  flag-off path remains the unchanged SDK rollback, and errors never
+  automatically replay a possibly-started prompt through the other runtime.
+  The Hub's placeholder `default` model is resolved to the provider's actual
+  default before app-server sees it, avoiding a ChatGPT-account 400 on fresh
+  drafts.
+  The composer quietly shows the effective policy and sandbox returned by
+  app-server so managed overrides are visible. A live source-UI run created a
+  native Codex-app-visible thread, showed a real Bash approval and exact
+  `19k / 258k` occupancy, passed a deny back to Codex, and confirmed the target
+  temp file was absent. Codex command-execution lifecycle events now also map
+  onto one stable `Bash` tool row: ordered output deltas update it in place and
+  the authoritative completed item supplies final status, output, exit code,
+  and duration. A second live source-UI run showed approved shell commands and
+  their complete output in the structured transcript. Codex `fileChange`
+  started, patch-updated, and completed items now likewise update one stable
+  `FileChanges` row, with add/delete/edit/move metadata and per-file unified
+  diffs. The Hub preserves a live app-server diff when Codex's canonical JSONL
+  rollout omits that transient item, so it no longer disappears after the
+  completion refresh. A final source-UI run displayed an approved one-line
+  `FILECHANGE_BEFORE` → `FILECHANGE_AFTER` patch and retained the diff after
+  the turn finished. App-server turns now request readable reasoning summaries
+  and stream their indexed sections into one stable collapsed `thinking` row;
+  raw reasoning content and raw-text deltas remain deliberately excluded. A
+  live high-effort source-UI turn showed one provider-authored summary and no
+  duplicate rows. Native app-server `webSearch` items now update stable
+  `WebSearch` rows while omitting opaque result payloads. Canonical rollout
+  refreshes also recover hosted searches from their internal `tools.web__run`
+  wrappers without evaluating the recorded JavaScript, so the rows survive a
+  reload instead of becoming Bash calls. A live cached-search turn showed two
+  compact search rows both during execution and after a full reload. Native
+  app-server MCP tool calls now follow the same stable-row lifecycle, preserving
+  the MCP server, tool name, arguments, textual progress/result, final status,
+  error, and duration while excluding structured metadata and binary content.
+  Canonical history conservatively recognizes static
+  `tools.mcp__SERVER__TOOL(...)` wrappers without evaluating them, so verified
+  MCP calls remain native rows after completion and reload instead of becoming
+  Bash calls. A live source-UI turn exercised `openaiDeveloperDocs`: its search
+  and fetch calls rendered with the server label both live and after a clean
+  reload. App-server `turn/plan/updated` notifications now update one stable
+  `TodoWrite` checklist with the provider's explanation, step text, and status;
+  the Hub carries that transient checklist across the completion refresh when
+  the canonical rollout omits it. A live plan-mode turn advanced one checklist
+  from `0/3` to `3/3` and retained it beside the final answer. Codex
+  `collabAgentToolCall` lifecycles now update compact `Agent` rows for spawn,
+  send, resume, wait, and close operations, preserving provider target state
+  while live. Canonical rollout `spawn_agent`/`wait_agent` function calls are
+  restored as the same native row vocabulary after completion and reload;
+  opaque encrypted prompt arguments are deliberately excluded. A live
+  single-subagent turn showed `Wait for agents` while active, then exactly
+  `Spawn agent` and `Wait for agents` after a clean reload, with no raw or
+  duplicate collaboration cards. Native `subAgentActivity` lifecycle items
+  now add compact `Agent started`, `Agent interacted`, or `Agent interrupted`
+  rows with the child thread id and agent path. These provider-only markers
+  are retained across the completion refresh for the mounted transcript even
+  though canonical rollout history has no equivalent. A live source-UI turn
+  displayed `Agent started · /root/activitycheck` beside `Spawn agent`, `Wait
+  for agents`, and `ACTIVITY_OK`. Native `imageView` start/completion items now
+  update one compact `View image` row containing only the provider path.
+  Canonical history recognizes the exact `tools.view_image(...)` wrapper and
+  drops its matching base64-bearing output, so the row survives reload without
+  forwarding image bytes to the browser. A live source-UI turn viewed the Hub's
+  64px icon and restored `View image` beside `IMAGE_VIEW_OK` after a clean
+  server rebuild and page reload. Native `contextCompaction` lifecycle items
+  now update one stable, passive `Context compacted` row. Canonical history
+  reconstructs the marker from top-level `compacted` entries while ignoring
+  provider-owned replacement history. An isolated source-UI history check
+  rendered the marker beside `COMPACTION_HISTORY_OK` and confirmed a payload
+  sentinel never entered the DOM. Routing, normalization,
+  command/file/reasoning/search/MCP/plan/collaboration/activity lifecycle, and
+  single-terminal abort behavior are contract-tested. Tracked in private
+  backlog #37.
+- **Codex app-server approvals now have a provider-neutral Hub bridge.** Pending
+  interactions are scoped by provider and provider-native session, survive a
+  browser reconnect through the existing `chat_subscribed.pendingPermissions`
+  contract, and resolve through the existing `chat.permission-response` path.
+  Claude now uses the same shared registry with its prior timeout/cancellation
+  behavior intact. The Codex runner maps command, managed-network, file-change,
+  and non-secret option-question requests to the existing Bash, NetworkAccess,
+  Edit, and AskUserQuestion cards, translating decisions back to the 0.146
+  app-server response schemas. Secret prompts, free-form-only prompts, option
+  prompts that disallow free-form answers, and unsupported request methods fail
+  closed. A live ephemeral 0.146 turn emitted a real Bash approval for a temp
+  file command; the bridge declined it, the turn completed, and no file was
+  created. Tracked in private backlog #37.
+- **Codex app-server conversation core is now contract-tested.** A fleet-server
+  runner can start or resume an app-server thread at an arbitrary absolute
+  `cwd`, start one turn, preserve the provider-native thread id, and normalize
+  assistant deltas, fallback completed text, exact last-turn/context-window
+  usage, recoverable warnings, effective returned settings, and terminal turn
+  status. Unsupported server requests still fail closed, so this runner is not
+  selected by production chat yet; approval and request-user-input forwarding
+  must land before the feature flag can route sessions safely. A live ephemeral
+  read-only turn returned the expected assistant text, exact `17,833 / 258,400`
+  usage, and the managed-policy fallback from requested `never` to effective
+  `untrusted`, without persisting an Agents Hub session. Tracked in private
+  backlog #37.
+- **Feature-flagged Codex model discovery now uses app-server truth.** With
+  `CODEX_APP_SERVER_ENABLED=1`, the existing provider-model endpoint pages
+  through app-server `model/list` and preserves its picker order, explicit
+  default, display name, description, reasoning efforts, personality support,
+  and input modalities. Hidden rows remain hidden, older catalogs without
+  modality metadata retain the documented text+image compatibility default,
+  and provider-process catalogs refresh hourly. If app-server is unavailable or
+  protocol-incompatible, fleet-server safely falls back to the existing Codex
+  model cache; with the flag off, behavior is unchanged. A live 0.146.0 probe
+  returned seven visible models and `gpt-5.6-sol` as the default without
+  creating a thread. Tracked in private backlog #37.
+
 ### Added
 - **Sessions can now be renamed from the hub.** Online session rows in the
   all-sessions feed, project view, and expanded sidebar expose a compact inline
@@ -14,6 +146,24 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   copy immediately, including an already-open chat header, while errors keep
   the editor open. The contract and reload persistence were verified against
   an isolated source fleet-server. Tracked in private backlog #11.
+- **New sessions can now start from the all-sessions feed.** A top-level
+  **New session** action opens an unbound draft whose composer lists every
+  project folder currently reported by online hosts, grouped by host. The
+  composer stays disabled until a folder is selected, then reuses the existing
+  provider picker and first-send session creation flow without a new server
+  endpoint. Offline and unauthenticated hosts are not offered as targets.
+  Tracked in private backlog #10.
+- **Codex app-server lifecycle foundation.** fleet-server now has a supervised
+  JSONL-over-stdio client for Codex CLI 0.146.x with an honest `agents_hub`
+  identity, initialize/initialized handshake, correlated requests, a bounded
+  pending queue, request deadlines, notification and server-request routing,
+  and clean failure/restart semantics. A checked-in minimal generated protocol
+  subset is pinned to the 0.146 baseline and fails closed on incompatible CLI
+  minor versions. The construction boundary is disabled by default, so the
+  existing Codex SDK path remains unchanged while subsequent vertical slices
+  add model/context and thread/turn mappings. A sanitized live probe against
+  Codex 0.146.0 completed the handshake without creating a thread; the full
+  fleet-server suite passes. Tracked in private backlog #37.
 
 ## 2026-08-02
 

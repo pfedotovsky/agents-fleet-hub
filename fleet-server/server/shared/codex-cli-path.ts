@@ -75,7 +75,7 @@ function isExecutable(candidate: string): boolean {
   }
 }
 
-function readInstalledVersion(candidate: string): CodexCliVersion | null {
+export function readCodexCliVersion(candidate: string): CodexCliVersion | null {
   const result = spawnSync(candidate, ['--version'], {
     encoding: 'utf8',
     timeout: 5000,
@@ -116,7 +116,7 @@ export function resolveCodexCliPath(): string | null {
   const pathCandidate = findOnPath('codex');
   const candidates = [pathCandidate, ...appBundledCandidates()]
     .filter((candidate): candidate is string => Boolean(candidate && isExecutable(candidate)));
-  resolved = selectNewestCodexCliPath(candidates, readInstalledVersion);
+  resolved = selectNewestCodexCliPath(candidates, readCodexCliVersion);
   if (!resolved) {
     console.warn(
       '[WARN] No codex binary found (checked CODEX_CLI_PATH, PATH, and desktop app installs). ' +

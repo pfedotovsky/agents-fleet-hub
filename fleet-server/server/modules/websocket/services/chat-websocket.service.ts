@@ -65,7 +65,7 @@ type ChatWebSocketDependencies = {
    * The Claude abort is async; the rest are sync — both shapes are accepted.
    */
   abortFns: Record<LLMProvider, (providerSessionId: string) => boolean | Promise<boolean>>;
-  resolveToolApproval: (
+  resolvePermission: (
     requestId: string,
     payload: {
       allow: boolean;
@@ -74,8 +74,10 @@ type ChatWebSocketDependencies = {
       rememberEntry?: unknown;
     }
   ) => void;
-  /** Claude-only today: pending tool approvals included in `chat_subscribed`. */
-  getPendingApprovalsForSession: (providerSessionId: string) => unknown[];
+  getPendingPermissionsForSession: (
+    provider: LLMProvider,
+    providerSessionId: string,
+  ) => unknown[];
 };
 
 /**
@@ -330,10 +332,10 @@ function handleChatSubscribe(
       chatRunRegistry.attachConnection(sessionId, ws);
     }
 
-    // Pending approvals are tracked under the provider-native id inside the
-    // Claude runtime; remap their sessionId so the client only sees app ids.
+    // Pending approvals are tracked under the provider-native id; remap their
+    // sessionId so the client only sees stable app ids.
     const pendingPermissions = (run?.providerSessionId
-      ? dependencies.getPendingApprovalsForSession(run.providerSessionId)
+      ? dependencies.getPendingPermissionsForSession(run.provider, run.providerSessionId)
       : []
     ).map((approval) =>
       approval && typeof approval === 'object'
@@ -364,15 +366,14 @@ function handleChatSubscribe(
 
 /**
  * Handles `chat.permission-response`: forwards a tool-approval decision to the
- * pending approval resolver (Claude is the only provider with interactive
- * approvals today, but the message is intentionally provider-neutral).
+ * provider-neutral pending approval resolver.
  */
 function handlePermissionResponse(data: AnyRecord, dependencies: ChatWebSocketDependencies): void {
   if (typeof data.requestId !== 'string' || data.requestId.length === 0) {
     return;
   }
 
-  dependencies.resolveToolApproval(data.requestId, {
+  dependencies.resolvePermission(data.requestId, {
     allow: Boolean(data.allow),
     updatedInput: data.updatedInput,
     message: typeof data.message === 'string' ? data.message : undefined,
