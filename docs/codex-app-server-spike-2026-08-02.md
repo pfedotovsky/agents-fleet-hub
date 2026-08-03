@@ -347,6 +347,21 @@ reloading the page, the transcript showed one `View image` row beside
 source host and server data were removed; the native task remains because
 permanent deletion is gated.
 
+Vertical slice 3m adds passive context-compaction transcript parity. App-server
+`contextCompaction` start/completion items validate the stable id and update one
+compact `ContextCompaction` row. Canonical rollouts record the same transition
+as a top-level `compacted` entry; the history reader uses only its type and
+timestamp and deliberately ignores provider-owned `replacement_history`. This
+slice observes compaction but does not expose `thread/compact/start`, steer a
+running turn, or otherwise mutate context.
+
+An isolated synthetic rollout containing a replacement-history sentinel was
+loaded through the compiled source server and embedded Hub. The structured UI
+showed exactly one `Context compacted · Earlier messages were summarized` row
+beside `COMPACTION_HISTORY_OK`, while the sentinel was absent from the DOM. The
+temporary source host, server process, transcript, and database were removed
+after verification.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified

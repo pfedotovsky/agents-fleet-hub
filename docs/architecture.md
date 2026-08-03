@@ -450,6 +450,13 @@ the full base64 image. The history reader recognizes only that static wrapper,
 extracts its quoted path without evaluation, and suppresses the matching output,
 so completion refreshes and reloads keep the native row without sending image
 bytes to the browser.
+Context-compaction start/completion items likewise update one stable
+`ContextCompaction` row. The Hub presents this as a passive “Context compacted”
+marker rather than a control: it does not request compaction or mutate the
+thread. Canonical Codex rollouts persist compaction as a top-level `compacted`
+entry whose `replacement_history` is provider-owned context state. The history
+reader inspects only the entry type and timestamp, reconstructs the same marker,
+and never forwards or parses that payload into the browser transcript.
 An active abort signal sends `turn/interrupt`;
 runtime cleanup suppresses a duplicate terminal frame after the gateway has
 acknowledged the stop.
@@ -516,6 +523,11 @@ A source-UI image-view turn then created native task
 reload, its transcript showed one compact `View image` row for
 `fleet-hub/src-tauri/icons/64x64.png` beside `IMAGE_VIEW_OK`; the internal
 `tools.view_image` wrapper and base64 tool output were absent.
+A source-UI history check against an isolated synthetic rollout then rendered
+one compact `Context compacted · Earlier messages were summarized` row beside
+`COMPACTION_HISTORY_OK`. A sentinel stored only inside `replacement_history`
+was absent from the DOM. The synthetic session, host entry, and source-server
+data were removed after verification.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

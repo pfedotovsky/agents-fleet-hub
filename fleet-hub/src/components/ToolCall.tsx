@@ -30,6 +30,7 @@ const CATEGORY: Record<string, Category> = {
   Glob: 'search',
   Read: 'read',
   ViewImage: 'read',
+  ContextCompaction: 'read',
   TodoWrite: 'todo',
   TodoRead: 'todo',
   Task: 'agent',
@@ -501,6 +502,15 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
   }
 
   // Read / Grep / Glob → one-line.
+  if (name === 'ContextCompaction')
+    return (
+      <OneLine
+        category="read"
+        label="Context compacted"
+        value="Earlier messages were summarized"
+        mono={false}
+      />
+    )
   if (name === 'ViewImage') return <OneLine category="read" label="View image" value={filePath} />
   if (name === 'Read') return <OneLine category="read" label="Read" value={filePath} />
   if (name === 'Grep')

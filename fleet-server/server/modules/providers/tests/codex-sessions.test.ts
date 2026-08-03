@@ -418,6 +418,55 @@ test('Codex history restores image views without forwarding opaque output', { co
   }
 });
 
+test('Codex history restores context compaction without exposing replacement history', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-compaction-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(
+      tempRoot,
+      'codex-compaction-1',
+      workspacePath,
+      'Continue the long thread',
+    );
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: 'codex-compaction-1', cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'compacted',
+        timestamp: '2026-07-07T10:00:01.000Z',
+        payload: {
+          message: '',
+          replacement_history: [{ type: 'message', text: 'opaque replacement history' }],
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession(
+        'codex-compaction-1',
+        'codex',
+        workspacePath,
+        undefined,
+        undefined,
+        undefined,
+        jsonlPath,
+      );
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-compaction-1');
+      const tool = history.messages.find((message) => message.kind === 'tool_use');
+
+      assert.equal(tool?.toolName, 'ContextCompaction');
+      assert.deepEqual(tool?.toolInput, {});
+      assert.equal(JSON.stringify(history.messages).includes('opaque replacement history'), false);
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('Codex synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-app-'));
   const workspacePath = path.join(tempRoot, 'workspace');

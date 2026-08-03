@@ -137,6 +137,11 @@ export type CodexAppServerImageView = {
   status: 'inProgress' | 'completed';
 };
 
+export type CodexAppServerContextCompaction = {
+  id: string;
+  status: 'inProgress' | 'completed';
+};
+
 export type CodexAppServerConversationEvent =
   | {
       type: 'session';
@@ -151,6 +156,7 @@ export type CodexAppServerConversationEvent =
   | { type: 'collaboration'; collaboration: CodexAppServerCollaboration }
   | { type: 'subagent_activity'; activity: CodexAppServerSubAgentActivity }
   | { type: 'image_view'; imageView: CodexAppServerImageView }
+  | { type: 'context_compaction'; compaction: CodexAppServerContextCompaction }
   | { type: 'command_execution'; command: CodexAppServerCommandExecution }
   | { type: 'file_change'; fileChange: CodexAppServerFileChange }
   | { type: 'token_budget'; tokenBudget: CodexAppServerTokenBudget }
@@ -415,6 +421,16 @@ function readImageView(
   const id = readOptionalString(item.id);
   const imagePath = readOptionalString(item.path);
   return id && imagePath ? { id, path: imagePath, status } : null;
+}
+
+function readContextCompaction(
+  value: unknown,
+  status: CodexAppServerContextCompaction['status'],
+): CodexAppServerContextCompaction | null {
+  const item = readObjectRecord(value);
+  if (item?.type !== 'contextCompaction') return null;
+  const id = readOptionalString(item.id);
+  return id ? { id, status } : null;
 }
 
 function readCommandExecution(value: unknown): CodexAppServerCommandExecution | null {
@@ -788,6 +804,11 @@ export async function runCodexAppServerConversation(
           onEvent({ type: 'image_view', imageView });
           continue;
         }
+        const compaction = readContextCompaction(params.item, 'inProgress');
+        if (compaction) {
+          onEvent({ type: 'context_compaction', compaction });
+          continue;
+        }
         const command = readCommandExecution(params.item);
         if (command) {
           commandExecutions.set(command.id, command);
@@ -893,6 +914,11 @@ export async function runCodexAppServerConversation(
         const imageView = readImageView(item, 'completed');
         if (imageView) {
           onEvent({ type: 'image_view', imageView });
+          continue;
+        }
+        const compaction = readContextCompaction(item, 'completed');
+        if (compaction) {
+          onEvent({ type: 'context_compaction', compaction });
           continue;
         }
         const command = readCommandExecution(item);

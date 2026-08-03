@@ -95,7 +95,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
   history reload. Live child-agent activity adds compact started/interacted/
   interrupted rows with the child path and remains visible when the completed
   turn reconciles with history. Codex image views render as compact path-only
-  rows after completion and reload without forwarding image bytes. TodoWrite renders as a checklist with progress; feature-flagged Codex
+  rows after completion and reload without forwarding image bytes. Codex
+  context compaction renders as a passive one-line marker without exposing
+  provider replacement history. TodoWrite renders as a checklist with progress; feature-flagged Codex
   app-server plan updates advance one provider-authored checklist in place and
   keep it visible after the turn completes. Read/Grep/Glob render as one-liners.
   Mid-run reconnects

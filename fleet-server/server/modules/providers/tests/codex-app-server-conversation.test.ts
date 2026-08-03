@@ -803,6 +803,82 @@ describe('Codex app-server conversation runner', () => {
     ]);
   });
 
+  test('normalizes context-compaction lifecycle and rejects missing ids', async () => {
+    const events: CodexAppServerConversationEvent[] = [];
+
+    await runCodexAppServerConversation({
+      cwd: '/workspace/project',
+      prompt: 'Continue the long thread',
+    }, {
+      createClient: (options) => ({
+        start: async () => handshake,
+        request: async <Result>(method: string): Promise<Result> => {
+          if (method === 'thread/start') {
+            return {
+              thread: { id: 'thread-compaction' },
+              cwd: '/workspace/project',
+              model: 'gpt-5.6-sol',
+              approvalPolicy: 'untrusted',
+              sandbox: { type: 'workspaceWrite' },
+              reasoningEffort: null,
+            } as Result;
+          }
+          if (method === 'turn/start') {
+            queueMicrotask(() => {
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-compaction',
+                  turnId: 'turn-compaction',
+                  item: { type: 'contextCompaction', id: 'compaction-1' },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-compaction',
+                  turnId: 'turn-compaction',
+                  item: { type: 'contextCompaction' },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/completed',
+                params: {
+                  threadId: 'thread-compaction',
+                  turnId: 'turn-compaction',
+                  item: { type: 'contextCompaction', id: 'compaction-1' },
+                },
+              });
+              options.onNotification?.({
+                method: 'turn/completed',
+                params: {
+                  threadId: 'thread-compaction',
+                  turn: { id: 'turn-compaction', status: 'completed', error: null },
+                },
+              });
+            });
+            return { turn: { id: 'turn-compaction' } } as Result;
+          }
+          throw new Error(`Unexpected method ${method}`);
+        },
+        stop: () => {},
+      }),
+      onEvent: (event) => events.push(event),
+      turnTimeoutMs: 1_000,
+    });
+
+    expect(events.filter((event) => event.type === 'context_compaction')).toEqual([
+      {
+        type: 'context_compaction',
+        compaction: { id: 'compaction-1', status: 'inProgress' },
+      },
+      {
+        type: 'context_compaction',
+        compaction: { id: 'compaction-1', status: 'completed' },
+      },
+    ]);
+  });
+
   test('normalizes web-search lifecycle without forwarding opaque results', async () => {
     const events: CodexAppServerConversationEvent[] = [];
 

@@ -306,6 +306,18 @@ export function createCodexAppServerRuntime(
             return;
           }
 
+          if (event.type === 'context_compaction') {
+            send({
+              id: `codex_app_server_compaction_${event.compaction.id}`,
+              kind: 'tool_use',
+              toolName: 'ContextCompaction',
+              toolId: event.compaction.id,
+              toolInput: {},
+              status: event.compaction.status,
+            });
+            return;
+          }
+
           if (event.type === 'command_execution') {
             send({
               id: `codex_app_server_${event.command.id}`,

@@ -76,7 +76,12 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   drops its matching base64-bearing output, so the row survives reload without
   forwarding image bytes to the browser. A live source-UI turn viewed the Hub's
   64px icon and restored `View image` beside `IMAGE_VIEW_OK` after a clean
-  server rebuild and page reload. Routing, normalization,
+  server rebuild and page reload. Native `contextCompaction` lifecycle items
+  now update one stable, passive `Context compacted` row. Canonical history
+  reconstructs the marker from top-level `compacted` entries while ignoring
+  provider-owned replacement history. An isolated source-UI history check
+  rendered the marker beside `COMPACTION_HISTORY_OK` and confirmed a payload
+  sentinel never entered the DOM. Routing, normalization,
   command/file/reasoning/search/MCP/plan/collaboration/activity lifecycle, and
   single-terminal abort behavior are contract-tested. Tracked in private
   backlog #37.

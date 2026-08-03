@@ -514,6 +514,58 @@ describe('Codex app-server runtime', () => {
     ]);
   });
 
+  test('maps context-compaction lifecycle onto one normalized marker id', async () => {
+    const messages: NormalizedMessage[] = [];
+    const sessionIds: string[] = [];
+    const runtime = createCodexAppServerRuntime({
+      resolveSelection: async () => ({ model: 'gpt-5.6-sol', effort: 'high' }),
+      runConversation: async (_input, options) => {
+        options?.onEvent?.({
+          type: 'session',
+          providerSessionId: 'thread-compaction',
+          effectiveSettings,
+        });
+        options?.onEvent?.({
+          type: 'context_compaction',
+          compaction: { id: 'compaction-1', status: 'inProgress' },
+        });
+        options?.onEvent?.({
+          type: 'context_compaction',
+          compaction: { id: 'compaction-1', status: 'completed' },
+        });
+        options?.onEvent?.({ type: 'turn_complete', status: 'completed', error: null });
+        return {
+          providerSessionId: 'thread-compaction',
+          turnId: 'turn-compaction',
+          status: 'completed',
+          error: null,
+          emittedAssistantText: false,
+          effectiveSettings,
+        };
+      },
+    });
+
+    await runtime.query('Continue the long thread', {
+      projectPath: '/workspace/project',
+      permissionMode: 'default',
+    }, createWriter(messages, sessionIds));
+
+    expect(messages.filter((message) => message.kind === 'tool_use')).toEqual([
+      expect.objectContaining({
+        id: 'codex_app_server_compaction_compaction-1',
+        toolName: 'ContextCompaction',
+        toolId: 'compaction-1',
+        toolInput: {},
+        status: 'inProgress',
+      }),
+      expect.objectContaining({
+        id: 'codex_app_server_compaction_compaction-1',
+        toolName: 'ContextCompaction',
+        status: 'completed',
+      }),
+    ]);
+  });
+
   test('maps web-search lifecycle onto one normalized tool id', async () => {
     const messages: NormalizedMessage[] = [];
     const sessionIds: string[] = [];

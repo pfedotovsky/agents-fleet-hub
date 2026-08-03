@@ -302,6 +302,16 @@ async function getCodexSessionMessages(
           }
         }
 
+        if (entry.type === 'compacted' && typeof entry.timestamp === 'string' && entry.timestamp) {
+          messages.push({
+            type: 'tool_use',
+            timestamp: entry.timestamp,
+            toolName: 'ContextCompaction',
+            toolInput: {},
+            toolCallId: `compaction_${entry.timestamp}`,
+          });
+        }
+
         if (entry.type === 'event_msg' && isVisibleCodexUserMessage(entry.payload as AnyRecord)) {
           messages.push({
             type: 'user',
