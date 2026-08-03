@@ -491,6 +491,148 @@ describe('Codex app-server conversation runner', () => {
     expect(JSON.stringify(events)).not.toContain('Untrusted external result body');
   });
 
+  test('normalizes MCP tool lifecycle and forwards only safe textual output', async () => {
+    const events: CodexAppServerConversationEvent[] = [];
+
+    await runCodexAppServerConversation({
+      cwd: '/workspace/project',
+      prompt: 'Search official docs through MCP',
+    }, {
+      createClient: (options) => ({
+        start: async () => handshake,
+        request: async <Result>(method: string): Promise<Result> => {
+          if (method === 'thread/start') {
+            return {
+              thread: { id: 'thread-mcp' },
+              cwd: '/workspace/project',
+              model: 'gpt-5.6-sol',
+              approvalPolicy: 'untrusted',
+              sandbox: { type: 'workspaceWrite' },
+              reasoningEffort: null,
+            } as Result;
+          }
+          if (method === 'turn/start') {
+            queueMicrotask(() => {
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-mcp',
+                  turnId: 'turn-mcp',
+                  item: {
+                    type: 'mcpToolCall',
+                    id: 'mcp-1',
+                    server: 'openaiDeveloperDocs',
+                    tool: 'search_openai_docs',
+                    status: 'inProgress',
+                    arguments: { query: 'Codex app server' },
+                    appContext: null,
+                    pluginId: null,
+                    result: null,
+                    error: null,
+                    durationMs: null,
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/mcpToolCall/progress',
+                params: {
+                  threadId: 'thread-mcp',
+                  turnId: 'turn-mcp',
+                  itemId: 'mcp-1',
+                  message: 'Searching official documentation',
+                },
+              });
+              options.onNotification?.({
+                method: 'item/completed',
+                params: {
+                  threadId: 'thread-mcp',
+                  turnId: 'turn-mcp',
+                  item: {
+                    type: 'mcpToolCall',
+                    id: 'mcp-1',
+                    server: 'openaiDeveloperDocs',
+                    tool: 'search_openai_docs',
+                    status: 'completed',
+                    arguments: { query: 'Codex app server' },
+                    appContext: null,
+                    pluginId: null,
+                    result: {
+                      content: [
+                        { type: 'text', text: 'Found the Codex app-server docs.' },
+                        { type: 'image', data: 'opaque-image-data' },
+                      ],
+                      structuredContent: { opaque: 'structured-secret' },
+                      _meta: { opaque: 'metadata-secret' },
+                    },
+                    error: null,
+                    durationMs: 42,
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'turn/completed',
+                params: {
+                  threadId: 'thread-mcp',
+                  turn: { id: 'turn-mcp', status: 'completed', error: null },
+                },
+              });
+            });
+            return { turn: { id: 'turn-mcp' } } as Result;
+          }
+          throw new Error(`Unexpected method ${method}`);
+        },
+        stop: () => {},
+      }),
+      onEvent: (event) => events.push(event),
+      turnTimeoutMs: 1_000,
+    });
+
+    expect(events.filter((event) => event.type === 'mcp_tool_call')).toEqual([
+      {
+        type: 'mcp_tool_call',
+        mcpToolCall: {
+          id: 'mcp-1',
+          server: 'openaiDeveloperDocs',
+          tool: 'search_openai_docs',
+          arguments: { query: 'Codex app server' },
+          status: 'inProgress',
+          output: '',
+          error: null,
+          durationMs: null,
+        },
+      },
+      {
+        type: 'mcp_tool_call',
+        mcpToolCall: {
+          id: 'mcp-1',
+          server: 'openaiDeveloperDocs',
+          tool: 'search_openai_docs',
+          arguments: { query: 'Codex app server' },
+          status: 'inProgress',
+          output: 'Searching official documentation',
+          error: null,
+          durationMs: null,
+        },
+      },
+      {
+        type: 'mcp_tool_call',
+        mcpToolCall: {
+          id: 'mcp-1',
+          server: 'openaiDeveloperDocs',
+          tool: 'search_openai_docs',
+          arguments: { query: 'Codex app server' },
+          status: 'completed',
+          output: 'Found the Codex app-server docs.',
+          error: null,
+          durationMs: 42,
+        },
+      },
+    ]);
+    expect(JSON.stringify(events)).not.toContain('opaque-image-data');
+    expect(JSON.stringify(events)).not.toContain('structured-secret');
+    expect(JSON.stringify(events)).not.toContain('metadata-secret');
+  });
+
   test('normalizes command lifecycle and accumulates ordered output deltas', async () => {
     const events: CodexAppServerConversationEvent[] = [];
 

@@ -95,6 +95,8 @@ export interface NormalizedMessage {
   toolName?: string
   toolInput?: unknown
   toolId?: string
+  /** Provider namespace for MCP tool calls. */
+  server?: string
   toolResult?: { content: string; isError?: boolean }
   /**
    * Codex live tool_use frames carry the result inline instead of a separate
@@ -103,6 +105,7 @@ export interface NormalizedMessage {
    */
   output?: string
   exitCode?: number
+  durationMs?: number
   status?: string
   /**
    * Image attachments on user messages. Hub-sent images are stored-asset

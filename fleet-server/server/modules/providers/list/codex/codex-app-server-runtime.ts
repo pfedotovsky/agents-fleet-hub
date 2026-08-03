@@ -213,6 +213,24 @@ export function createCodexAppServerRuntime(
             return;
           }
 
+          if (event.type === 'mcp_tool_call') {
+            send({
+              id: `codex_app_server_${event.mcpToolCall.id}`,
+              kind: 'tool_use',
+              toolName: event.mcpToolCall.tool,
+              toolId: event.mcpToolCall.id,
+              toolInput: event.mcpToolCall.arguments,
+              server: event.mcpToolCall.server,
+              output: event.mcpToolCall.output,
+              status: event.mcpToolCall.status,
+              ...(event.mcpToolCall.status === 'failed' ? { exitCode: 1 } : {}),
+              ...(event.mcpToolCall.durationMs === null
+                ? {}
+                : { durationMs: event.mcpToolCall.durationMs }),
+            });
+            return;
+          }
+
           if (event.type === 'command_execution') {
             send({
               id: `codex_app_server_${event.command.id}`,

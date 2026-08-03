@@ -228,6 +228,66 @@ test('Codex history restores app-server web searches as native search rows', { c
   }
 });
 
+test('Codex history restores app-server MCP wrappers as native tool rows', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-mcp-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(
+      tempRoot,
+      'codex-mcp-1',
+      workspacePath,
+      'Search official docs through MCP',
+    );
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: 'codex-mcp-1', cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:01.000Z',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'mcp-call-1',
+          input: [
+            'const result = await tools.mcp__openaiDeveloperDocs__search_openai_docs({',
+            '  query: "Codex app server (official)",',
+            '  limit: 5',
+            '});',
+            'text(result);',
+          ].join('\n'),
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:02.000Z',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'mcp-call-1',
+          output: 'opaque MCP result metadata',
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession('codex-mcp-1', 'codex', workspacePath, undefined, undefined, undefined, jsonlPath);
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-mcp-1');
+      const tool = history.messages.find((message) => message.kind === 'tool_use');
+
+      assert.equal(tool?.toolName, 'search_openai_docs');
+      assert.equal(tool?.server, 'openaiDeveloperDocs');
+      assert.equal(tool?.toolInput, '{\n  query: "Codex app server (official)",\n  limit: 5\n}');
+      assert.equal(history.messages.some((message) => message.kind === 'tool_result'), false);
+      assert.equal(JSON.stringify(history.messages).includes('opaque MCP result metadata'), false);
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('Codex synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-app-'));
   const workspacePath = path.join(tempRoot, 'workspace');

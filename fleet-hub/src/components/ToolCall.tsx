@@ -448,7 +448,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
     <Collapsible
       category={category}
       title={name}
-      subtitle={filePath || undefined}
+      subtitle={message.server || filePath || undefined}
       copyText={inputText}
     >
       <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-fg-muted">

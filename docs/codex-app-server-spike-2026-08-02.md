@@ -252,6 +252,27 @@ the two native search rows and the final answer. The temporary source host and
 server were removed; the native test task remains because permanent deletion is
 gated.
 
+Vertical slice 3h adds native MCP tool-call lifecycle parity. App-server
+`mcpToolCall` start, progress, and completion notifications update one stable
+generic tool row containing the MCP server, tool name, inert arguments, safe
+text output, final status, error, and duration. Structured content, `_meta`,
+app/plugin context, and binary blocks are deliberately excluded. Canonical
+rollouts persist these calls as `exec` wrappers around
+`tools.mcp__SERVER__TOOL(...)`, followed by opaque custom-tool output. The
+history reader recognizes only that static identifier shape, scans its balanced
+argument source without evaluation, and suppresses the matching opaque output;
+ordinary `exec` calls remain Bash.
+
+A source-UI turn created native Codex thread
+`019fc764-1273-7040-a822-10d4f33ca3b8` and used the configured
+`openaiDeveloperDocs` MCP server. Its search and fetch calls appeared as native
+rows with the server label while running. After rebuilding the compiled server,
+navigating to a blank page, and loading the session afresh, the same rows were
+recovered from canonical history and no `tools.mcp__...` wrapper appeared as
+Bash. The final official URL remained visible. The temporary source host and
+server data were removed; the native test task remains because permanent
+deletion is gated.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified

@@ -161,6 +161,51 @@ function extractAppServerWebSearchQuery(toolName: unknown, input: unknown): stri
   }
 }
 
+type AppServerMcpWrapper = {
+  server: string;
+  tool: string;
+  argumentsText: string;
+};
+
+/**
+ * App-server persists Code Mode MCP calls as `exec` wrappers around a static
+ * `tools.mcp__<server>__<tool>(...)` reference. Recover only that verified
+ * identifier and its inert argument source; never evaluate recorded code.
+ */
+function extractAppServerMcpWrapper(toolName: unknown, input: unknown): AppServerMcpWrapper | null {
+  if (toolName !== 'exec' || typeof input !== 'string') return null;
+  const match = /tools\.mcp__([A-Za-z0-9_]+)__([A-Za-z0-9_]+)\s*\(/.exec(input);
+  if (!match) return null;
+
+  let depth = 1;
+  let quote: '"' | "'" | '`' | null = null;
+  let escaped = false;
+  for (let index = match.index + match[0].length; index < input.length; index += 1) {
+    const character = input[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'" || character === '`') {
+      quote = character;
+      continue;
+    }
+    if (character === '(') depth += 1;
+    if (character !== ')') continue;
+    depth -= 1;
+    if (depth === 0) {
+      return {
+        server: match[1],
+        tool: match[2],
+        argumentsText: input.slice(match.index + match[0].length, index).trim(),
+      };
+    }
+  }
+  return null;
+}
+
 async function getCodexSessionMessages(
   sessionId: string,
   limit: number | null = null,
@@ -176,6 +221,7 @@ async function getCodexSessionMessages(
 
     const messages: AnyRecord[] = [];
     let tokenUsage: AnyRecord | null = null;
+    const appServerMcpCallIds = new Set<string>();
     for await (const line of readJsonlLines(sessionFilePath)) {
       if (!line.trim()) {
         continue;
@@ -284,6 +330,7 @@ async function getCodexSessionMessages(
           const toolName = entry.payload.name || 'custom_tool';
           const input = entry.payload.input || '';
           const webSearchQuery = extractAppServerWebSearchQuery(toolName, input);
+          const mcpWrapper = extractAppServerMcpWrapper(toolName, input);
 
           if (webSearchQuery) {
             messages.push({
@@ -292,6 +339,16 @@ async function getCodexSessionMessages(
               toolName: 'WebSearch',
               toolInput: { query: webSearchQuery },
               toolCallId: entry.payload.call_id,
+            });
+          } else if (mcpWrapper) {
+            appServerMcpCallIds.add(entry.payload.call_id);
+            messages.push({
+              type: 'tool_use',
+              timestamp: entry.timestamp,
+              toolName: mcpWrapper.tool,
+              toolInput: mcpWrapper.argumentsText,
+              toolCallId: entry.payload.call_id,
+              server: mcpWrapper.server,
             });
           } else if (toolName === 'apply_patch') {
             const fileMatch = String(input).match(/\*\*\* Update File: (.+)/);
@@ -331,6 +388,7 @@ async function getCodexSessionMessages(
         }
 
         if (entry.type === 'response_item' && entry.payload?.type === 'custom_tool_call_output') {
+          if (appServerMcpCallIds.has(entry.payload.call_id)) continue;
           messages.push({
             type: 'tool_result',
             timestamp: entry.timestamp,
@@ -457,6 +515,7 @@ export class CodexSessionsProvider implements IProviderSessions {
         toolName: raw.toolName || 'Unknown',
         toolInput: raw.toolInput,
         toolId: raw.toolCallId || baseId,
+        server: raw.server,
       })];
     }
 

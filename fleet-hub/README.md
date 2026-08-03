@@ -88,8 +88,10 @@ own root URL is only a status page; it does not expose an account-setup UI.
   terminal line with collapsible output (including same-row command lifecycle
   updates from feature-flagged Codex app-server hosts), Codex FileChanges as
   per-file unified diffs that remain visible after completion, Codex WebSearch
-  activity as compact query rows that survive history refresh, TodoWrite as a
-  checklist with progress, Read/Grep/Glob as one-liners. Mid-run reconnects
+  activity as compact query rows that survive history refresh, and Codex MCP
+  calls as stable tool rows labelled with their MCP server that also survive a
+  reload. TodoWrite renders as a checklist with progress, and Read/Grep/Glob as
+  one-liners. Mid-run reconnects
   re-attach via `chat.subscribe` seq replay. The composer autocompletes `@` file tags from
   the project tree and `/` skills + custom commands (message start only) from
   the host's `.claude` directories — Tab/Enter inserts, and the command is

@@ -43,9 +43,18 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   refreshes also recover hosted searches from their internal `tools.web__run`
   wrappers without evaluating the recorded JavaScript, so the rows survive a
   reload instead of becoming Bash calls. A live cached-search turn showed two
-  compact search rows both during execution and after a full reload. Routing,
-  normalization, command/file/reasoning/search lifecycle, and single-terminal
-  abort behavior are contract-tested. Tracked in private backlog #37.
+  compact search rows both during execution and after a full reload. Native
+  app-server MCP tool calls now follow the same stable-row lifecycle, preserving
+  the MCP server, tool name, arguments, textual progress/result, final status,
+  error, and duration while excluding structured metadata and binary content.
+  Canonical history conservatively recognizes static
+  `tools.mcp__SERVER__TOOL(...)` wrappers without evaluating them, so verified
+  MCP calls remain native rows after completion and reload instead of becoming
+  Bash calls. A live source-UI turn exercised `openaiDeveloperDocs`: its search
+  and fetch calls rendered with the server label both live and after a clean
+  reload. Routing, normalization, command/file/reasoning/search/MCP lifecycle,
+  and single-terminal abort behavior are contract-tested. Tracked in private
+  backlog #37.
 - **Codex app-server approvals now have a provider-neutral Hub bridge.** Pending
   interactions are scoped by provider and provider-native session, survive a
   browser reconnect through the existing `chat_subscribed.pendingPermissions`

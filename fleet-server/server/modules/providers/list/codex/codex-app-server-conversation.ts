@@ -80,6 +80,17 @@ export type CodexAppServerWebSearch = {
   status: 'inProgress' | 'completed';
 };
 
+export type CodexAppServerMcpToolCall = {
+  id: string;
+  server: string;
+  tool: string;
+  arguments: unknown;
+  status: 'inProgress' | 'completed' | 'failed';
+  output: string;
+  error: string | null;
+  durationMs: number | null;
+};
+
 export type CodexAppServerConversationEvent =
   | {
       type: 'session';
@@ -89,6 +100,7 @@ export type CodexAppServerConversationEvent =
   | { type: 'assistant_delta'; itemId: string; delta: string }
   | { type: 'reasoning_summary'; reasoning: CodexAppServerReasoningSummary }
   | { type: 'web_search'; webSearch: CodexAppServerWebSearch }
+  | { type: 'mcp_tool_call'; mcpToolCall: CodexAppServerMcpToolCall }
   | { type: 'command_execution'; command: CodexAppServerCommandExecution }
   | { type: 'file_change'; fileChange: CodexAppServerFileChange }
   | { type: 'token_budget'; tokenBudget: CodexAppServerTokenBudget }
@@ -199,6 +211,46 @@ function readWebSearch(
   const action = item.action == null ? null : readObjectRecord(item.action);
   if (!id || !query || (item.action != null && !action)) return null;
   return { id, query, action, status };
+}
+
+function readMcpTextContent(value: unknown): string {
+  if (!Array.isArray(value)) return '';
+  return value.flatMap((part): string[] => {
+    if (typeof part === 'string') return [part];
+    const record = readObjectRecord(part);
+    return typeof record?.text === 'string' ? [record.text] : [];
+  }).filter((part) => part.trim()).join('\n');
+}
+
+function readMcpToolCall(value: unknown): CodexAppServerMcpToolCall | null {
+  const item = readObjectRecord(value);
+  if (item?.type !== 'mcpToolCall') return null;
+  const id = readOptionalString(item.id);
+  const server = readOptionalString(item.server);
+  const tool = readOptionalString(item.tool);
+  const status = readOptionalString(item.status);
+  if (
+    !id
+    || !server
+    || !tool
+    || item.arguments === undefined
+    || (status !== 'inProgress' && status !== 'completed' && status !== 'failed')
+  ) {
+    return null;
+  }
+
+  const result = readObjectRecord(item.result);
+  const error = readObjectRecord(item.error);
+  return {
+    id,
+    server,
+    tool,
+    arguments: item.arguments,
+    status,
+    output: readMcpTextContent(result?.content),
+    error: readOptionalString(error?.message) ?? null,
+    durationMs: readNullableFiniteNumber(item.durationMs),
+  };
 }
 
 function readCommandExecution(value: unknown): CodexAppServerCommandExecution | null {
@@ -399,6 +451,7 @@ export async function runCodexAppServerConversation(
   const reasoningSummaries = new Map<string, string[]>();
   const commandExecutions = new Map<string, CodexAppServerCommandExecution>();
   const fileChanges = new Map<string, CodexAppServerFileChange>();
+  const mcpToolCalls = new Map<string, CodexAppServerMcpToolCall>();
   const client = createClient({
     onNotification: (notification) => notifications.push(notification),
     onServerRequest: createCodexAppServerRequestHandler({
@@ -542,6 +595,12 @@ export async function runCodexAppServerConversation(
           onEvent({ type: 'web_search', webSearch });
           continue;
         }
+        const mcpToolCall = readMcpToolCall(params.item);
+        if (mcpToolCall) {
+          mcpToolCalls.set(mcpToolCall.id, mcpToolCall);
+          onEvent({ type: 'mcp_tool_call', mcpToolCall });
+          continue;
+        }
         const command = readCommandExecution(params.item);
         if (command) {
           commandExecutions.set(command.id, command);
@@ -552,6 +611,21 @@ export async function runCodexAppServerConversation(
         if (fileChange) {
           fileChanges.set(fileChange.id, fileChange);
           onEvent({ type: 'file_change', fileChange });
+        }
+        continue;
+      }
+
+      if (notification.method === 'item/mcpToolCall/progress') {
+        const itemId = readOptionalString(params.itemId);
+        const message = readOptionalString(params.message);
+        const mcpToolCall = itemId ? mcpToolCalls.get(itemId) : undefined;
+        if (mcpToolCall && message) {
+          const updated = {
+            ...mcpToolCall,
+            output: mcpToolCall.output ? `${mcpToolCall.output}\n${message}` : message,
+          };
+          mcpToolCalls.set(updated.id, updated);
+          onEvent({ type: 'mcp_tool_call', mcpToolCall: updated });
         }
         continue;
       }
@@ -594,6 +668,17 @@ export async function runCodexAppServerConversation(
         const webSearch = readWebSearch(item, 'completed');
         if (webSearch) {
           onEvent({ type: 'web_search', webSearch });
+          continue;
+        }
+        const mcpToolCall = readMcpToolCall(item);
+        if (mcpToolCall) {
+          const prior = mcpToolCalls.get(mcpToolCall.id);
+          const completed = {
+            ...mcpToolCall,
+            output: mcpToolCall.output || mcpToolCall.error || prior?.output || '',
+          };
+          mcpToolCalls.set(completed.id, completed);
+          onEvent({ type: 'mcp_tool_call', mcpToolCall: completed });
           continue;
         }
         const command = readCommandExecution(item);

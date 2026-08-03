@@ -357,7 +357,12 @@ the final item omits `aggregatedOutput`. It also tracks `fileChange` items from
 `item/started` through replacement `item/fileChange/patchUpdated` change lists
 to the authoritative completed item. `webSearch` start/completion items likewise
 become lifecycle events carrying the provider query and action; opaque result
-payloads are not forwarded to the browser. The loop surfaces generic and
+payloads are not forwarded to the browser. `mcpToolCall` items are keyed by
+their provider item id from start through progress and completion. They preserve
+the server, tool name, arguments, textual progress/result, error message, and
+duration; only string or `{text}` result-content blocks cross the boundary, so
+structured content, `_meta`, app context, plugin ids, and binary blocks never
+enter the browser protocol. The loop surfaces generic and
 configuration warnings and terminates only on the matching `turn/completed`.
 Each turn requests `summary: 'auto'`, accumulates indexed readable reasoning
 summary deltas across section boundaries, and replaces them with the completed
@@ -407,8 +412,14 @@ stable-id rule with the existing `WebSearch` tool renderer. App-server rollouts
 persist those hosted searches as `exec` custom-tool wrappers around
 `tools.web__run`; the Codex history reader recognizes that conservative shape
 without evaluating recorded JavaScript and restores the native search query on
-completion/reload. An active abort signal sends `turn/interrupt`; runtime
-cleanup suppresses a duplicate terminal frame after the gateway has
+completion/reload. MCP lifecycle updates likewise become same-id generic tool
+rows whose subtitle is the MCP server. Canonical rollouts persist MCP calls as
+`exec` wrappers around static `tools.mcp__SERVER__TOOL(...)` calls followed by
+opaque `custom_tool_call_output`; the history reader uses a balanced inert-text
+scanner (never `eval`) to recover only the identifier and argument source from
+that verified static shape, drops the matching opaque output, and leaves every
+other `exec` wrapper as Bash. An active abort signal sends `turn/interrupt`;
+runtime cleanup suppresses a duplicate terminal frame after the gateway has
 acknowledged the stop.
 
 `codex-runtime-router.ts` selects this runtime for every send when
@@ -440,6 +451,12 @@ A cached-search source-UI turn emitted two native `webSearch` lifecycles. The
 Hub showed both as compact `Search` rows during execution and, after a full page
 reload, restored the same queries from canonical rollout history instead of
 exposing the internal `tools.web__run` wrapper as Bash.
+An MCP-only source-UI turn then used `openaiDeveloperDocs`. Search and fetch
+calls appeared as stable native rows labelled with that server during execution.
+After rebuilding fleet-server and navigating away before a clean reload, the
+same calls were reconstructed from canonical rollout wrappers; no
+`tools.mcp__...` call was exposed as Bash. Structured and binary MCP result
+payloads stayed outside the normalized transcript.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

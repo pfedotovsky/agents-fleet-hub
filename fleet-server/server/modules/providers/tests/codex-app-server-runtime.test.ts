@@ -284,6 +284,83 @@ describe('Codex app-server runtime', () => {
     ]);
   });
 
+  test('maps MCP lifecycle onto one normalized tool id with server and safe result', async () => {
+    const messages: NormalizedMessage[] = [];
+    const sessionIds: string[] = [];
+    const runtime = createCodexAppServerRuntime({
+      resolveSelection: async () => ({ model: 'gpt-5.6-sol', effort: 'high' }),
+      runConversation: async (_input, options) => {
+        options?.onEvent?.({
+          type: 'session',
+          providerSessionId: 'thread-mcp',
+          effectiveSettings,
+        });
+        options?.onEvent?.({
+          type: 'mcp_tool_call',
+          mcpToolCall: {
+            id: 'mcp-1',
+            server: 'openaiDeveloperDocs',
+            tool: 'search_openai_docs',
+            arguments: { query: 'Codex app server' },
+            status: 'inProgress',
+            output: '',
+            error: null,
+            durationMs: null,
+          },
+        });
+        options?.onEvent?.({
+          type: 'mcp_tool_call',
+          mcpToolCall: {
+            id: 'mcp-1',
+            server: 'openaiDeveloperDocs',
+            tool: 'search_openai_docs',
+            arguments: { query: 'Codex app server' },
+            status: 'completed',
+            output: 'Found the Codex app-server docs.',
+            error: null,
+            durationMs: 42,
+          },
+        });
+        options?.onEvent?.({ type: 'turn_complete', status: 'completed', error: null });
+        return {
+          providerSessionId: 'thread-mcp',
+          turnId: 'turn-mcp',
+          status: 'completed',
+          error: null,
+          emittedAssistantText: false,
+          effectiveSettings,
+        };
+      },
+    });
+
+    await runtime.query('Search official docs through MCP', {
+      projectPath: '/workspace/project',
+      permissionMode: 'default',
+    }, createWriter(messages, sessionIds));
+
+    expect(messages.filter((message) => message.kind === 'tool_use')).toEqual([
+      expect.objectContaining({
+        id: 'codex_app_server_mcp-1',
+        toolName: 'search_openai_docs',
+        toolId: 'mcp-1',
+        toolInput: { query: 'Codex app server' },
+        server: 'openaiDeveloperDocs',
+        output: '',
+        status: 'inProgress',
+      }),
+      expect.objectContaining({
+        id: 'codex_app_server_mcp-1',
+        toolName: 'search_openai_docs',
+        toolId: 'mcp-1',
+        toolInput: { query: 'Codex app server' },
+        server: 'openaiDeveloperDocs',
+        output: 'Found the Codex app-server docs.',
+        status: 'completed',
+        durationMs: 42,
+      }),
+    ]);
+  });
+
   test('maps file-change lifecycle onto one normalized tool id', async () => {
     const messages: NormalizedMessage[] = [];
     const sessionIds: string[] = [];
