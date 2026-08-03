@@ -68,6 +68,11 @@ export type CodexAppServerFileChange = {
   status: 'inProgress' | 'completed' | 'failed' | 'declined';
 };
 
+export type CodexAppServerReasoningSummary = {
+  id: string;
+  summary: string;
+};
+
 export type CodexAppServerConversationEvent =
   | {
       type: 'session';
@@ -75,6 +80,7 @@ export type CodexAppServerConversationEvent =
       effectiveSettings: CodexAppServerEffectiveSettings;
     }
   | { type: 'assistant_delta'; itemId: string; delta: string }
+  | { type: 'reasoning_summary'; reasoning: CodexAppServerReasoningSummary }
   | { type: 'command_execution'; command: CodexAppServerCommandExecution }
   | { type: 'file_change'; fileChange: CodexAppServerFileChange }
   | { type: 'token_budget'; tokenBudget: CodexAppServerTokenBudget }
@@ -155,6 +161,23 @@ function readFiniteNumber(value: unknown): number {
 
 function readNullableFiniteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function readStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.some((part) => typeof part !== 'string')) return null;
+  return value as string[];
+}
+
+function readReasoningSummary(value: unknown): { id: string; sections: string[] } | null {
+  const item = readObjectRecord(value);
+  if (item?.type !== 'reasoning') return null;
+  const id = readOptionalString(item.id);
+  const sections = readStringArray(item.summary);
+  return id && sections ? { id, sections } : null;
+}
+
+function joinReasoningSummary(sections: string[]): string {
+  return sections.map((section) => section.trim()).filter(Boolean).join('\n\n');
 }
 
 function readCommandExecution(value: unknown): CodexAppServerCommandExecution | null {
@@ -352,6 +375,7 @@ export async function runCodexAppServerConversation(
   let effectiveSettings: CodexAppServerEffectiveSettings | null = null;
   let emittedAssistantText = false;
   const deltaItemIds = new Set<string>();
+  const reasoningSummaries = new Map<string, string[]>();
   const commandExecutions = new Map<string, CodexAppServerCommandExecution>();
   const fileChanges = new Map<string, CodexAppServerFileChange>();
   const client = createClient({
@@ -405,6 +429,7 @@ export async function runCodexAppServerConversation(
       cwd,
       model: input.model ?? null,
       effort: input.effort ?? null,
+      summary: 'auto',
     });
     turnId = readTurnId(turnResponse);
     if (options.signal?.aborted) interruptTurn();
@@ -451,7 +476,46 @@ export async function runCodexAppServerConversation(
         continue;
       }
 
+      if (notification.method === 'item/reasoning/summaryTextDelta') {
+        const itemId = readOptionalString(params.itemId);
+        const delta = typeof params.delta === 'string' ? params.delta : '';
+        const summaryIndex = readNullableFiniteNumber(params.summaryIndex);
+        if (itemId && delta && summaryIndex !== null && Number.isInteger(summaryIndex) && summaryIndex >= 0) {
+          const sections = [...(reasoningSummaries.get(itemId) ?? [])];
+          while (sections.length <= summaryIndex) sections.push('');
+          sections[summaryIndex] = `${sections[summaryIndex]}${delta}`;
+          reasoningSummaries.set(itemId, sections);
+          const summary = joinReasoningSummary(sections);
+          if (summary) onEvent({ type: 'reasoning_summary', reasoning: { id: itemId, summary } });
+        }
+        continue;
+      }
+
+      if (notification.method === 'item/reasoning/summaryPartAdded') {
+        const itemId = readOptionalString(params.itemId);
+        const summaryIndex = readNullableFiniteNumber(params.summaryIndex);
+        if (itemId && summaryIndex !== null && Number.isInteger(summaryIndex) && summaryIndex >= 0) {
+          const sections = [...(reasoningSummaries.get(itemId) ?? [])];
+          while (sections.length <= summaryIndex) sections.push('');
+          reasoningSummaries.set(itemId, sections);
+        }
+        continue;
+      }
+
+      // Raw reasoning is intentionally not part of the Hub protocol. Only the
+      // provider-authored readable summary above is safe to surface.
+      if (notification.method === 'item/reasoning/textDelta') continue;
+
       if (notification.method === 'item/started') {
+        const reasoning = readReasoningSummary(params.item);
+        if (reasoning) {
+          reasoningSummaries.set(reasoning.id, reasoning.sections);
+          const summary = joinReasoningSummary(reasoning.sections);
+          if (summary) {
+            onEvent({ type: 'reasoning_summary', reasoning: { id: reasoning.id, summary } });
+          }
+          continue;
+        }
         const command = readCommandExecution(params.item);
         if (command) {
           commandExecutions.set(command.id, command);
@@ -492,6 +556,15 @@ export async function runCodexAppServerConversation(
 
       if (notification.method === 'item/completed') {
         const item = readObjectRecord(params.item);
+        const reasoning = readReasoningSummary(item);
+        if (reasoning) {
+          reasoningSummaries.set(reasoning.id, reasoning.sections);
+          const summary = joinReasoningSummary(reasoning.sections);
+          if (summary) {
+            onEvent({ type: 'reasoning_summary', reasoning: { id: reasoning.id, summary } });
+          }
+          continue;
+        }
         const command = readCommandExecution(item);
         if (command) {
           const prior = commandExecutions.get(command.id);

@@ -189,6 +189,15 @@ export function createCodexAppServerRuntime(
             return;
           }
 
+          if (event.type === 'reasoning_summary') {
+            send({
+              id: `codex_app_server_${event.reasoning.id}`,
+              kind: 'thinking',
+              content: event.reasoning.summary,
+            });
+            return;
+          }
+
           if (event.type === 'command_execution') {
             send({
               id: `codex_app_server_${event.command.id}`,

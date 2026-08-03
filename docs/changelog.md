@@ -34,8 +34,12 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   rollout omits that transient item, so it no longer disappears after the
   completion refresh. A final source-UI run displayed an approved one-line
   `FILECHANGE_BEFORE` → `FILECHANGE_AFTER` patch and retained the diff after
-  the turn finished. Routing, normalization, command/file lifecycle, and
-  single-terminal abort behavior are contract-tested. Tracked in private
+  the turn finished. App-server turns now request readable reasoning summaries
+  and stream their indexed sections into one stable collapsed `thinking` row;
+  raw reasoning content and raw-text deltas remain deliberately excluded. A
+  live high-effort source-UI turn showed one provider-authored summary and no
+  duplicate rows. Routing, normalization, command/file/reasoning lifecycle,
+  and single-terminal abort behavior are contract-tested. Tracked in private
   backlog #37.
 - **Codex app-server approvals now have a provider-neutral Hub bridge.** Pending
   interactions are scoped by provider and provider-native session, survive a

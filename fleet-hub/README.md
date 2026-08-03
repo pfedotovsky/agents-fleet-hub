@@ -80,8 +80,10 @@ own root URL is only a status page; it does not expose an account-setup UI.
   (from `GET /api/providers/:provider/models`; sent as `options.model/effort`
   in `chat.send`). Existing Claude and Codex sessions show their latest
   persisted context-window occupancy in the header as soon as they open; a
-  completed live turn refreshes it. Assistant replies render as Markdown (GFM tables, code
-  blocks with syntax highlighting and a copy button). Tool calls render like
+  completed live turn refreshes it. Assistant replies render as Markdown (GFM
+  tables, code blocks with syntax highlighting and a copy button). Feature-flagged Codex
+  app-server turns also stream provider-authored reasoning summaries into one
+  collapsed `thinking` row; raw reasoning is not exposed. Tool calls render like
   CloudCLI: Edit/Write as red/green diffs with file badges, Bash as a green
   terminal line with collapsible output (including same-row command lifecycle
   updates from feature-flagged Codex app-server hosts), Codex FileChanges as

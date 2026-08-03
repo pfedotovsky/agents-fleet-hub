@@ -609,10 +609,9 @@ export function ChatPane({
   const appendMessage = useCallback(
     (message: NormalizedMessage) => {
       if (message.id && seenIds.current.has(message.id)) {
-        // Codex can re-emit a tool_use under the same id once the item
-        // finishes, now carrying output/exitCode — update the row in place
-        // so it doesn't stay stuck as "running".
-        if (message.kind === 'tool_use') {
+        // Codex re-emits lifecycle items under one id: tools gain final
+        // output/status and readable reasoning summaries grow as deltas land.
+        if (message.kind === 'tool_use' || message.kind === 'thinking') {
           setMessages((prev) =>
             prev.map((existing) => (existing.id === message.id ? { ...existing, ...message } : existing)),
           )

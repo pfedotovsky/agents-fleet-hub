@@ -169,6 +169,54 @@ describe('Codex app-server runtime', () => {
     expect(runtime.isActive('thread-1')).toBeFalse();
   });
 
+  test('maps reasoning lifecycle onto one normalized thinking id', async () => {
+    const messages: NormalizedMessage[] = [];
+    const sessionIds: string[] = [];
+    const runtime = createCodexAppServerRuntime({
+      resolveSelection: async () => ({ model: 'gpt-5.6-sol', effort: 'high' }),
+      runConversation: async (_input, options) => {
+        options?.onEvent?.({
+          type: 'session',
+          providerSessionId: 'thread-reasoning',
+          effectiveSettings,
+        });
+        options?.onEvent?.({
+          type: 'reasoning_summary',
+          reasoning: { id: 'reasoning-1', summary: 'Reviewing' },
+        });
+        options?.onEvent?.({
+          type: 'reasoning_summary',
+          reasoning: { id: 'reasoning-1', summary: 'Reviewing\n\nChoosing adapter' },
+        });
+        options?.onEvent?.({ type: 'turn_complete', status: 'completed', error: null });
+        return {
+          providerSessionId: 'thread-reasoning',
+          turnId: 'turn-reasoning',
+          status: 'completed',
+          error: null,
+          emittedAssistantText: false,
+          effectiveSettings,
+        };
+      },
+    });
+
+    await runtime.query('Think through the change', {
+      projectPath: '/workspace/project',
+      permissionMode: 'default',
+    }, createWriter(messages, sessionIds));
+
+    expect(messages.filter((message) => message.kind === 'thinking')).toEqual([
+      expect.objectContaining({
+        id: 'codex_app_server_reasoning-1',
+        content: 'Reviewing',
+      }),
+      expect.objectContaining({
+        id: 'codex_app_server_reasoning-1',
+        content: 'Reviewing\n\nChoosing adapter',
+      }),
+    ]);
+  });
+
   test('maps file-change lifecycle onto one normalized tool id', async () => {
     const messages: NormalizedMessage[] = [];
     const sessionIds: string[] = [];

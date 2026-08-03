@@ -167,8 +167,9 @@ Browser (Agents Hub SPA)
   ready" Build card in the transcript instead (Build leaves plan mode and
   sends a go-ahead so the same thread resumes writable). `toolsSettings`
   is ignored (not sent), live `tool_use` frames carry results inline
-  (`output`/`exitCode`, no `tool_result` frame; repeated ids are upserted in
-  place by `appendMessage`), history serializes `toolInput` as a JSON string
+  (`output`/`exitCode`, no `tool_result` frame; repeated tool and reasoning ids
+  are upserted in place by `appendMessage`), history serializes `toolInput` as
+  a JSON string
   and `toolResult.content` sometimes as `{type,text}[]` parts, history shell
   tools are named `exec_command`/`exec`/`write_stdin`, skills are
   `$`-prefixed. Existing chats populate the header usage chip from the REST
@@ -356,7 +357,10 @@ the final item omits `aggregatedOutput`. It also tracks `fileChange` items from
 `item/started` through replacement `item/fileChange/patchUpdated` change lists
 to the authoritative completed item. The loop surfaces generic and
 configuration warnings and terminates only on the matching `turn/completed`.
-It never invents a context window when app-server reports none.
+Each turn requests `summary: 'auto'`, accumulates indexed readable reasoning
+summary deltas across section boundaries, and replaces them with the completed
+summary. Raw reasoning content and `item/reasoning/textDelta` are intentionally
+ignored. The loop never invents a context window when app-server reports none.
 
 `shared/pending-permissions.ts` now owns pending interaction state for every
 provider. Entries are scoped by provider plus provider-native session id, so
@@ -394,9 +398,11 @@ updates use the same rule with tool name `FileChanges` and raw app-server
 add/delete/edit/move metadata. The completion refresh normally swaps live ids
 for canonical JSONL history, but carries forward any live `FileChanges` payload
 that the rollout omitted, deduplicating it when canonical history does contain
-the same id or payload. An active abort signal sends `turn/interrupt`; runtime
-cleanup suppresses a duplicate terminal frame after the gateway has
-acknowledged the stop.
+the same id or payload. Reasoning summary lifecycle updates use the normalized
+`thinking` kind and the stable app-server item id, so ChatPane grows one
+collapsed row rather than appending delta duplicates. An active abort signal
+sends `turn/interrupt`; runtime cleanup suppresses a duplicate terminal frame
+after the gateway has acknowledged the stop.
 
 `codex-runtime-router.ts` selects this runtime for every send when
 `CODEX_APP_SERVER_ENABLED=1`; otherwise it calls the unchanged SDK adapter.
@@ -420,6 +426,9 @@ A later source-UI run approved one `apply_patch` edit. The transcript showed
 the app-server `FileChanges` row as a one-line unified diff before approval and
 retained it after the turn completed even though that transient item was absent
 from the canonical JSONL refresh.
+A high-effort source-UI turn then emitted one readable reasoning summary. The
+Hub rendered it as one collapsed `thinking` row, updated by stable id, while raw
+reasoning remained absent from the normalized protocol and transcript.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

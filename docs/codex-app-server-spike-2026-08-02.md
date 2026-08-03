@@ -218,6 +218,23 @@ remained visible and the scratch file contained the new value. The temporary
 host entry and source server were removed after verification; the native task
 was retained because permanent deletion remains a user decision gate.
 
+Vertical slice 3f adds readable reasoning-summary parity. Every app-server turn
+requests the protocol's `summary: "auto"` mode. The runner accumulates indexed
+`item/reasoning/summaryTextDelta` sections, observes summary-part boundaries,
+and treats the completed reasoning item's summary as authoritative. It emits
+only those provider-authored readable summaries: raw reasoning content and
+`item/reasoning/textDelta` are intentionally ignored. Repeated summary states
+map to one stable normalized `thinking` id, and ChatPane updates that collapsed
+row in place.
+
+The initial live probe documented why the explicit mode is required: reasoning
+items were present in the rollout but their summaries were empty under the
+ambient default. After enabling `summary: "auto"`, a high-effort source-UI turn
+rendered exactly one collapsed `thinking` row with the readable summary
+“Designing idempotent event identity algorithm”, followed by the final answer.
+No raw reasoning appeared. The temporary source host was removed and the server
+stopped; the native task remains because permanent deletion is gated.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified

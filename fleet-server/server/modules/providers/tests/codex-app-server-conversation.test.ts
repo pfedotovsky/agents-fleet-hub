@@ -128,6 +128,7 @@ describe('Codex app-server conversation runner', () => {
           cwd: '/workspace/project',
           model: 'gpt-5.6-sol',
           effort: 'high',
+          summary: 'auto',
         },
       },
     ]);
@@ -247,6 +248,148 @@ describe('Codex app-server conversation runner', () => {
     ]);
     expect(result.status).toBe('failed');
     expect(result.error).toBe('Turn failed safely');
+  });
+
+  test('streams readable reasoning summaries without exposing raw reasoning', async () => {
+    const events: CodexAppServerConversationEvent[] = [];
+
+    await runCodexAppServerConversation({
+      cwd: '/workspace/project',
+      prompt: 'Think through the change',
+    }, {
+      createClient: (options) => ({
+        start: async () => handshake,
+        request: async <Result>(method: string): Promise<Result> => {
+          if (method === 'thread/start') {
+            return {
+              thread: { id: 'thread-reasoning' },
+              cwd: '/workspace/project',
+              model: 'gpt-5.6-sol',
+              approvalPolicy: 'untrusted',
+              sandbox: { type: 'workspaceWrite' },
+              reasoningEffort: 'high',
+            } as Result;
+          }
+          if (method === 'turn/start') {
+            queueMicrotask(() => {
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-reasoning',
+                  turnId: 'turn-reasoning',
+                  item: {
+                    type: 'reasoning',
+                    id: 'reasoning-1',
+                    summary: [],
+                    content: ['private started reasoning'],
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/reasoning/summaryTextDelta',
+                params: {
+                  threadId: 'thread-reasoning',
+                  turnId: 'turn-reasoning',
+                  itemId: 'reasoning-1',
+                  delta: 'Reviewing ',
+                  summaryIndex: 0,
+                },
+              });
+              options.onNotification?.({
+                method: 'item/reasoning/summaryTextDelta',
+                params: {
+                  threadId: 'thread-reasoning',
+                  turnId: 'turn-reasoning',
+                  itemId: 'reasoning-1',
+                  delta: 'contracts',
+                  summaryIndex: 0,
+                },
+              });
+              options.onNotification?.({
+                method: 'item/reasoning/summaryPartAdded',
+                params: {
+                  threadId: 'thread-reasoning',
+                  turnId: 'turn-reasoning',
+                  itemId: 'reasoning-1',
+                  summaryIndex: 1,
+                },
+              });
+              options.onNotification?.({
+                method: 'item/reasoning/textDelta',
+                params: {
+                  threadId: 'thread-reasoning',
+                  turnId: 'turn-reasoning',
+                  itemId: 'reasoning-1',
+                  delta: 'private raw reasoning',
+                  contentIndex: 0,
+                },
+              });
+              options.onNotification?.({
+                method: 'item/reasoning/summaryTextDelta',
+                params: {
+                  threadId: 'thread-reasoning',
+                  turnId: 'turn-reasoning',
+                  itemId: 'reasoning-1',
+                  delta: 'Choosing adapter',
+                  summaryIndex: 1,
+                },
+              });
+              options.onNotification?.({
+                method: 'item/completed',
+                params: {
+                  threadId: 'thread-reasoning',
+                  turnId: 'turn-reasoning',
+                  item: {
+                    type: 'reasoning',
+                    id: 'reasoning-1',
+                    summary: ['Reviewing contracts', 'Choosing adapter'],
+                    content: ['private completed reasoning'],
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'turn/completed',
+                params: {
+                  threadId: 'thread-reasoning',
+                  turn: { id: 'turn-reasoning', status: 'completed', error: null },
+                },
+              });
+            });
+            return { turn: { id: 'turn-reasoning' } } as Result;
+          }
+          throw new Error(`Unexpected method ${method}`);
+        },
+        stop: () => {},
+      }),
+      onEvent: (event) => events.push(event),
+      turnTimeoutMs: 1_000,
+    });
+
+    expect(events.filter((event) => event.type === 'reasoning_summary')).toEqual([
+      {
+        type: 'reasoning_summary',
+        reasoning: { id: 'reasoning-1', summary: 'Reviewing' },
+      },
+      {
+        type: 'reasoning_summary',
+        reasoning: { id: 'reasoning-1', summary: 'Reviewing contracts' },
+      },
+      {
+        type: 'reasoning_summary',
+        reasoning: {
+          id: 'reasoning-1',
+          summary: 'Reviewing contracts\n\nChoosing adapter',
+        },
+      },
+      {
+        type: 'reasoning_summary',
+        reasoning: {
+          id: 'reasoning-1',
+          summary: 'Reviewing contracts\n\nChoosing adapter',
+        },
+      },
+    ]);
+    expect(JSON.stringify(events)).not.toContain('private');
   });
 
   test('normalizes command lifecycle and accumulates ordered output deltas', async () => {
