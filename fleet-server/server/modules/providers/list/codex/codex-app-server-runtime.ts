@@ -198,6 +198,21 @@ export function createCodexAppServerRuntime(
             return;
           }
 
+          if (event.type === 'web_search') {
+            send({
+              id: `codex_app_server_${event.webSearch.id}`,
+              kind: 'tool_use',
+              toolName: 'WebSearch',
+              toolId: event.webSearch.id,
+              toolInput: {
+                query: event.webSearch.query,
+                action: event.webSearch.action,
+              },
+              status: event.webSearch.status,
+            });
+            return;
+          }
+
           if (event.type === 'command_execution') {
             send({
               id: `codex_app_server_${event.command.id}`,

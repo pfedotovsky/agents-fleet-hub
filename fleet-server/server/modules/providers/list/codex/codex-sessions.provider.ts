@@ -140,6 +140,27 @@ function extractCodexTextContent(content: unknown): string {
     .join('\n');
 }
 
+/**
+ * App-server persists hosted web searches as `exec` custom-tool wrappers
+ * around `tools.web__run`, not as rollout `web_search` items. Recover the
+ * provider query conservatively without evaluating the recorded JavaScript so
+ * history refreshes keep the native WebSearch row shown during the live turn.
+ */
+function extractAppServerWebSearchQuery(toolName: unknown, input: unknown): string | null {
+  if (toolName !== 'exec' || typeof input !== 'string' || !input.includes('tools.web__run')) {
+    return null;
+  }
+
+  const match = input.match(/(?:^|[,{]\s*)["']?q["']?\s*:\s*("(?:\\.|[^"\\])*")/);
+  if (!match) return null;
+  try {
+    const query = JSON.parse(match[1]);
+    return typeof query === 'string' && query.trim() ? query.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 async function getCodexSessionMessages(
   sessionId: string,
   limit: number | null = null,
@@ -262,8 +283,17 @@ async function getCodexSessionMessages(
         if (entry.type === 'response_item' && entry.payload?.type === 'custom_tool_call') {
           const toolName = entry.payload.name || 'custom_tool';
           const input = entry.payload.input || '';
+          const webSearchQuery = extractAppServerWebSearchQuery(toolName, input);
 
-          if (toolName === 'apply_patch') {
+          if (webSearchQuery) {
+            messages.push({
+              type: 'tool_use',
+              timestamp: entry.timestamp,
+              toolName: 'WebSearch',
+              toolInput: { query: webSearchQuery },
+              toolCallId: entry.payload.call_id,
+            });
+          } else if (toolName === 'apply_patch') {
             const fileMatch = String(input).match(/\*\*\* Update File: (.+)/);
             const filePath = fileMatch ? fileMatch[1].trim() : 'unknown';
             const lines = String(input).split('\n');

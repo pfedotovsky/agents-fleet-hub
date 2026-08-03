@@ -235,6 +235,23 @@ rendered exactly one collapsed `thinking` row with the readable summary
 No raw reasoning appeared. The temporary source host was removed and the server
 stopped; the native task remains because permanent deletion is gated.
 
+Vertical slice 3g adds native web-search lifecycle parity. App-server
+`webSearch` started/completed items map to repeated same-id `WebSearch` tool
+frames containing the provider query/action; opaque result payloads stay out of
+the browser protocol. Codex's canonical rollout stores these hosted searches
+as `exec` custom-tool wrappers around `tools.web__run` rather than native
+`web_search` response items. The history reader therefore recognizes the
+conservative wrapper shape and recovers only its quoted query without evaluating
+the recorded JavaScript.
+
+A cached-search source-UI turn produced two searches and the expected final
+official Codex URL. Both appeared as compact `Search` rows while the turn ran.
+The first completion refresh exposed the canonical-history mismatch as Bash
+rows; after adding the safe history mapping, a full page reload restored only
+the two native search rows and the final answer. The temporary source host and
+server were removed; the native test task remains because permanent deletion is
+gated.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified

@@ -38,9 +38,14 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   and stream their indexed sections into one stable collapsed `thinking` row;
   raw reasoning content and raw-text deltas remain deliberately excluded. A
   live high-effort source-UI turn showed one provider-authored summary and no
-  duplicate rows. Routing, normalization, command/file/reasoning lifecycle,
-  and single-terminal abort behavior are contract-tested. Tracked in private
-  backlog #37.
+  duplicate rows. Native app-server `webSearch` items now update stable
+  `WebSearch` rows while omitting opaque result payloads. Canonical rollout
+  refreshes also recover hosted searches from their internal `tools.web__run`
+  wrappers without evaluating the recorded JavaScript, so the rows survive a
+  reload instead of becoming Bash calls. A live cached-search turn showed two
+  compact search rows both during execution and after a full reload. Routing,
+  normalization, command/file/reasoning/search lifecycle, and single-terminal
+  abort behavior are contract-tested. Tracked in private backlog #37.
 - **Codex app-server approvals now have a provider-neutral Hub bridge.** Pending
   interactions are scoped by provider and provider-native session, survive a
   browser reconnect through the existing `chat_subscribed.pendingPermissions`

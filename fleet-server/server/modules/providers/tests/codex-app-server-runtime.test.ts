@@ -217,6 +217,73 @@ describe('Codex app-server runtime', () => {
     ]);
   });
 
+  test('maps web-search lifecycle onto one normalized tool id', async () => {
+    const messages: NormalizedMessage[] = [];
+    const sessionIds: string[] = [];
+    const runtime = createCodexAppServerRuntime({
+      resolveSelection: async () => ({ model: 'gpt-5.6-sol', effort: 'high' }),
+      runConversation: async (_input, options) => {
+        options?.onEvent?.({
+          type: 'session',
+          providerSessionId: 'thread-search',
+          effectiveSettings,
+        });
+        options?.onEvent?.({
+          type: 'web_search',
+          webSearch: {
+            id: 'search-1',
+            query: 'OpenAI Codex official docs',
+            action: null,
+            status: 'inProgress',
+          },
+        });
+        options?.onEvent?.({
+          type: 'web_search',
+          webSearch: {
+            id: 'search-1',
+            query: 'OpenAI Codex official docs',
+            action: { type: 'search', query: 'OpenAI Codex official docs' },
+            status: 'completed',
+          },
+        });
+        options?.onEvent?.({ type: 'turn_complete', status: 'completed', error: null });
+        return {
+          providerSessionId: 'thread-search',
+          turnId: 'turn-search',
+          status: 'completed',
+          error: null,
+          emittedAssistantText: false,
+          effectiveSettings,
+        };
+      },
+    });
+
+    await runtime.query('Search official docs', {
+      projectPath: '/workspace/project',
+      permissionMode: 'default',
+    }, createWriter(messages, sessionIds));
+
+    expect(messages.filter((message) => message.kind === 'tool_use')).toEqual([
+      expect.objectContaining({
+        id: 'codex_app_server_search-1',
+        toolName: 'WebSearch',
+        toolId: 'search-1',
+        toolInput: { query: 'OpenAI Codex official docs', action: null },
+        status: 'inProgress',
+      }),
+      expect.objectContaining({
+        id: 'codex_app_server_search-1',
+        toolName: 'WebSearch',
+        toolId: 'search-1',
+        toolInput: {
+          query: 'OpenAI Codex official docs',
+          action: { type: 'search', query: 'OpenAI Codex official docs' },
+        },
+        status: 'completed',
+      }),
+    ]);
+  });
+
   test('maps file-change lifecycle onto one normalized tool id', async () => {
     const messages: NormalizedMessage[] = [];
     const sessionIds: string[] = [];

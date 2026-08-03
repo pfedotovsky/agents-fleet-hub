@@ -87,7 +87,8 @@ own root URL is only a status page; it does not expose an account-setup UI.
   CloudCLI: Edit/Write as red/green diffs with file badges, Bash as a green
   terminal line with collapsible output (including same-row command lifecycle
   updates from feature-flagged Codex app-server hosts), Codex FileChanges as
-  per-file unified diffs that remain visible after completion, TodoWrite as a
+  per-file unified diffs that remain visible after completion, Codex WebSearch
+  activity as compact query rows that survive history refresh, TodoWrite as a
   checklist with progress, Read/Grep/Glob as one-liners. Mid-run reconnects
   re-attach via `chat.subscribe` seq replay. The composer autocompletes `@` file tags from
   the project tree and `/` skills + custom commands (message start only) from

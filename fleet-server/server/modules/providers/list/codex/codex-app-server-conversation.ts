@@ -73,6 +73,13 @@ export type CodexAppServerReasoningSummary = {
   summary: string;
 };
 
+export type CodexAppServerWebSearch = {
+  id: string;
+  query: string;
+  action: Record<string, unknown> | null;
+  status: 'inProgress' | 'completed';
+};
+
 export type CodexAppServerConversationEvent =
   | {
       type: 'session';
@@ -81,6 +88,7 @@ export type CodexAppServerConversationEvent =
     }
   | { type: 'assistant_delta'; itemId: string; delta: string }
   | { type: 'reasoning_summary'; reasoning: CodexAppServerReasoningSummary }
+  | { type: 'web_search'; webSearch: CodexAppServerWebSearch }
   | { type: 'command_execution'; command: CodexAppServerCommandExecution }
   | { type: 'file_change'; fileChange: CodexAppServerFileChange }
   | { type: 'token_budget'; tokenBudget: CodexAppServerTokenBudget }
@@ -178,6 +186,19 @@ function readReasoningSummary(value: unknown): { id: string; sections: string[] 
 
 function joinReasoningSummary(sections: string[]): string {
   return sections.map((section) => section.trim()).filter(Boolean).join('\n\n');
+}
+
+function readWebSearch(
+  value: unknown,
+  status: CodexAppServerWebSearch['status'],
+): CodexAppServerWebSearch | null {
+  const item = readObjectRecord(value);
+  if (item?.type !== 'webSearch') return null;
+  const id = readOptionalString(item.id);
+  const query = readOptionalString(item.query);
+  const action = item.action == null ? null : readObjectRecord(item.action);
+  if (!id || !query || (item.action != null && !action)) return null;
+  return { id, query, action, status };
 }
 
 function readCommandExecution(value: unknown): CodexAppServerCommandExecution | null {
@@ -516,6 +537,11 @@ export async function runCodexAppServerConversation(
           }
           continue;
         }
+        const webSearch = readWebSearch(params.item, 'inProgress');
+        if (webSearch) {
+          onEvent({ type: 'web_search', webSearch });
+          continue;
+        }
         const command = readCommandExecution(params.item);
         if (command) {
           commandExecutions.set(command.id, command);
@@ -563,6 +589,11 @@ export async function runCodexAppServerConversation(
           if (summary) {
             onEvent({ type: 'reasoning_summary', reasoning: { id: reasoning.id, summary } });
           }
+          continue;
+        }
+        const webSearch = readWebSearch(item, 'completed');
+        if (webSearch) {
+          onEvent({ type: 'web_search', webSearch });
           continue;
         }
         const command = readCommandExecution(item);

@@ -175,6 +175,59 @@ test('Codex history reports latest context occupancy instead of cumulative threa
   }
 });
 
+test('Codex history restores app-server web searches as native search rows', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-web-search-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(
+      tempRoot,
+      'codex-search-1',
+      workspacePath,
+      'Search official docs',
+    );
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: 'codex-search-1', cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:01.000Z',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'search-call-1',
+          input: 'const r = await tools.web__run({search_query:[{q:"site:developers.openai.com/codex/ \\"Codex\\""}]}); text(r)',
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:02.000Z',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'search-call-1',
+          output: 'opaque external search result',
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession('codex-search-1', 'codex', workspacePath, undefined, undefined, undefined, jsonlPath);
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-search-1');
+      const search = history.messages.find((message) => message.kind === 'tool_use');
+
+      assert.equal(search?.toolName, 'WebSearch');
+      assert.deepEqual(search?.toolInput, {
+        query: 'site:developers.openai.com/codex/ "Codex"',
+      });
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('Codex synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-app-'));
   const workspacePath = path.join(tempRoot, 'workspace');

@@ -355,7 +355,9 @@ started notification through ordered output deltas to the authoritative
 completed item. Command output accumulated before completion is retained when
 the final item omits `aggregatedOutput`. It also tracks `fileChange` items from
 `item/started` through replacement `item/fileChange/patchUpdated` change lists
-to the authoritative completed item. The loop surfaces generic and
+to the authoritative completed item. `webSearch` start/completion items likewise
+become lifecycle events carrying the provider query and action; opaque result
+payloads are not forwarded to the browser. The loop surfaces generic and
 configuration warnings and terminates only on the matching `turn/completed`.
 Each turn requests `summary: 'auto'`, accumulates indexed readable reasoning
 summary deltas across section boundaries, and replaces them with the completed
@@ -400,9 +402,14 @@ for canonical JSONL history, but carries forward any live `FileChanges` payload
 that the rollout omitted, deduplicating it when canonical history does contain
 the same id or payload. Reasoning summary lifecycle updates use the normalized
 `thinking` kind and the stable app-server item id, so ChatPane grows one
-collapsed row rather than appending delta duplicates. An active abort signal
-sends `turn/interrupt`; runtime cleanup suppresses a duplicate terminal frame
-after the gateway has acknowledged the stop.
+collapsed row rather than appending delta duplicates. Web searches use the same
+stable-id rule with the existing `WebSearch` tool renderer. App-server rollouts
+persist those hosted searches as `exec` custom-tool wrappers around
+`tools.web__run`; the Codex history reader recognizes that conservative shape
+without evaluating recorded JavaScript and restores the native search query on
+completion/reload. An active abort signal sends `turn/interrupt`; runtime
+cleanup suppresses a duplicate terminal frame after the gateway has
+acknowledged the stop.
 
 `codex-runtime-router.ts` selects this runtime for every send when
 `CODEX_APP_SERVER_ENABLED=1`; otherwise it calls the unchanged SDK adapter.
@@ -429,6 +436,10 @@ from the canonical JSONL refresh.
 A high-effort source-UI turn then emitted one readable reasoning summary. The
 Hub rendered it as one collapsed `thinking` row, updated by stable id, while raw
 reasoning remained absent from the normalized protocol and transcript.
+A cached-search source-UI turn emitted two native `webSearch` lifecycles. The
+Hub showed both as compact `Search` rows during execution and, after a full page
+reload, restored the same queries from canonical rollout history instead of
+exposing the internal `tools.web__run` wrapper as Bash.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

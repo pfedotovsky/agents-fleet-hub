@@ -392,6 +392,105 @@ describe('Codex app-server conversation runner', () => {
     expect(JSON.stringify(events)).not.toContain('private');
   });
 
+  test('normalizes web-search lifecycle without forwarding opaque results', async () => {
+    const events: CodexAppServerConversationEvent[] = [];
+
+    await runCodexAppServerConversation({
+      cwd: '/workspace/project',
+      prompt: 'Search official docs',
+    }, {
+      createClient: (options) => ({
+        start: async () => handshake,
+        request: async <Result>(method: string): Promise<Result> => {
+          if (method === 'thread/start') {
+            return {
+              thread: { id: 'thread-search' },
+              cwd: '/workspace/project',
+              model: 'gpt-5.6-sol',
+              approvalPolicy: 'untrusted',
+              sandbox: { type: 'workspaceWrite' },
+              reasoningEffort: null,
+            } as Result;
+          }
+          if (method === 'turn/start') {
+            queueMicrotask(() => {
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-search',
+                  turnId: 'turn-search',
+                  item: {
+                    type: 'webSearch',
+                    id: 'search-1',
+                    query: 'OpenAI Codex official docs',
+                    action: null,
+                    results: null,
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/completed',
+                params: {
+                  threadId: 'thread-search',
+                  turnId: 'turn-search',
+                  item: {
+                    type: 'webSearch',
+                    id: 'search-1',
+                    query: 'OpenAI Codex official docs',
+                    action: {
+                      type: 'search',
+                      query: 'OpenAI Codex official docs',
+                      queries: ['OpenAI Codex official docs'],
+                    },
+                    results: [{ title: 'Untrusted external result body' }],
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'turn/completed',
+                params: {
+                  threadId: 'thread-search',
+                  turn: { id: 'turn-search', status: 'completed', error: null },
+                },
+              });
+            });
+            return { turn: { id: 'turn-search' } } as Result;
+          }
+          throw new Error(`Unexpected method ${method}`);
+        },
+        stop: () => {},
+      }),
+      onEvent: (event) => events.push(event),
+      turnTimeoutMs: 1_000,
+    });
+
+    expect(events.filter((event) => event.type === 'web_search')).toEqual([
+      {
+        type: 'web_search',
+        webSearch: {
+          id: 'search-1',
+          query: 'OpenAI Codex official docs',
+          action: null,
+          status: 'inProgress',
+        },
+      },
+      {
+        type: 'web_search',
+        webSearch: {
+          id: 'search-1',
+          query: 'OpenAI Codex official docs',
+          action: {
+            type: 'search',
+            query: 'OpenAI Codex official docs',
+            queries: ['OpenAI Codex official docs'],
+          },
+          status: 'completed',
+        },
+      },
+    ]);
+    expect(JSON.stringify(events)).not.toContain('Untrusted external result body');
+  });
+
   test('normalizes command lifecycle and accumulates ordered output deltas', async () => {
     const events: CodexAppServerConversationEvent[] = [];
 
