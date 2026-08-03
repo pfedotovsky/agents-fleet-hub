@@ -117,6 +117,7 @@ export function createCodexAppServerRuntime(
       : 'default';
     const abortController = new AbortController();
     const assistantText = new Map<string, string>();
+    let planExplanation: string | null = null;
     let capturedSessionId = sessionId ?? '';
     let terminalSent = false;
     let sessionEntry: ActiveAppServerSession | null = null;
@@ -227,6 +228,29 @@ export function createCodexAppServerRuntime(
               ...(event.mcpToolCall.durationMs === null
                 ? {}
                 : { durationMs: event.mcpToolCall.durationMs }),
+            });
+            return;
+          }
+
+          if (event.type === 'plan_update') {
+            if (event.planUpdate.explanation !== null) {
+              planExplanation = event.planUpdate.explanation;
+            }
+            send({
+              id: `codex_app_server_plan_${event.planUpdate.turnId}`,
+              kind: 'tool_use',
+              toolName: 'TodoWrite',
+              toolId: `plan_${event.planUpdate.turnId}`,
+              toolInput: {
+                explanation: planExplanation,
+                todos: event.planUpdate.steps.map(({ step, status }) => ({
+                  content: step,
+                  status: status === 'inProgress' ? 'in_progress' : status,
+                })),
+              },
+              status: event.planUpdate.steps.every((step) => step.status === 'completed')
+                ? 'completed'
+                : 'inProgress',
             });
             return;
           }

@@ -273,6 +273,23 @@ Bash. The final official URL remained visible. The temporary source host and
 server data were removed; the native test task remains because permanent
 deletion is gated.
 
+Vertical slice 3i adds native plan-progress parity. Matching
+`turn/plan/updated` notifications retain the optional provider explanation and
+validated step text/status, then map every update for a turn to one stable
+`TodoWrite` checklist. App-server `inProgress` becomes the Hub's
+`in_progress`; the row reaches completed only when every step does. The
+canonical rollout does not currently persist these notifications, so the Hub
+carries the live checklist across its completion refresh for the mounted
+transcript. A later full reload cannot reconstruct provider state that was
+never recorded.
+
+A plan-mode source-UI turn created native Codex task
+`77320d1f-3237-4537-9f93-5ea86f377058`. The transcript showed a single
+three-step checklist at `0/3` while Codex worked, updated that row to `3/3`,
+and retained it beside `PLAN_OK` after the delayed canonical-history refresh.
+The temporary source host and server data were removed; the native test task
+remains because permanent deletion is gated.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified

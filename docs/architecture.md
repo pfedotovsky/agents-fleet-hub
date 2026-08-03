@@ -162,6 +162,8 @@ Browser (Agents Hub SPA)
   planning preamble prepended to the prompt on the SDK path). The mode select
   is relabeled, and app-server turns display their effective returned policy
   and sandbox next to it so managed overrides are explicit.
+  App-server `turn/plan/updated` notifications render as one live `TodoWrite`
+  checklist whose rows update in place from pending through completion.
   Plan mode is supported, but since Codex emits no `ExitPlanMode` request to
   drive `PlanPanel`, a completed plan-mode run shows a lightweight "plan
   ready" Build card in the transcript instead (Build leaves plan mode and
@@ -364,6 +366,9 @@ duration; only string or `{text}` result-content blocks cross the boundary, so
 structured content, `_meta`, app context, plugin ids, and binary blocks never
 enter the browser protocol. The loop surfaces generic and
 configuration warnings and terminates only on the matching `turn/completed`.
+Matching `turn/plan/updated` notifications preserve their optional explanation
+and validated non-empty steps, filtering malformed statuses before they reach
+the runtime.
 Each turn requests `summary: 'auto'`, accumulates indexed readable reasoning
 summary deltas across section boundaries, and replaces them with the completed
 summary. Raw reasoning content and `item/reasoning/textDelta` are intentionally
@@ -418,7 +423,15 @@ rows whose subtitle is the MCP server. Canonical rollouts persist MCP calls as
 opaque `custom_tool_call_output`; the history reader uses a balanced inert-text
 scanner (never `eval`) to recover only the identifier and argument source from
 that verified static shape, drops the matching opaque output, and leaves every
-other `exec` wrapper as Bash. An active abort signal sends `turn/interrupt`;
+other `exec` wrapper as Bash. Plan updates use a deterministic per-turn id and
+the existing `TodoWrite` renderer; the runtime translates app-server
+`inProgress` to the Hub's `in_progress` status and completes the row only when
+every step is complete. A later update with no explanation keeps the last
+provider explanation visible. Because canonical rollouts do not persist
+`turn/plan/updated`, ChatPane's completion reconciliation carries unmatched
+app-server plan rows forward for the lifetime of the mounted transcript. A
+later full reload cannot reconstruct a plan that the provider never persisted.
+An active abort signal sends `turn/interrupt`;
 runtime cleanup suppresses a duplicate terminal frame after the gateway has
 acknowledged the stop.
 
@@ -457,6 +470,10 @@ After rebuilding fleet-server and navigating away before a clean reload, the
 same calls were reconstructed from canonical rollout wrappers; no
 `tools.mcp__...` call was exposed as Bash. Structured and binary MCP result
 payloads stayed outside the normalized transcript.
+A plan-mode source-UI turn then emitted repeated `turn/plan/updated`
+notifications for native task `77320d1f-3237-4537-9f93-5ea86f377058`. The Hub
+showed one checklist at `0/3` while the turn was active, updated that same row
+to `3/3`, and retained it after `PLAN_OK` and the delayed completion refresh.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

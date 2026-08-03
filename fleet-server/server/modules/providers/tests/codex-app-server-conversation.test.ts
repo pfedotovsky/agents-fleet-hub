@@ -392,6 +392,97 @@ describe('Codex app-server conversation runner', () => {
     expect(JSON.stringify(events)).not.toContain('private');
   });
 
+  test('normalizes repeated turn plan updates', async () => {
+    const events: CodexAppServerConversationEvent[] = [];
+
+    await runCodexAppServerConversation({
+      cwd: '/workspace/project',
+      prompt: 'Work through a short plan',
+    }, {
+      createClient: (options) => ({
+        start: async () => handshake,
+        request: async <Result>(method: string): Promise<Result> => {
+          if (method === 'thread/start') {
+            return {
+              thread: { id: 'thread-plan' },
+              cwd: '/workspace/project',
+              model: 'gpt-5.6-sol',
+              approvalPolicy: 'untrusted',
+              sandbox: { type: 'workspaceWrite' },
+              reasoningEffort: null,
+            } as Result;
+          }
+          if (method === 'turn/start') {
+            queueMicrotask(() => {
+              options.onNotification?.({
+                method: 'turn/plan/updated',
+                params: {
+                  threadId: 'thread-plan',
+                  turnId: 'turn-plan',
+                  explanation: 'Starting with the contract.',
+                  plan: [
+                    { step: 'Inspect the contract', status: 'inProgress' },
+                    { step: 'Report the result', status: 'pending' },
+                    { step: '', status: 'pending' },
+                  ],
+                },
+              });
+              options.onNotification?.({
+                method: 'turn/plan/updated',
+                params: {
+                  threadId: 'thread-plan',
+                  turnId: 'turn-plan',
+                  explanation: null,
+                  plan: [
+                    { step: 'Inspect the contract', status: 'completed' },
+                    { step: 'Report the result', status: 'completed' },
+                  ],
+                },
+              });
+              options.onNotification?.({
+                method: 'turn/completed',
+                params: {
+                  threadId: 'thread-plan',
+                  turn: { id: 'turn-plan', status: 'completed', error: null },
+                },
+              });
+            });
+            return { turn: { id: 'turn-plan' } } as Result;
+          }
+          throw new Error(`Unexpected method ${method}`);
+        },
+        stop: () => {},
+      }),
+      onEvent: (event) => events.push(event),
+      turnTimeoutMs: 1_000,
+    });
+
+    expect(events.filter((event) => event.type === 'plan_update')).toEqual([
+      {
+        type: 'plan_update',
+        planUpdate: {
+          turnId: 'turn-plan',
+          explanation: 'Starting with the contract.',
+          steps: [
+            { step: 'Inspect the contract', status: 'inProgress' },
+            { step: 'Report the result', status: 'pending' },
+          ],
+        },
+      },
+      {
+        type: 'plan_update',
+        planUpdate: {
+          turnId: 'turn-plan',
+          explanation: null,
+          steps: [
+            { step: 'Inspect the contract', status: 'completed' },
+            { step: 'Report the result', status: 'completed' },
+          ],
+        },
+      },
+    ]);
+  });
+
   test('normalizes web-search lifecycle without forwarding opaque results', async () => {
     const events: CodexAppServerConversationEvent[] = [];
 

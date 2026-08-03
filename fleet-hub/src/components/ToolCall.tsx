@@ -112,10 +112,11 @@ interface TodoItem {
   status: 'pending' | 'in_progress' | 'completed'
 }
 
-function TodoList({ todos }: { todos: TodoItem[] }) {
+function TodoList({ todos, explanation }: { todos: TodoItem[]; explanation?: string }) {
   const done = todos.filter((t) => t.status === 'completed').length
   return (
     <div className="rounded-md border border-line bg-surface/50 p-2.5 text-xs">
+      {explanation && <p className="mb-2 text-fg-muted">{explanation}</p>}
       <div className="mb-1.5 text-xs font-medium text-fg-muted">
         Todo list · {done}/{todos.length}
       </div>
@@ -292,11 +293,8 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
       return [{ content, status }]
     })
     if (todos.length > 0) {
-      return (
-        <div className="rounded-md border border-line bg-surface/30 py-1 pl-2.5 pr-2">
-          <TodoList todos={todos} />
-        </div>
-      )
+      const explanation = typeof input.explanation === 'string' ? input.explanation : undefined
+      return <TodoList todos={todos} explanation={explanation} />
     }
   }
 

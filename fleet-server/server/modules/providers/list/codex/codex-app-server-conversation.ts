@@ -91,6 +91,15 @@ export type CodexAppServerMcpToolCall = {
   durationMs: number | null;
 };
 
+export type CodexAppServerPlanUpdate = {
+  turnId: string;
+  explanation: string | null;
+  steps: Array<{
+    step: string;
+    status: 'pending' | 'inProgress' | 'completed';
+  }>;
+};
+
 export type CodexAppServerConversationEvent =
   | {
       type: 'session';
@@ -101,6 +110,7 @@ export type CodexAppServerConversationEvent =
   | { type: 'reasoning_summary'; reasoning: CodexAppServerReasoningSummary }
   | { type: 'web_search'; webSearch: CodexAppServerWebSearch }
   | { type: 'mcp_tool_call'; mcpToolCall: CodexAppServerMcpToolCall }
+  | { type: 'plan_update'; planUpdate: CodexAppServerPlanUpdate }
   | { type: 'command_execution'; command: CodexAppServerCommandExecution }
   | { type: 'file_change'; fileChange: CodexAppServerFileChange }
   | { type: 'token_budget'; tokenBudget: CodexAppServerTokenBudget }
@@ -250,6 +260,29 @@ function readMcpToolCall(value: unknown): CodexAppServerMcpToolCall | null {
     output: readMcpTextContent(result?.content),
     error: readOptionalString(error?.message) ?? null,
     durationMs: readNullableFiniteNumber(item.durationMs),
+  };
+}
+
+function readPlanUpdate(value: Record<string, unknown>): CodexAppServerPlanUpdate | null {
+  const turnId = readOptionalString(value.turnId);
+  if (!turnId || !Array.isArray(value.plan)) return null;
+  const steps = value.plan.flatMap((candidate): CodexAppServerPlanUpdate['steps'] => {
+    const entry = readObjectRecord(candidate);
+    const step = readOptionalString(entry?.step);
+    const status = readOptionalString(entry?.status);
+    if (
+      !step
+      || (status !== 'pending' && status !== 'inProgress' && status !== 'completed')
+    ) {
+      return [];
+    }
+    return [{ step, status }];
+  });
+  if (steps.length === 0) return null;
+  return {
+    turnId,
+    explanation: readOptionalString(value.explanation) ?? null,
+    steps,
   };
 }
 
@@ -538,6 +571,12 @@ export async function runCodexAppServerConversation(
 
       const notificationTurnId = readOptionalString(params.turnId);
       if (notificationTurnId && notificationTurnId !== turnId) continue;
+
+      if (notification.method === 'turn/plan/updated') {
+        const planUpdate = readPlanUpdate(params);
+        if (planUpdate) onEvent({ type: 'plan_update', planUpdate });
+        continue;
+      }
 
       if (notification.method === 'item/agentMessage/delta') {
         const itemId = readOptionalString(params.itemId);

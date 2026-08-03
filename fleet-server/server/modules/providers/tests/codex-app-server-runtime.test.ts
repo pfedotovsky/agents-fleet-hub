@@ -217,6 +217,85 @@ describe('Codex app-server runtime', () => {
     ]);
   });
 
+  test('maps plan updates onto one normalized checklist id', async () => {
+    const messages: NormalizedMessage[] = [];
+    const sessionIds: string[] = [];
+    const runtime = createCodexAppServerRuntime({
+      resolveSelection: async () => ({ model: 'gpt-5.6-sol', effort: 'high' }),
+      runConversation: async (_input, options) => {
+        options?.onEvent?.({
+          type: 'session',
+          providerSessionId: 'thread-plan',
+          effectiveSettings,
+        });
+        options?.onEvent?.({
+          type: 'plan_update',
+          planUpdate: {
+            turnId: 'turn-plan',
+            explanation: 'Starting with the contract.',
+            steps: [
+              { step: 'Inspect the contract', status: 'inProgress' },
+              { step: 'Report the result', status: 'pending' },
+            ],
+          },
+        });
+        options?.onEvent?.({
+          type: 'plan_update',
+          planUpdate: {
+            turnId: 'turn-plan',
+            explanation: null,
+            steps: [
+              { step: 'Inspect the contract', status: 'completed' },
+              { step: 'Report the result', status: 'completed' },
+            ],
+          },
+        });
+        options?.onEvent?.({ type: 'turn_complete', status: 'completed', error: null });
+        return {
+          providerSessionId: 'thread-plan',
+          turnId: 'turn-plan',
+          status: 'completed',
+          error: null,
+          emittedAssistantText: false,
+          effectiveSettings,
+        };
+      },
+    });
+
+    await runtime.query('Work through a short plan', {
+      projectPath: '/workspace/project',
+      permissionMode: 'default',
+    }, createWriter(messages, sessionIds));
+
+    expect(messages.filter((message) => message.kind === 'tool_use')).toEqual([
+      expect.objectContaining({
+        id: 'codex_app_server_plan_turn-plan',
+        toolName: 'TodoWrite',
+        toolId: 'plan_turn-plan',
+        toolInput: {
+          explanation: 'Starting with the contract.',
+          todos: [
+            { content: 'Inspect the contract', status: 'in_progress' },
+            { content: 'Report the result', status: 'pending' },
+          ],
+        },
+        status: 'inProgress',
+      }),
+      expect.objectContaining({
+        id: 'codex_app_server_plan_turn-plan',
+        toolName: 'TodoWrite',
+        toolInput: {
+          explanation: 'Starting with the contract.',
+          todos: [
+            { content: 'Inspect the contract', status: 'completed' },
+            { content: 'Report the result', status: 'completed' },
+          ],
+        },
+        status: 'completed',
+      }),
+    ]);
+  });
+
   test('maps web-search lifecycle onto one normalized tool id', async () => {
     const messages: NormalizedMessage[] = [];
     const sessionIds: string[] = [];

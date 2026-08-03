@@ -52,8 +52,13 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   MCP calls remain native rows after completion and reload instead of becoming
   Bash calls. A live source-UI turn exercised `openaiDeveloperDocs`: its search
   and fetch calls rendered with the server label both live and after a clean
-  reload. Routing, normalization, command/file/reasoning/search/MCP lifecycle,
-  and single-terminal abort behavior are contract-tested. Tracked in private
+  reload. App-server `turn/plan/updated` notifications now update one stable
+  `TodoWrite` checklist with the provider's explanation, step text, and status;
+  the Hub carries that transient checklist across the completion refresh when
+  the canonical rollout omits it. A live plan-mode turn advanced one checklist
+  from `0/3` to `3/3` and retained it beside the final answer. Routing,
+  normalization, command/file/reasoning/search/MCP/plan lifecycle, and
+  single-terminal abort behavior are contract-tested. Tracked in private
   backlog #37.
 - **Codex app-server approvals now have a provider-neutral Hub bridge.** Pending
   interactions are scoped by provider and provider-native session, survive a

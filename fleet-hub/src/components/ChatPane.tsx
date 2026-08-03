@@ -703,7 +703,23 @@ export function ChatPane({
               !page.messages.some((p) => p.id === m.id) &&
               !persistedFileChanges.has(JSON.stringify(m.toolInput)),
           )
-          const next = [...page.messages, ...carriedFileChanges, ...carriedErrors]
+          // turn/plan/updated is a live app-server notification and is not
+          // persisted as a canonical rollout item. Retain the latest checklist
+          // across the completion refresh so progress does not vanish when the
+          // final assistant message arrives.
+          const carriedPlanUpdates = messagesRef.current.filter(
+            (m) =>
+              m.kind === 'tool_use' &&
+              m.toolName === 'TodoWrite' &&
+              m.id?.startsWith('codex_app_server_plan_') &&
+              !page.messages.some((p) => p.id === m.id),
+          )
+          const next = [
+            ...page.messages,
+            ...carriedFileChanges,
+            ...carriedPlanUpdates,
+            ...carriedErrors,
+          ]
           seenIds.current = new Set(next.filter((m) => m.id).map((m) => m.id as string))
           setMessages(next)
           setHasMore(page.hasMore)
