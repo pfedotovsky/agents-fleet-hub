@@ -5,6 +5,10 @@ import {
   type CodexAppServerClientOptions,
   type CodexAppServerNotification,
 } from './codex-app-server-client.js';
+import {
+  createCodexAppServerRequestHandler,
+  type CodexAppServerInteractionEvent,
+} from './codex-app-server-interactions.js';
 import { buildCodexInputItems } from '@/shared/image-attachments.js';
 import { readObjectRecord, readOptionalString } from '@/shared/utils.js';
 
@@ -47,6 +51,7 @@ export type CodexAppServerConversationEvent =
   | { type: 'assistant_delta'; itemId: string; delta: string }
   | { type: 'token_budget'; tokenBudget: CodexAppServerTokenBudget }
   | { type: 'warning'; message: string }
+  | CodexAppServerInteractionEvent
   | {
       type: 'turn_complete';
       status: 'completed' | 'interrupted' | 'failed';
@@ -228,17 +233,24 @@ export async function runCodexAppServerConversation(
   const notifications = new NotificationQueue();
   const createClient = options.createClient
     ?? ((clientOptions) => new CodexAppServerClient(clientOptions));
-  const client = createClient({
-    onNotification: (notification) => notifications.push(notification),
-  });
   const onEvent = options.onEvent ?? (() => {});
   const timeoutMs = Math.max(1, options.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS);
+  const interactionAbort = new AbortController();
 
   let providerSessionId = '';
   let turnId = '';
   let effectiveSettings: CodexAppServerEffectiveSettings | null = null;
   let emittedAssistantText = false;
   const deltaItemIds = new Set<string>();
+  const client = createClient({
+    onNotification: (notification) => notifications.push(notification),
+    onServerRequest: createCodexAppServerRequestHandler({
+      getProviderSessionId: () => providerSessionId,
+      getTurnId: () => turnId,
+      signal: interactionAbort.signal,
+      onEvent,
+    }),
+  });
 
   try {
     await client.start();
@@ -341,6 +353,7 @@ export async function runCodexAppServerConversation(
       }
     }
   } finally {
+    interactionAbort.abort();
     client.stop();
   }
 }

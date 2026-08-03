@@ -7,6 +7,21 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-03
 
 ### Changed
+- **Codex app-server approvals now have a provider-neutral Hub bridge.** Pending
+  interactions are scoped by provider and provider-native session, survive a
+  browser reconnect through the existing `chat_subscribed.pendingPermissions`
+  contract, and resolve through the existing `chat.permission-response` path.
+  Claude now uses the same shared registry with its prior timeout/cancellation
+  behavior intact. The Codex runner maps command, managed-network, file-change,
+  and non-secret option-question requests to the existing Bash, NetworkAccess,
+  Edit, and AskUserQuestion cards, translating decisions back to the 0.146
+  app-server response schemas. Secret prompts, free-form-only prompts, option
+  prompts that disallow free-form answers, and unsupported request methods fail
+  closed. A live ephemeral 0.146 turn emitted a real Bash approval for a temp
+  file command; the bridge declined it, the turn completed, and no file was
+  created. Production Codex chat still uses the SDK until
+  event-writer/abort wiring and a live UI approval check land. Tracked in
+  private backlog #37.
 - **Codex app-server conversation core is now contract-tested.** A fleet-server
   runner can start or resume an app-server thread at an arbitrary absolute
   `cwd`, start one turn, preserve the provider-native thread id, and normalize

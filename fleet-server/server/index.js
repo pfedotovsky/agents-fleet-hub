@@ -29,9 +29,11 @@ import { VERSION, PRODUCT_NAME, UPSTREAM_ATTRIBUTION } from './shared/build-info
 import {
     queryClaudeSDK,
     abortClaudeSDKSession,
-    resolveToolApproval,
-    getPendingApprovalsForSession,
 } from './claude-sdk.js';
+import {
+    getPendingPermissionsForSession,
+    resolvePendingPermission,
+} from './shared/pending-permissions.js';
 import {
     queryCodex,
     abortCodexSession,
@@ -89,8 +91,8 @@ const wss = createWebSocketServer(server, {
             claude: abortClaudeSDKSession,
             codex: abortCodexSession,
         },
-        resolveToolApproval,
-        getPendingApprovalsForSession,
+        resolvePermission: resolvePendingPermission,
+        getPendingPermissionsForSession,
     },
     shell: {
         resolveProviderSessionId: (sessionId, provider) => {

@@ -144,6 +144,29 @@ the runner surfaced. This simultaneously verifies effective-setting truth and
 the reason production routing must wait for the approval bridge. The full
 fleet-server suite now passes 139 tests; typechecking passes.
 
+The next interaction slice moves Claude's private pending-approval map into a
+provider-neutral, provider/session-scoped registry used by the chat gateway.
+Codex app-server command, managed-network, and file-change approvals now reach
+the existing permission-card contract and translate allow/always-allow/deny/
+cancel back to the 0.146 decision schema. Non-secret questions with visible
+options and a permitted free-form answer reuse the existing `AskUserQuestion`
+card and translate its question-text answers back to app-server question ids.
+Reconnect lookup, resolution, timeout, abort cleanup, scope rejection, and
+fail-closed secret or unsupported prompts are covered by contract tests. The
+full fleet-server suite passes 144 tests and typechecking passes.
+
+A live ephemeral 0.146 turn then attempted a single temp-file command under the
+managed read-only fallback. App-server emitted a real
+`item/commandExecution/requestApproval`; the probe resolved the Hub request as
+deny; Codex reported the denial and completed the turn; a filesystem check
+confirmed that the target file was never created. This verifies the actual
+wire request and response mapping, not only the generated schema and fixtures.
+
+This is still an internal prerequisite: `openai-codex.js` does not select the
+runner, so no production Agents Hub session or live permission card changed in
+this slice. Event-writer normalization, abort wiring, and a live UI approval
+check remain required before feature-flagged conversation routing.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified

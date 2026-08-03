@@ -107,6 +107,7 @@ describe('Codex app-server conversation runner', () => {
     });
 
     expect(clientOptions).not.toBeNull();
+    expect(typeof (clientOptions as CodexAppServerClientOptions | null)?.onServerRequest).toBe('function');
     expect(requests).toEqual([
       {
         method: 'thread/start',

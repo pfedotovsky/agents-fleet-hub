@@ -331,15 +331,13 @@ Claude process-backed catalogs use a one-hour backend cache. A failed spawn,
 incompatible protocol, invalid response, or empty catalog falls back to the
 existing `~/.codex/models_cache.json` reader; the flag-off path is unchanged.
 
-This is model discovery only. The existing SDK adapter remains the only
-production session send path, so enabling the flag does not yet create native
-desktop-visible Agents Hub threads. The client accepts Codex CLI 0.146.x only,
+The existing SDK adapter remains the only production session send path, so
+enabling the flag still does not create native desktop-visible Agents Hub
+threads. The client accepts Codex CLI 0.146.x only,
 matching its generated protocol baseline, and fails before spawn for other
 minor versions. This deliberately fail-closed gate must be updated along with
-regenerated consumed types after compatibility verification. Later slices will
-wire token usage, effective settings/warnings, and thread/turn normalization.
-App-server remains strictly behind the authenticated fleet-server
-REST/WebSocket boundary.
+regenerated consumed types after compatibility verification. App-server remains
+strictly behind the authenticated fleet-server REST/WebSocket boundary.
 
 `codex-app-server-conversation.ts` is the next internal boundary. It sequences
 `thread/start` or `thread/resume` followed by `turn/start`, accepts an arbitrary
@@ -352,16 +350,38 @@ exact `modelContextWindow`, surfaces generic and configuration warnings, and
 terminates only on the matching `turn/completed`. It never invents a context
 window when app-server reports none.
 
-This runner is deliberately not selected by `openai-codex.js` yet. The current
-chat gateway can answer Claude tool approvals, but Codex app-server sends
-server-initiated approval and request-user-input methods that still need a
-provider-neutral pending-request bridge. The app-server client answers those
-unknown requests with method-not-supported, so routing real chats now would
-break an otherwise valid turn when managed policy requires an approval. The SDK
-therefore remains the only production conversation path until that bridge is
-implemented and live UI-verified. An ephemeral read-only live turn confirmed
-the runner captures the effective managed fallback (`never` requested,
+`shared/pending-permissions.ts` now owns pending interaction state for every
+provider. Entries are scoped by provider plus provider-native session id, so
+`chat.subscribe` can reconstruct the authoritative pending cards after a
+reconnect without cross-provider id collisions; `chat.permission-response`
+resolves the same shared registry. Claude uses this service with its existing
+timeouts, cancellation frames, and UI message shapes, replacing its former
+private resolver map without changing behavior.
+
+`codex-app-server-interactions.ts` maps the 0.146 server requests that fit the
+existing Hub interaction contract: command execution to `Bash` (or
+`NetworkAccess` when managed-network context is present), file changes to
+`Edit`, and non-secret option-based `item/tool/requestUserInput` prompts that
+allow a free-form answer to the existing `AskUserQuestion` card. Allow,
+always-allow, and deny become
+`accept`/`acceptForSession`/`decline`; cancellation becomes `cancel`; question
+answers are translated from the UI's question-text keys back to app-server's
+question ids. Requests for another active thread/turn, secret questions,
+free-form-only questions, option prompts that disallow free-form answers,
+permission grants, MCP elicitation, dynamic tools, and every other unsupported
+method fail closed. Pending entries are also aborted when the conversation
+runner stops.
+
+The runner is still deliberately not selected by `openai-codex.js`. Production
+routing must normalize the remaining conversation events into the gateway
+writer, connect abort semantics, and pass a live UI approval check before the
+feature flag can switch real sessions. The SDK therefore remains the only
+production conversation path. An ephemeral read-only live turn confirmed the
+runner captures the effective managed fallback (`never` requested,
 `untrusted` returned), its warning, assistant deltas, and exact token budget.
+A second ephemeral probe attempted one temp-file command: app-server emitted a
+real `item/commandExecution/requestApproval`, the bridge returned `decline`,
+the turn completed as denied, and the target file was not created.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 
