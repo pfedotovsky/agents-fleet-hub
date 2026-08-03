@@ -454,6 +454,66 @@ describe('Codex app-server runtime', () => {
     ]);
   });
 
+  test('maps image-view lifecycle onto one normalized ViewImage id', async () => {
+    const messages: NormalizedMessage[] = [];
+    const sessionIds: string[] = [];
+    const runtime = createCodexAppServerRuntime({
+      resolveSelection: async () => ({ model: 'gpt-5.6-sol', effort: 'high' }),
+      runConversation: async (_input, options) => {
+        options?.onEvent?.({
+          type: 'session',
+          providerSessionId: 'thread-image',
+          effectiveSettings,
+        });
+        options?.onEvent?.({
+          type: 'image_view',
+          imageView: {
+            id: 'image-1',
+            path: '/workspace/project/icon.png',
+            status: 'inProgress',
+          },
+        });
+        options?.onEvent?.({
+          type: 'image_view',
+          imageView: {
+            id: 'image-1',
+            path: '/workspace/project/icon.png',
+            status: 'completed',
+          },
+        });
+        options?.onEvent?.({ type: 'turn_complete', status: 'completed', error: null });
+        return {
+          providerSessionId: 'thread-image',
+          turnId: 'turn-image',
+          status: 'completed',
+          error: null,
+          emittedAssistantText: false,
+          effectiveSettings,
+        };
+      },
+    });
+
+    await runtime.query('Inspect the icon', {
+      projectPath: '/workspace/project',
+      permissionMode: 'default',
+    }, createWriter(messages, sessionIds));
+
+    expect(messages.filter((message) => message.kind === 'tool_use')).toEqual([
+      expect.objectContaining({
+        id: 'codex_app_server_image_image-1',
+        toolName: 'ViewImage',
+        toolId: 'image-1',
+        toolInput: { path: '/workspace/project/icon.png' },
+        status: 'inProgress',
+      }),
+      expect.objectContaining({
+        id: 'codex_app_server_image_image-1',
+        toolName: 'ViewImage',
+        status: 'completed',
+      }),
+    ]);
+  });
+
   test('maps web-search lifecycle onto one normalized tool id', async () => {
     const messages: NormalizedMessage[] = [];
     const sessionIds: string[] = [];

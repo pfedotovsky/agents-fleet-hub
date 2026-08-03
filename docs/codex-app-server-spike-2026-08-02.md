@@ -328,6 +328,25 @@ the child thread id beside `Spawn agent`, `Wait for agents`, and `ACTIVITY_OK`.
 The temporary source host and server data were removed; native test tasks remain
 because permanent deletion is gated.
 
+Vertical slice 3l adds native image-view lifecycle parity. App-server
+`imageView` start/completion items validate the exact id and path, then update
+one stable compact `ViewImage` row. Canonical rollouts persist the same action
+as an `exec` wrapper around `tools.view_image(...)`; its following custom-tool
+output can contain the complete base64 image. The history reader therefore
+recognizes only that static wrapper, extracts its quoted path without evaluating
+the recorded JavaScript, and suppresses the matching output so image bytes do
+not enter the browser transcript.
+
+A source-UI turn created native Codex task
+`019fc7cf-d975-7f10-a81a-f36bc4f4c804` and viewed
+`fleet-hub/src-tauri/icons/64x64.png` exactly once. The first completion refresh
+exposed the canonical wrapper as Bash, which identified the real persistence
+shape. After adding the safe history mapping, rebuilding the source server, and
+reloading the page, the transcript showed one `View image` row beside
+`IMAGE_VIEW_OK`; the raw wrapper and base64 result were absent. The temporary
+source host and server data were removed; the native task remains because
+permanent deletion is gated.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified

@@ -442,6 +442,14 @@ those exact names back to `Agent` rows so completion refreshes and reloads do
 not expose raw tool names. It keeps safe scalar arguments and tool output while
 dropping the opaque encrypted `message` argument, which is not displayable
 prompt text.
+Image-view start/completion items use the same stable-id rule and become a
+compact `ViewImage` row containing only the provider path. App-server rollouts
+persist the same operation as an `exec` custom-tool wrapper around
+`tools.view_image(...)`, followed by a `custom_tool_call_output` that can contain
+the full base64 image. The history reader recognizes only that static wrapper,
+extracts its quoted path without evaluation, and suppresses the matching output,
+so completion refreshes and reloads keep the native row without sending image
+bytes to the browser.
 An active abort signal sends `turn/interrupt`;
 runtime cleanup suppresses a duplicate terminal frame after the gateway has
 acknowledged the stop.
@@ -503,6 +511,11 @@ transcript; a later full reload cannot reconstruct an item the provider did not
 persist. Parent task `019fc7b5-f68c-7140-8352-b3dbf3fee439` displayed `Agent
 started · /root/activitycheck` with child task
 `019fc7b6-1785-7370-b07e-ef1783103d5a` beside `ACTIVITY_OK`.
+A source-UI image-view turn then created native task
+`019fc7cf-d975-7f10-a81a-f36bc4f4c804`. After a clean server rebuild and page
+reload, its transcript showed one compact `View image` row for
+`fleet-hub/src-tauri/icons/64x64.png` beside `IMAGE_VIEW_OK`; the internal
+`tools.view_image` wrapper and base64 tool output were absent.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

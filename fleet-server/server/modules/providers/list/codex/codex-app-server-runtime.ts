@@ -294,6 +294,18 @@ export function createCodexAppServerRuntime(
             return;
           }
 
+          if (event.type === 'image_view') {
+            send({
+              id: `codex_app_server_image_${event.imageView.id}`,
+              kind: 'tool_use',
+              toolName: 'ViewImage',
+              toolId: event.imageView.id,
+              toolInput: { path: event.imageView.path },
+              status: event.imageView.status,
+            });
+            return;
+          }
+
           if (event.type === 'command_execution') {
             send({
               id: `codex_app_server_${event.command.id}`,

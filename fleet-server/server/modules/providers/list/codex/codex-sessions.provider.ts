@@ -247,6 +247,22 @@ function extractAppServerCollaboration(
   };
 }
 
+function extractAppServerImageViewWrapper(toolName: unknown, input: unknown): string | null {
+  if (toolName !== 'exec' || typeof input !== 'string' || !input.includes('tools.view_image')) {
+    return null;
+  }
+  try {
+    const match = input.match(
+      /tools\.view_image\s*\(\s*\{[\s\S]*?["']?path["']?\s*:\s*("(?:\\.|[^"\\])*")/,
+    );
+    if (!match) return null;
+    const imagePath = JSON.parse(match[1]);
+    return typeof imagePath === 'string' && imagePath.trim() ? imagePath : null;
+  } catch {
+    return null;
+  }
+}
+
 async function getCodexSessionMessages(
   sessionId: string,
   limit: number | null = null,
@@ -263,6 +279,7 @@ async function getCodexSessionMessages(
     const messages: AnyRecord[] = [];
     let tokenUsage: AnyRecord | null = null;
     const appServerMcpCallIds = new Set<string>();
+    const appServerImageViewCallIds = new Set<string>();
     for await (const line of readJsonlLines(sessionFilePath)) {
       if (!line.trim()) {
         continue;
@@ -376,6 +393,7 @@ async function getCodexSessionMessages(
           const input = entry.payload.input || '';
           const webSearchQuery = extractAppServerWebSearchQuery(toolName, input);
           const mcpWrapper = extractAppServerMcpWrapper(toolName, input);
+          const imageViewPath = extractAppServerImageViewWrapper(toolName, input);
 
           if (webSearchQuery) {
             messages.push({
@@ -383,6 +401,15 @@ async function getCodexSessionMessages(
               timestamp: entry.timestamp,
               toolName: 'WebSearch',
               toolInput: { query: webSearchQuery },
+              toolCallId: entry.payload.call_id,
+            });
+          } else if (imageViewPath) {
+            appServerImageViewCallIds.add(entry.payload.call_id);
+            messages.push({
+              type: 'tool_use',
+              timestamp: entry.timestamp,
+              toolName: 'ViewImage',
+              toolInput: { path: imageViewPath },
               toolCallId: entry.payload.call_id,
             });
           } else if (mcpWrapper) {
@@ -433,7 +460,10 @@ async function getCodexSessionMessages(
         }
 
         if (entry.type === 'response_item' && entry.payload?.type === 'custom_tool_call_output') {
-          if (appServerMcpCallIds.has(entry.payload.call_id)) continue;
+          if (
+            appServerMcpCallIds.has(entry.payload.call_id)
+            || appServerImageViewCallIds.has(entry.payload.call_id)
+          ) continue;
           messages.push({
             type: 'tool_result',
             timestamp: entry.timestamp,

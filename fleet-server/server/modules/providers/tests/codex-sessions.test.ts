@@ -355,6 +355,69 @@ test('Codex history restores collaboration function calls as Agent rows', { conc
   }
 });
 
+test('Codex history restores image views without forwarding opaque output', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-image-view-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(
+      tempRoot,
+      'codex-image-view-1',
+      workspacePath,
+      'Inspect the icon',
+    );
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: 'codex-image-view-1', cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:01.000Z',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'image-call-1',
+          input: 'const r = await tools.view_image({ path: "/workspace/project/icon.png" });\nimage(r.image_url);',
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:02.000Z',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'image-call-1',
+          output: 'opaque image payload',
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession(
+        'codex-image-view-1',
+        'codex',
+        workspacePath,
+        undefined,
+        undefined,
+        undefined,
+        jsonlPath,
+      );
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-image-view-1');
+      const tool = history.messages.find((message) => message.kind === 'tool_use');
+
+      assert.equal(tool?.toolName, 'ViewImage');
+      assert.deepEqual(tool?.toolInput, {
+        path: '/workspace/project/icon.png',
+      });
+      assert.equal(history.messages.some((message) => message.kind === 'tool_result'), false);
+      assert.equal(JSON.stringify(history.messages).includes('opaque image payload'), false);
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('Codex synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-app-'));
   const workspacePath = path.join(tempRoot, 'workspace');

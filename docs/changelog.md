@@ -70,7 +70,13 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   are retained across the completion refresh for the mounted transcript even
   though canonical rollout history has no equivalent. A live source-UI turn
   displayed `Agent started · /root/activitycheck` beside `Spawn agent`, `Wait
-  for agents`, and `ACTIVITY_OK`. Routing, normalization,
+  for agents`, and `ACTIVITY_OK`. Native `imageView` start/completion items now
+  update one compact `View image` row containing only the provider path.
+  Canonical history recognizes the exact `tools.view_image(...)` wrapper and
+  drops its matching base64-bearing output, so the row survives reload without
+  forwarding image bytes to the browser. A live source-UI turn viewed the Hub's
+  64px icon and restored `View image` beside `IMAGE_VIEW_OK` after a clean
+  server rebuild and page reload. Routing, normalization,
   command/file/reasoning/search/MCP/plan/collaboration/activity lifecycle, and
   single-terminal abort behavior are contract-tested. Tracked in private
   backlog #37.

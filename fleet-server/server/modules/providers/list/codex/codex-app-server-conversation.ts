@@ -131,6 +131,12 @@ export type CodexAppServerSubAgentActivity = {
   status: 'inProgress' | 'completed';
 };
 
+export type CodexAppServerImageView = {
+  id: string;
+  path: string;
+  status: 'inProgress' | 'completed';
+};
+
 export type CodexAppServerConversationEvent =
   | {
       type: 'session';
@@ -144,6 +150,7 @@ export type CodexAppServerConversationEvent =
   | { type: 'plan_update'; planUpdate: CodexAppServerPlanUpdate }
   | { type: 'collaboration'; collaboration: CodexAppServerCollaboration }
   | { type: 'subagent_activity'; activity: CodexAppServerSubAgentActivity }
+  | { type: 'image_view'; imageView: CodexAppServerImageView }
   | { type: 'command_execution'; command: CodexAppServerCommandExecution }
   | { type: 'file_change'; fileChange: CodexAppServerFileChange }
   | { type: 'token_budget'; tokenBudget: CodexAppServerTokenBudget }
@@ -397,6 +404,17 @@ function readSubAgentActivity(
     return null;
   }
   return { id, kind, agentThreadId, agentPath, status };
+}
+
+function readImageView(
+  value: unknown,
+  status: CodexAppServerImageView['status'],
+): CodexAppServerImageView | null {
+  const item = readObjectRecord(value);
+  if (item?.type !== 'imageView') return null;
+  const id = readOptionalString(item.id);
+  const imagePath = readOptionalString(item.path);
+  return id && imagePath ? { id, path: imagePath, status } : null;
 }
 
 function readCommandExecution(value: unknown): CodexAppServerCommandExecution | null {
@@ -765,6 +783,11 @@ export async function runCodexAppServerConversation(
           onEvent({ type: 'subagent_activity', activity: subAgentActivity });
           continue;
         }
+        const imageView = readImageView(params.item, 'inProgress');
+        if (imageView) {
+          onEvent({ type: 'image_view', imageView });
+          continue;
+        }
         const command = readCommandExecution(params.item);
         if (command) {
           commandExecutions.set(command.id, command);
@@ -865,6 +888,11 @@ export async function runCodexAppServerConversation(
         const subAgentActivity = readSubAgentActivity(item, 'completed');
         if (subAgentActivity) {
           onEvent({ type: 'subagent_activity', activity: subAgentActivity });
+          continue;
+        }
+        const imageView = readImageView(item, 'completed');
+        if (imageView) {
+          onEvent({ type: 'image_view', imageView });
           continue;
         }
         const command = readCommandExecution(item);

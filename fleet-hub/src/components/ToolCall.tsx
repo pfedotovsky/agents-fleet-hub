@@ -29,6 +29,7 @@ const CATEGORY: Record<string, Category> = {
   Grep: 'search',
   Glob: 'search',
   Read: 'read',
+  ViewImage: 'read',
   TodoWrite: 'todo',
   TodoRead: 'todo',
   Task: 'agent',
@@ -500,6 +501,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
   }
 
   // Read / Grep / Glob → one-line.
+  if (name === 'ViewImage') return <OneLine category="read" label="View image" value={filePath} />
   if (name === 'Read') return <OneLine category="read" label="Read" value={filePath} />
   if (name === 'Grep')
     return (

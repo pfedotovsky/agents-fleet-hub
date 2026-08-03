@@ -719,6 +719,90 @@ describe('Codex app-server conversation runner', () => {
     ]);
   });
 
+  test('normalizes image-view lifecycle and rejects missing paths', async () => {
+    const events: CodexAppServerConversationEvent[] = [];
+
+    await runCodexAppServerConversation({
+      cwd: '/workspace/project',
+      prompt: 'Inspect the icon',
+    }, {
+      createClient: (options) => ({
+        start: async () => handshake,
+        request: async <Result>(method: string): Promise<Result> => {
+          if (method === 'thread/start') {
+            return {
+              thread: { id: 'thread-image' },
+              cwd: '/workspace/project',
+              model: 'gpt-5.6-sol',
+              approvalPolicy: 'untrusted',
+              sandbox: { type: 'workspaceWrite' },
+              reasoningEffort: null,
+            } as Result;
+          }
+          if (method === 'turn/start') {
+            queueMicrotask(() => {
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-image',
+                  turnId: 'turn-image',
+                  item: { type: 'imageView', id: 'image-1', path: '/workspace/project/icon.png' },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-image',
+                  turnId: 'turn-image',
+                  item: { type: 'imageView', id: 'invalid-image' },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/completed',
+                params: {
+                  threadId: 'thread-image',
+                  turnId: 'turn-image',
+                  item: { type: 'imageView', id: 'image-1', path: '/workspace/project/icon.png' },
+                },
+              });
+              options.onNotification?.({
+                method: 'turn/completed',
+                params: {
+                  threadId: 'thread-image',
+                  turn: { id: 'turn-image', status: 'completed', error: null },
+                },
+              });
+            });
+            return { turn: { id: 'turn-image' } } as Result;
+          }
+          throw new Error(`Unexpected method ${method}`);
+        },
+        stop: () => {},
+      }),
+      onEvent: (event) => events.push(event),
+      turnTimeoutMs: 1_000,
+    });
+
+    expect(events.filter((event) => event.type === 'image_view')).toEqual([
+      {
+        type: 'image_view',
+        imageView: {
+          id: 'image-1',
+          path: '/workspace/project/icon.png',
+          status: 'inProgress',
+        },
+      },
+      {
+        type: 'image_view',
+        imageView: {
+          id: 'image-1',
+          path: '/workspace/project/icon.png',
+          status: 'completed',
+        },
+      },
+    ]);
+  });
+
   test('normalizes web-search lifecycle without forwarding opaque results', async () => {
     const events: CodexAppServerConversationEvent[] = [];
 
