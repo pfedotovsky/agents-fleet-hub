@@ -17,16 +17,18 @@ import { readProviderSessionActiveModelChange } from '@/shared/utils.js';
 
 export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 /**
- * Per-provider TTL overrides. Claude is probed from the CLI (a subprocess spawn),
- * so cache it — but with a short TTL so newly released models surface quickly
- * without probing on every request. `?bypassCache=true` still forces a refresh.
+ * Per-provider TTL overrides. Claude and feature-flagged Codex app-server both
+ * probe a local provider process, so cache them briefly: this avoids a spawn on
+ * every request without leaving newly released models stale for days.
+ * `?bypassCache=true` still forces a refresh.
  */
 const PROVIDER_MODELS_CACHE_TTL_OVERRIDES_MS: Partial<Record<LLMProvider, number>> = {
   claude: 60 * 60 * 1000,
+  codex: 60 * 60 * 1000,
 };
 const resolveCacheTtlMs = (provider: LLMProvider): number =>
   PROVIDER_MODELS_CACHE_TTL_OVERRIDES_MS[provider] ?? PROVIDER_MODELS_CACHE_TTL_MS;
-const PROVIDER_MODELS_CACHE_VERSION = 2;
+const PROVIDER_MODELS_CACHE_VERSION = 3;
 const UNCACHED_PROVIDERS = new Set<LLMProvider>();
 
 type ProviderModelsServiceDependencies = {

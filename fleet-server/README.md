@@ -84,6 +84,7 @@ prefer to install them by hand.
 | `CLAUDE_CLI_PATH` | `claude` on PATH | Claude Code binary used for chats |
 | `CLAUDE_STARTUP_TIMEOUT_MS` | `45000` | Maximum wait for Claude's first substantive response before surfacing a connection/configuration error |
 | `CODEX_CLI_PATH` | newest installed CLI | Explicit Codex binary override; otherwise compares PATH with bundled macOS desktop-app CLIs |
+| `CODEX_APP_SERVER_ENABLED` | unset | Experimental: use compatible Codex app-server 0.146.x for model discovery and Codex session turns; flag-off keeps the SDK path, while model lookup failures still fall back to the existing cache |
 | `RG_PATH` | `rg` on PATH | ripgrep binary for session search |
 | `CONTEXT_WINDOW` | `160000` | Context window size reported to clients |
 
@@ -131,6 +132,8 @@ bun install
 bun run dev          # interpreted source server, port 3012, data in ~/.fleet-server-dev
 bun run typecheck
 bun test server
+bun run probe:codex-app-server       # sanitized handshake + model-list probe; no thread
+bun run probe:codex-app-server-turn  # ephemeral read-only turn; persists no session
 bun run build        # compiled binary for this platform (dist/)
 bun run scripts/build.ts --all   # full release matrix
 ```
