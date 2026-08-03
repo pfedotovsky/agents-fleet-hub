@@ -63,9 +63,11 @@ own root URL is only a status page; it does not expose an account-setup UI.
   toggles persist on the host (`toggle-star` API); "recently opened in the
   hub" is tracked in localStorage. "All sessions" is a merged recent-activity
   feed across hosts. Each chat in the tree is tagged with its provider icon
-  (Claude / Codex / …). Hovering a project row reveals a **+** that opens a new
-  chat directly — the provider (Claude / Codex) is chosen with a toggle in the
-  composer, and the session is created on the first send.
+  (Claude / Codex / …). The feed's **New session** action opens a draft whose
+  composer chooses any project folder from an online host. Hovering a project
+  row still reveals a **+** that opens a draft already bound to that project.
+  In either path, the provider (Claude / Codex) is chosen in the composer and
+  the session is created on the first send.
 - **Project view**: the project's sessions (paged), "New session" (opens a
   draft chat; provider is picked in the composer), and a **Files** button.
 - **Chat**: full transcript (history over REST, paged) + live agent chat over
@@ -131,6 +133,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
 ## Behavior notes
 
 - Hosts are polled every 12 s (`GET /api/projects?sessionsLimit=5`).
+- The global new-session folder selector is built from those poll results and
+  lists projects from online hosts only; it does not browse or mutate the host
+  filesystem.
 - Transcripts: `GET /api/providers/sessions/:id/messages` (normalized across
   providers; `offset=0` is the newest page). New sessions:
   `POST /api/providers/sessions {provider, projectPath}`, then the first

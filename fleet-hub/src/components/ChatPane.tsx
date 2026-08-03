@@ -9,6 +9,7 @@ import {
   ClipboardList,
   ExternalLink,
   File,
+  Folder,
   FolderTree,
   GitBranch,
   ImagePlus,
@@ -451,6 +452,10 @@ interface Props {
   onOpenTerminal?: () => void
   /** Fired when a draft chat creates its real session on first send. */
   onSessionCreated?: (sessionId: string) => void
+  /** Online project targets offered by a top-level, initially unbound draft. */
+  draftTargets?: FleetSession[]
+  /** Binds an unbound draft to its selected host project without remounting it. */
+  onDraftTargetChange?: (target: FleetSession) => void
 }
 
 /** Providers offered by the new-chat composer toggle (draft sessions only). */
@@ -463,6 +468,8 @@ export function ChatPane({
   onTogglePanel,
   onOpenTerminal,
   onSessionCreated,
+  draftTargets,
+  onDraftTargetChange,
 }: Props) {
   // A draft chat opens with an empty id and no provider chosen yet; the real
   // session is created on the first send with the provider picked in the
@@ -972,6 +979,11 @@ export function ChatPane({
       }
     }
 
+    if (!target.hostId || !target.baseUrl) {
+      setSocketState('closed')
+      return
+    }
+
     const socket = new ChatSocket(
       target.baseUrl,
       () => getToken(target.hostId),
@@ -1049,7 +1061,14 @@ export function ChatPane({
   // Codex preflight on a fresh chat: without it, a missing codex install or
   // login on the host would only surface as an error after the first send.
   useEffect(() => {
-    if (!isCodex || loading || messagesRef.current.length > 0) return
+    if (
+      !target.hostId ||
+      !target.baseUrl ||
+      !isCodex ||
+      loading ||
+      messagesRef.current.length > 0
+    )
+      return
     const token = getToken(target.hostId)
     if (!token) return
     let cancelled = false
@@ -1072,7 +1091,10 @@ export function ChatPane({
 
   // Model catalog for this session's provider (Cursor has none).
   useEffect(() => {
-    if (provider === 'cursor') return
+    setModelOptions([])
+    setModel(loadModelChoice(target.hostId, provider)?.model ?? '')
+    setEffort(loadModelChoice(target.hostId, provider)?.effort ?? '')
+    if (!target.hostId || !target.baseUrl || provider === 'cursor') return
     const token = getToken(target.hostId)
     if (!token) return
     let cancelled = false
@@ -1505,6 +1527,27 @@ export function ChatPane({
   const color = hostColor(target.hostColorIdx)
   const visible = useMemo(() => messages.filter((m) => RENDERED_KINDS.has(m.kind)), [messages])
   const canChat = provider !== 'cursor' || !fatalError
+  const needsDraftTarget = isDraft && draftTargets !== undefined && !target.projectPath
+  const draftTargetsByHost = useMemo(() => {
+    const groups = new Map<string, FleetSession[]>()
+    for (const option of draftTargets ?? []) {
+      const existing = groups.get(option.hostId)
+      if (existing) existing.push(option)
+      else groups.set(option.hostId, [option])
+    }
+    return [...groups.values()]
+  }, [draftTargets])
+
+  function selectDraftTarget(key: string) {
+    const next = draftTargets?.find((option) => option.key === key)
+    if (!next) return
+    const storedMode = loadPermissionMode(next.hostId, next.projectPath)
+    setProvider(next.session.provider)
+    setPermissionMode(storedMode === 'plan' ? 'default' : (storedMode ?? 'default'))
+    setPlanMode(loadPlanMode(next.hostId) ?? storedMode === 'plan')
+    setAllowedTools(loadPermissions(next.hostId, next.projectPath).allowedTools ?? [])
+    onDraftTargetChange?.(next)
+  }
 
   const planRequest = permissions.find(isPlanRequest)
   const planRequestId = planRequest?.requestId
@@ -1526,14 +1569,18 @@ export function ChatPane({
           <ArrowLeft size={16} />
         </button>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 text-[11px] text-fg-faint">
-            <span className="inline-flex items-center gap-1 font-medium text-fg-muted">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
-              {target.hostName}
-            </span>
-            <span>·</span>
-            <span className="truncate font-mono">{target.projectName}</span>
-          </div>
+          {target.hostId ? (
+            <div className="flex items-center gap-2 text-[11px] text-fg-faint">
+              <span className="inline-flex items-center gap-1 font-medium text-fg-muted">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
+                {target.hostName}
+              </span>
+              <span>·</span>
+              <span className="truncate font-mono">{target.projectName}</span>
+            </div>
+          ) : (
+            <p className="text-[11px] text-fg-faint">Choose where this agent should work</p>
+          )}
           <h2 className="font-display truncate text-sm font-semibold text-fg">
             {target.session.summary || 'New session'}
           </h2>
@@ -1601,15 +1648,17 @@ export function ChatPane({
             {linkCopied ? <Check size={15} className="text-emerald-400" /> : <Link2 size={15} />}
           </button>
         )}
-        <a
-          href={target.href}
-          target="_blank"
-          rel="noreferrer"
-          title="Open in this host's own CloudCLI UI"
-          className="shrink-0 rounded-md p-1.5 text-fg-faint hover:bg-elevated hover:text-fg"
-        >
-          <ExternalLink size={15} />
-        </a>
+        {target.href && (
+          <a
+            href={target.href}
+            target="_blank"
+            rel="noreferrer"
+            title="Open in this host's own CloudCLI UI"
+            className="shrink-0 rounded-md p-1.5 text-fg-faint hover:bg-elevated hover:text-fg"
+          >
+            <ExternalLink size={15} />
+          </a>
+        )}
       </header>
 
       <div
@@ -1770,6 +1819,31 @@ export function ChatPane({
               attachImages(Array.from(event.dataTransfer.files))
             }}
           >
+            {isDraft && draftTargets !== undefined && (
+              <label className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-canvas/40 px-2.5 py-2">
+                <Folder size={15} className="shrink-0 text-fg-faint" />
+                <span className="shrink-0 text-xs font-medium text-fg-muted">Work in</span>
+                <select
+                  value={target.projectPath ? `${target.hostId}::draft:${target.projectId}` : ''}
+                  onChange={(event) => selectDraftTarget(event.target.value)}
+                  aria-label="Session folder"
+                  className="min-w-0 flex-1 truncate bg-transparent text-xs text-fg outline-none"
+                >
+                  <option value="">
+                    {draftTargets.length > 0 ? 'Choose a host and folder…' : 'No online project folders'}
+                  </option>
+                  {draftTargetsByHost.map((options) => (
+                    <optgroup key={options[0].hostId} label={options[0].hostName}>
+                      {options.map((option) => (
+                        <option key={option.key} value={option.key}>
+                          {option.projectName} — {option.projectPath}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+            )}
             {pendingImages.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-2 px-1">
                 {pendingImages.map((chip) => (
@@ -1825,7 +1899,12 @@ export function ChatPane({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={!canChat || socketState !== 'open' || pendingImages.length >= MAX_IMAGES}
+              disabled={
+                !canChat ||
+                socketState !== 'open' ||
+                needsDraftTarget ||
+                pendingImages.length >= MAX_IMAGES
+              }
               title="Attach images (or paste / drag & drop)"
               className="shrink-0 rounded-lg p-2 text-fg-faint transition-colors hover:bg-elevated hover:text-fg disabled:opacity-40"
             >
@@ -1870,11 +1949,13 @@ export function ChatPane({
               onBlur={autocomplete.close}
               rows={1}
               placeholder={
-                socketState === 'open'
+                needsDraftTarget
+                  ? 'Choose a folder above to start…'
+                  : socketState === 'open'
                   ? `Message ${PROVIDER_META[provider]?.label ?? provider} in ${target.projectName}…`
                   : 'Connecting to host…'
               }
-              disabled={!canChat || socketState !== 'open'}
+              disabled={!canChat || socketState !== 'open' || needsDraftTarget}
               className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] text-fg outline-none placeholder:text-fg-subtle disabled:opacity-50"
             />
             {processing ? (
@@ -1890,7 +1971,7 @@ export function ChatPane({
               <button
                 type="button"
                 onClick={send}
-                disabled={!input.trim() || socketState !== 'open'}
+                disabled={!input.trim() || socketState !== 'open' || needsDraftTarget}
                 title="Send (Enter)"
                 className="shrink-0 rounded-lg bg-accent p-2 text-on-accent transition-colors hover:bg-accent-strong disabled:opacity-40"
               >

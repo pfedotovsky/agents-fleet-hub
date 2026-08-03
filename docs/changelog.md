@@ -139,6 +139,13 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   creating a thread. Tracked in private backlog #37.
 
 ### Added
+- **New sessions can now start from the all-sessions feed.** A top-level
+  **New session** action opens an unbound draft whose composer lists every
+  project folder currently reported by online hosts, grouped by host. The
+  composer stays disabled until a folder is selected, then reuses the existing
+  provider picker and first-send session creation flow without a new server
+  endpoint. Offline and unauthenticated hosts are not offered as targets.
+  Tracked in private backlog #10.
 - **Codex app-server lifecycle foundation.** fleet-server now has a supervised
   JSONL-over-stdio client for Codex CLI 0.146.x with an honest `agents_hub`
   identity, initialize/initialized handshake, correlated requests, a bounded

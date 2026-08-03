@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Server, X } from 'lucide-react'
+import { Plus, Server, X } from 'lucide-react'
 import type { FleetSession, Provider, SessionSummary, SessionView } from './types'
 import { EASE_OUT } from './lib/motion'
 import type { ChatPanelKind } from './lib/storage'
@@ -179,6 +179,61 @@ export default function App() {
     })
   }
 
+  const draftTargets = fleet.hosts.flatMap((runtime, hostIndex) =>
+    runtime.status === 'online'
+      ? runtime.projects.map((project): FleetSession => {
+          const last = loadLastProvider(runtime.config.id)
+          const provider: Provider =
+            last === 'claude' || last === 'codex' || last === 'opencode' ? last : 'claude'
+          return {
+            key: `${runtime.config.id}::draft:${project.projectId}`,
+            hostId: runtime.config.id,
+            hostName: runtime.config.name,
+            hostColorIdx: hostIndex,
+            baseUrl: runtime.config.baseUrl,
+            projectName: project.displayName,
+            projectPath: project.fullPath,
+            projectId: project.projectId,
+            session: {
+              id: '',
+              provider,
+              summary: '',
+              messageCount: 0,
+              lastActivity: new Date().toISOString(),
+            },
+            href: '',
+            stale: false,
+            justUpdated: false,
+          }
+        })
+      : [],
+  )
+
+  /** Opens an unbound draft; ChatPane binds it to an online project before first send. */
+  const newGlobalSession = () => {
+    const target: FleetSession = {
+      key: 'global::draft',
+      hostId: '',
+      hostName: '',
+      hostColorIdx: 0,
+      baseUrl: '',
+      projectName: '',
+      projectPath: '',
+      projectId: '',
+      session: {
+        id: '',
+        provider: 'claude',
+        summary: '',
+        messageCount: 0,
+        lastActivity: new Date().toISOString(),
+      },
+      href: '',
+      stale: false,
+      justUpdated: false,
+    }
+    setView({ kind: 'chat', target, from: { kind: 'feed' }, sessionView: 'structured' })
+  }
+
   function findProject(hostId: string, projectId: string) {
     const hostIndex = fleet.hosts.findIndex((runtime) => runtime.config.id === hostId)
     const runtime = hostIndex >= 0 ? fleet.hosts[hostIndex] : undefined
@@ -289,11 +344,23 @@ export default function App() {
             onBack={() => setView(view.from)}
             panel={panelAvailable ? chatPanel : null}
             onTogglePanel={panelAvailable ? toggleChatPanel : undefined}
-            onOpenTerminal={() =>
-              setView((current) =>
-                current.kind === 'chat' ? { ...current, sessionView: 'terminal' } : current,
-              )
+            onOpenTerminal={
+              panelAvailable
+                ? () =>
+                    setView((current) =>
+                      current.kind === 'chat' ? { ...current, sessionView: 'terminal' } : current,
+                    )
+                : undefined
             }
+            draftTargets={view.target.key === 'global::draft' ? draftTargets : undefined}
+            onDraftTargetChange={(nextTarget) => {
+              fleet.markProjectOpened(nextTarget.hostId, nextTarget.projectId)
+              setView((current) =>
+                current.kind === 'chat' && current.target.key === 'global::draft'
+                  ? { ...current, target: { ...nextTarget, key: 'global::draft' } }
+                  : current,
+              )
+            }}
             onSessionCreated={(sessionId) => {
               setView((current) =>
                 current.kind === 'chat' && current.target.key === view.target.key
@@ -377,7 +444,16 @@ export default function App() {
     return (
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-2 px-4 py-6">
-          <h2 className="font-display mb-1 text-sm font-semibold text-fg-secondary">All sessions</h2>
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <h2 className="font-display text-sm font-semibold text-fg-secondary">All sessions</h2>
+            <button
+              type="button"
+              onClick={newGlobalSession}
+              className="inline-flex items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-strong"
+            >
+              <Plus size={13} /> New session
+            </button>
+          </div>
           {downHosts.map((runtime) => (
             <OfflineCard
               key={runtime.config.id}
