@@ -32,6 +32,7 @@ import {
 import { getToken, saveToken } from '../lib/storage'
 import { hostColor } from '../lib/format'
 import { Diff } from './Diff'
+import { GitHistory } from './GitHistory'
 
 interface Props {
   runtime: HostRuntime
@@ -43,6 +44,7 @@ interface Props {
 }
 
 type FileGroup = 'staged' | 'changes' | 'untracked'
+type GitTab = 'changes' | 'history'
 
 interface ChangedFile {
   path: string
@@ -80,6 +82,8 @@ const GROUP_LABELS: Record<FileGroup, string> = {
 }
 
 export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: Props) {
+  const [tab, setTab] = useState<GitTab>('changes')
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [remote, setRemote] = useState<GitRemoteStatus | null>(null)
   const [branches, setBranches] = useState<GitBranches | null>(null)
@@ -255,7 +259,10 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
       </div>
       <button
         type="button"
-        onClick={() => void refresh()}
+        onClick={() => {
+          if (tab === 'history') setHistoryRefreshKey((key) => key + 1)
+          else void refresh()
+        }}
         title="Refresh"
         className="shrink-0 rounded-md p-1.5 text-fg-faint hover:bg-elevated hover:text-fg"
       >
@@ -294,7 +301,41 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col">
       {header}
-      <div className="flex min-h-0 flex-1">
+      <div
+        className="flex shrink-0 items-center gap-1 border-b border-line/60 px-3 py-1.5"
+        role="tablist"
+        aria-label="Git view"
+      >
+        {(['changes', 'history'] as GitTab[]).map((item) => (
+          <button
+            key={item}
+            type="button"
+            role="tab"
+            aria-selected={tab === item}
+            onClick={() => setTab(item)}
+            className={`rounded-md px-2.5 py-1 text-xs font-medium capitalize transition-colors ${
+              tab === item
+                ? 'bg-elevated text-fg'
+                : 'text-fg-faint hover:bg-surface hover:text-fg-secondary'
+            }`}
+          >
+            {item}
+            {item === 'changes' && files.length > 0 && (
+              <span className="tnum ml-1 text-[10px] text-fg-subtle">{files.length}</span>
+            )}
+          </button>
+        ))}
+      </div>
+      {tab === 'history' ? (
+        <GitHistory
+          baseUrl={baseUrl}
+          projectId={project.projectId}
+          auth={auth}
+          refreshKey={historyRefreshKey}
+          embedded={embedded}
+        />
+      ) : (
+        <div className="flex min-h-0 flex-1">
         {/* Left pane: branch, remote, changed files, commit box */}
         <div className={`flex ${embedded ? 'w-64' : 'w-80'} shrink-0 flex-col border-r border-line/80`}>
           <div className="flex flex-col gap-2 border-b border-line/60 px-3 py-2.5">
@@ -595,7 +636,8 @@ export function GitPanel({ runtime, hostColorIdx, project, onBack, embedded }: P
             <Diff unified={diffText} filePath={selectedFile} tall />
           )}
         </div>
-      </div>
+        </div>
+      )}
     </div>
   )
 }

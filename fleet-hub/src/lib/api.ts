@@ -2,6 +2,7 @@ import type {
   ArchivedSession,
   FileNode,
   GitBranches,
+  GitCommitSummary,
   GitRemoteStatus,
   GitStatus,
   MessagesPage,
@@ -603,6 +604,36 @@ export async function getGitRemoteStatus(
     auth,
     { timeoutMs: 30000 },
   )
+}
+
+/** Recent commits across local branches, remotes, and tags in topological order. */
+export async function getGitCommits(
+  baseUrl: string,
+  projectId: string,
+  limit: number,
+  auth: GitAuth,
+): Promise<GitCommitSummary[]> {
+  const body = await gitJson<{ commits?: GitCommitSummary[] }>(
+    baseUrl,
+    `/commits?project=${encodeURIComponent(projectId)}&limit=${encodeURIComponent(limit)}`,
+    auth,
+  )
+  return body.commits ?? []
+}
+
+/** Unified patch for one commit; large responses are truncated host-side. */
+export async function getGitCommitDiff(
+  baseUrl: string,
+  projectId: string,
+  commit: string,
+  auth: GitAuth,
+): Promise<{ diff: string; isTruncated: boolean }> {
+  const body = await gitJson<{ diff?: string; isTruncated?: boolean }>(
+    baseUrl,
+    `/commit-diff?project=${encodeURIComponent(projectId)}&commit=${encodeURIComponent(commit)}`,
+    auth,
+  )
+  return { diff: body.diff ?? '', isTruncated: Boolean(body.isTruncated) }
 }
 
 /** action: fetch/pull/push track the upstream; publish pushes --set-upstream (needs branch). */

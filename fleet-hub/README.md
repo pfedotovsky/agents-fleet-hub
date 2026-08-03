@@ -67,7 +67,7 @@ own root URL is only a status page; it does not expose an account-setup UI.
   chat directly — the provider (Claude / Codex) is chosen with a toggle in the
   composer, and the session is created on the first send.
 - **Project view**: the project's sessions (paged), "New session" (opens a
-  draft chat; provider is picked in the composer), and a **Files** button.
+  draft chat; provider is picked in the composer), plus **Files** and **Git**.
 - **Chat**: full transcript (history over REST, paged) + live agent chat over
   the host's `/ws` WebSocket — send messages, watch streaming replies and tool
   calls, approve/deny permission requests inline — with an **Always allow**
@@ -106,6 +106,10 @@ own root URL is only a status page; it does not expose an account-setup UI.
 - **File browser/editor**: per-project tree (`GET /files`, node_modules/.git
   pruned server-side) with a lazy-loaded CodeMirror editor (One Dark, language
   by extension); Cmd+S / Save button writes via `PUT /file`.
+- **Git workspace**: the Changes tab covers status, staging, commits, branches,
+  remotes, and per-file diffs. The History tab lists recent commits across
+  branches/remotes/tags with refs, author, time, short hash, and file stats;
+  select one to inspect its patch and load older history in bounded pages.
 - The external-link icon opens the session in that host's own CloudCLI UI
   (requires having signed into that host's page once — its frontend keeps its
   token in its own origin's localStorage with no URL handoff).

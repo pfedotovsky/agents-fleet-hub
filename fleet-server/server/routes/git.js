@@ -1,3 +1,4 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE
 import express from 'express';
 // cross-spawn: drop-in spawn with Windows .cmd/PATHEXT resolution.
 import spawn from 'cross-spawn';
@@ -965,9 +966,10 @@ router.get('/commit-diff', async (req, res) => {
     // Validate commit reference (defense-in-depth)
     validateCommitRef(commit);
 
-    // Get diff for the commit
+    // Return only the patch: the Hub renders commit metadata separately and
+    // its unified-diff viewer expects the response to start at `diff --git`.
     const { stdout } = await spawnAsync(
-      'git', ['show', commit],
+      'git', ['show', '--format=', '--patch', '--no-ext-diff', commit],
       { cwd: projectPath }
     );
 

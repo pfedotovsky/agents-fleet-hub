@@ -44,7 +44,7 @@ Browser (Agents Hub SPA)
 | `hooks/useComposerAutocomplete.ts` | `@`-file and `/`-command completion state for the chat composer: trigger detection at the caret, lazy per-target catalogs (file tree / skills+commands), filtering, keyboard navigation. |
 | `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
 | `components/FileBrowser.tsx`, `FileTree.tsx`, `CodeEditor.tsx` | Project file tree + lazy-loaded CodeMirror editor (One Dark); Cmd+S saves via `PUT /file`. Also renders `embedded` as a chat side panel (close icon, narrower tree). |
-| `components/GitPanel.tsx` | Git status/stage/commit (AI message generation), branch switch/create, fetch/pull/push/publish, per-file diff. Full-screen via the project pane or `embedded` as a chat side panel. |
+| `components/GitPanel.tsx` + `GitHistory.tsx` | Changes/History Git workspace. Changes covers status/stage/commit (AI message generation), branch switch/create, fetch/pull/push/publish, and per-file diff. History lazily loads commits across branches/remotes/tags with bounded expansion and opens a selected commit's patch in the shared `Diff` viewer. Full-screen via the project pane or `embedded` as a chat side panel. |
 | `lib/shellSocket.ts`, `components/TerminalPanel.tsx` | Reconnecting `/shell` PTY client + xterm full session view. Existing sessions resume their provider CLI by id; drafts start a new CLI in the project path. The PTY stays deliberately dark under both app themes. On unmount, queued xterm viewport animation frames drain before renderer disposal; immediate disposal races `Viewport.syncScrollArea()` against a missing renderer. |
 | `components/LoginModal.tsx`, `SettingsPanel.tsx`, `OfflineCard.tsx` | Per-host login and first-time setup (register; password never stored), host/prefs management (incl. Appearance and default Structured/Terminal session view), hibernated-VM card with restart hint. |
 
@@ -201,6 +201,25 @@ Browser (Agents Hub SPA)
   itself (same reason CloudCLI's own UI sends picked skills as plain input).
   Both catalogs are fetched lazily on first trigger and cached until the chat
   target changes.
+
+### Git (`GitPanel` + `GitHistory`)
+
+- All Git calls go through `lib/api.ts` and the authenticated `/api/git/*`
+  routes. Several legacy routes return HTTP 200 with `{error}`, so the shared
+  `gitJson` wrapper promotes those bodies to client errors.
+- Changes uses `GET /api/git/status`, `/branches`, `/remote-status`, and
+  `/diff`; mutations stay serialized through one busy state before refreshing
+  status and any open file diff.
+- History is lazy: `GET /api/git/commits?project=<id>&limit=<n>` returns up to
+  100 commits across branches, remotes, and tags in topological order. Each
+  entry includes parents, refs, author/date, subject, and one `--shortstat`
+  summary. The Hub starts at 20 and expands the bounded window by 20.
+- Selecting a commit calls
+  `GET /api/git/commit-diff?project=<id>&commit=<hash>`. fleet-server validates
+  the ref and runs `git show --format= --patch --no-ext-diff`, returning only a
+  unified patch plus `isTruncated`; responses are capped at 500,000 characters
+  so the shared diff renderer cannot be overwhelmed. Merge commits with no
+  patch surface an explicit empty state.
 
 ### Auth
 

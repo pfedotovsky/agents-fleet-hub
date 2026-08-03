@@ -231,6 +231,18 @@ export interface GitRemoteStatus {
   message?: string
 }
 
+/** One entry from GET /api/git/commits, ordered newest-first across refs. */
+export interface GitCommitSummary {
+  hash: string
+  parents: string[]
+  refs: string[]
+  author: string
+  email: string
+  date: string
+  message: string
+  stats: string
+}
+
 export interface FileNode {
   name: string
   path: string
