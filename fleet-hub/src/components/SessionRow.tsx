@@ -1,17 +1,21 @@
-import { Archive, ExternalLink } from 'lucide-react'
+import { useState } from 'react'
+import { Archive, ExternalLink, Pencil } from 'lucide-react'
 import { motion } from 'motion/react'
 import type { FleetSession } from '../types'
 import { hostColor, isActive, relativeTime } from '../lib/format'
 import { layoutTransition } from '../lib/motion'
 import { ProviderBadge } from './Messages'
+import { SessionRenameForm } from './SessionRenameForm'
 
 interface Props {
   item: FleetSession
   onOpen: (item: FleetSession) => void
   onArchive: (item: FleetSession) => void
+  onRename: (item: FleetSession, summary: string) => Promise<void>
 }
 
-export function SessionRow({ item, onOpen, onArchive }: Props) {
+export function SessionRow({ item, onOpen, onArchive, onRename }: Props) {
+  const [renaming, setRenaming] = useState(false)
   const color = hostColor(item.hostColorIdx)
   return (
     <motion.div
@@ -42,9 +46,17 @@ export function SessionRow({ item, onOpen, onArchive }: Props) {
             <span className="shrink-0 rounded bg-elevated px-1 text-[10px] text-fg-faint">stale</span>
           )}
         </div>
-        <div className="truncate text-sm text-fg">
-          {item.session.summary || 'Untitled session'}
-        </div>
+        {renaming ? (
+          <SessionRenameForm
+            summary={item.session.summary}
+            onRename={(summary) => onRename(item, summary)}
+            onCancel={() => setRenaming(false)}
+          />
+        ) : (
+          <div className="truncate text-sm text-fg">
+            {item.session.summary || 'Untitled session'}
+          </div>
+        )}
       </div>
       <ProviderBadge provider={item.session.provider} />
       {(item.running ?? isActive(item.session.lastActivity)) ? (
@@ -59,6 +71,19 @@ export function SessionRow({ item, onOpen, onArchive }: Props) {
         <span className="tnum w-16 shrink-0 text-right font-mono text-xs text-fg-faint">
           {relativeTime(item.session.lastActivity)}
         </span>
+      )}
+      {!item.stale && !renaming && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation()
+            setRenaming(true)
+          }}
+          title="Rename session"
+          className="shrink-0 rounded-md p-1 text-fg-subtle opacity-0 transition-opacity hover:bg-elevated-strong hover:text-fg-secondary group-hover:opacity-100 focus:opacity-100"
+        >
+          <Pencil size={14} />
+        </button>
       )}
       <button
         type="button"

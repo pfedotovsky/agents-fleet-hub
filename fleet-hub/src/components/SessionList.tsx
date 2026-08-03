@@ -7,6 +7,7 @@ interface Props {
   hosts: HostRuntime[]
   onOpen: (item: FleetSession) => void
   onArchive: (item: FleetSession) => void
+  onRename: (item: FleetSession, summary: string) => Promise<void>
 }
 
 function SkeletonRow() {
@@ -21,7 +22,7 @@ function SkeletonRow() {
   )
 }
 
-export function SessionList({ sessions, hosts, onOpen, onArchive }: Props) {
+export function SessionList({ sessions, hosts, onOpen, onArchive, onRename }: Props) {
   if (sessions.length === 0) {
     const anyLoading = hosts.some((host) => host.status === 'loading')
     if (anyLoading) {
@@ -43,7 +44,13 @@ export function SessionList({ sessions, hosts, onOpen, onArchive }: Props) {
     <div className="flex flex-col gap-2">
       <AnimatePresence initial={false}>
         {sessions.map((item) => (
-          <SessionRow key={item.key} item={item} onOpen={onOpen} onArchive={onArchive} />
+          <SessionRow
+            key={item.key}
+            item={item}
+            onOpen={onOpen}
+            onArchive={onArchive}
+            onRename={onRename}
+          />
         ))}
       </AnimatePresence>
     </div>

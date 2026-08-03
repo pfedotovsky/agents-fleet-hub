@@ -4,6 +4,17 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-03
+
+### Added
+- **Sessions can now be renamed from the hub.** Online session rows in the
+  all-sessions feed, project view, and expanded sidebar expose a compact inline
+  editor with explicit Save/Cancel actions and Escape cancellation. A
+  successful `PUT /api/providers/sessions/:id {summary}` updates every loaded
+  copy immediately, including an already-open chat header, while errors keep
+  the editor open. The contract and reload persistence were verified against
+  an isolated source fleet-server. Tracked in private backlog #11.
+
 ## 2026-08-02
 
 ### Changed

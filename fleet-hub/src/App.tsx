@@ -125,6 +125,24 @@ export default function App() {
     )
   }
 
+  /** Renames a session and keeps an already-open chat header in sync. */
+  const renameSession = async (hostId: string, sessionId: string, summary: string) => {
+    await fleet.renameSession(hostId, sessionId, summary)
+    setView((current) =>
+      current.kind === 'chat' &&
+      current.target.hostId === hostId &&
+      current.target.session.id === sessionId
+        ? {
+            ...current,
+            target: {
+              ...current.target,
+              session: { ...current.target.session, summary },
+            },
+          }
+        : current,
+    )
+  }
+
   const openSessionFromSidebar = (hostId: string, projectId: string, session: SessionSummary) => {
     const { hostIndex, runtime, project } = findProject(hostId, projectId)
     if (!runtime || !project) return
@@ -371,6 +389,9 @@ export default function App() {
           onOpenFiles={() => setView({ kind: 'files', hostId: view.hostId, projectId: view.projectId })}
           onOpenGit={() => setView({ kind: 'git', hostId: view.hostId, projectId: view.projectId })}
           onArchiveSession={(sessionId) => archiveSession(view.hostId, sessionId)}
+          onRenameSession={(sessionId, summary) =>
+            renameSession(view.hostId, sessionId, summary)
+          }
         />
       )
     }
@@ -390,6 +411,7 @@ export default function App() {
             hosts={fleet.hosts}
             onOpen={openChat}
             onArchive={(item) => archiveSession(item.hostId, item.session.id)}
+            onRename={(item, summary) => renameSession(item.hostId, item.session.id, summary)}
           />
         </div>
       </div>
@@ -409,6 +431,7 @@ export default function App() {
         creatingKey={creatingKey}
         onToggleStar={(hostId, projectId) => void fleet.toggleStar(hostId, projectId)}
         onArchiveSession={archiveSession}
+        onRenameSession={renameSession}
         onRestoreSession={fleet.restoreSession}
         onDeleteSessionForever={fleet.deleteSessionForever}
         onSignIn={setLoginHostId}

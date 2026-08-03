@@ -11,6 +11,7 @@ import {
   getProjects,
   getRunningSessions,
   login,
+  renameSession as apiRenameSession,
   register,
   restoreSession as apiRestoreSession,
   toggleProjectStar,
@@ -270,6 +271,35 @@ export function useFleet() {
     }
   }, [runtimes])
 
+  /** Renames a session on its host, then updates every currently loaded copy. */
+  const renameSession = useCallback(
+    async (hostId: string, sessionId: string, summary: string): Promise<void> => {
+      const config = hostsRef.current.find((host) => host.id === hostId)
+      const token = storage.getToken(hostId)
+      if (!config || !token) throw new Error('Not signed in')
+      await apiRenameSession(config.baseUrl, token, sessionId, summary, (t) =>
+        storage.saveToken(hostId, t),
+      )
+      setRuntimes((prev) => {
+        const existing = prev[hostId]
+        if (!existing) return prev
+        return {
+          ...prev,
+          [hostId]: {
+            ...existing,
+            projects: existing.projects.map((project) => ({
+              ...project,
+              sessions: project.sessions.map((session) =>
+                session.id === sessionId ? { ...session, summary } : session,
+              ),
+            })),
+          },
+        }
+      })
+    },
+    [],
+  )
+
   /** Optimistically drops the session from active lists, then archives on the host. */
   const archiveSession = useCallback(
     async (hostId: string, sessionId: string): Promise<boolean> => {
@@ -398,6 +428,7 @@ export function useFleet() {
     clearTokens,
     refresh,
     toggleStar,
+    renameSession,
     markProjectOpened,
     archiveSession,
     restoreSession,

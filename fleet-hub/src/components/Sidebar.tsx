@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   MessageSquare,
   MoonStar,
+  Pencil,
   Plus,
   RefreshCw,
   Search,
@@ -32,6 +33,7 @@ import {
   saveToken,
 } from '../lib/storage'
 import { PROVIDER_META } from './Messages'
+import { SessionRenameForm } from './SessionRenameForm'
 
 const COLLAPSED_COUNT = 7
 /** How many chats to show under an expanded project before deferring to the project pane. */
@@ -49,6 +51,7 @@ interface Props {
   creatingKey: string | null
   onToggleStar: (hostId: string, projectId: string) => void
   onArchiveSession: (hostId: string, sessionId: string) => void
+  onRenameSession: (hostId: string, sessionId: string, summary: string) => Promise<void>
   onRestoreSession: (hostId: string, sessionId: string) => Promise<void>
   onDeleteSessionForever: (hostId: string, sessionId: string) => Promise<void>
   onSignIn: (hostId: string) => void
@@ -107,16 +110,21 @@ function HostStatusHint({ runtime, onSignIn }: { runtime: HostRuntime; onSignIn:
 function SessionLink({
   session,
   active,
+  canRename,
   runningIds,
   onOpen,
   onArchive,
+  onRename,
 }: {
   session: SessionSummary
   active: boolean
+  canRename: boolean
   runningIds: ReadonlySet<string> | undefined
   onOpen: () => void
   onArchive: () => void
+  onRename: (summary: string) => Promise<void>
 }) {
+  const [renaming, setRenaming] = useState(false)
   const title = session.summary || 'Untitled session'
   const running = sessionLive(runningIds, session.id, session.lastActivity)
   const providerMeta = PROVIDER_META[session.provider] ?? { label: session.provider, color: '#71717a', Icon: MessageSquare }
@@ -126,32 +134,55 @@ function SessionLink({
         active ? 'bg-elevated' : 'hover:bg-surface'
       }`}
     >
-      <button
-        type="button"
-        onClick={onOpen}
-        title={title}
-        className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-3 pr-1 text-sm ${
-          active ? 'text-fg' : 'text-fg-faint hover:text-fg-secondary'
-        }`}
-      >
-        <span className="inline-flex shrink-0" title={providerMeta.label}>
-          <providerMeta.Icon size={12} style={{ color: providerMeta.color }} />
-        </span>
-        <span className="min-w-0 flex-1 truncate text-left">{title}</span>
-        {running ? (
-          <span
-            title={runningIds ? 'Agent is running' : 'Active in the last 2 minutes'}
-            className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-emerald-400"
-          >
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-            {runningIds ? 'running' : 'active'}
+      {renaming ? (
+        <div className="flex min-w-0 flex-1 items-center gap-2 py-1 pl-3">
+          <span className="inline-flex shrink-0" title={providerMeta.label}>
+            <providerMeta.Icon size={12} style={{ color: providerMeta.color }} />
           </span>
-        ) : (
-          <span className="tnum shrink-0 font-mono text-[12px] text-fg-subtle">
-            {relativeTime(session.lastActivity)}
+          <SessionRenameForm
+            summary={session.summary}
+            onRename={onRename}
+            onCancel={() => setRenaming(false)}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onOpen}
+          title={title}
+          className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-3 pr-1 text-sm ${
+            active ? 'text-fg' : 'text-fg-faint hover:text-fg-secondary'
+          }`}
+        >
+          <span className="inline-flex shrink-0" title={providerMeta.label}>
+            <providerMeta.Icon size={12} style={{ color: providerMeta.color }} />
           </span>
-        )}
-      </button>
+          <span className="min-w-0 flex-1 truncate text-left">{title}</span>
+          {running ? (
+            <span
+              title={runningIds ? 'Agent is running' : 'Active in the last 2 minutes'}
+              className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-emerald-400"
+            >
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+              {runningIds ? 'running' : 'active'}
+            </span>
+          ) : (
+            <span className="tnum shrink-0 font-mono text-[12px] text-fg-subtle">
+              {relativeTime(session.lastActivity)}
+            </span>
+          )}
+        </button>
+      )}
+      {canRename && !renaming && (
+        <button
+          type="button"
+          onClick={() => setRenaming(true)}
+          title="Rename session"
+          className="shrink-0 rounded p-1 text-fg-subtle opacity-0 transition-opacity hover:bg-elevated-strong hover:text-fg group-hover/session:opacity-100 focus:opacity-100"
+        >
+          <Pencil size={12} />
+        </button>
+      )}
       <button
         type="button"
         onClick={onArchive}
@@ -180,6 +211,7 @@ function ProjectRow({
   onNewSession,
   onToggleStar,
   onArchiveSession,
+  onRenameSession,
 }: {
   project: Project
   active: boolean
@@ -196,6 +228,7 @@ function ProjectRow({
   onNewSession: () => void
   onToggleStar: () => void
   onArchiveSession: (sessionId: string) => void
+  onRenameSession: (sessionId: string, summary: string) => Promise<void>
 }) {
   const sessions = expanded
     ? [...project.sessions]
@@ -276,9 +309,11 @@ function ProjectRow({
               key={session.id}
               session={session}
               active={activeSessionId === session.id}
+              canRename={!dimmed}
               runningIds={runningIds}
               onOpen={() => onOpenSession(session)}
               onArchive={() => onArchiveSession(session.id)}
+              onRename={(summary) => onRenameSession(session.id, summary)}
             />
           ))}
           {sessions.length === 0 && <p className="py-1 pl-3 text-sm text-fg-subtle">no chats yet</p>}
@@ -452,6 +487,7 @@ function HostSection({
   onNewSession,
   onToggleStar,
   onArchiveSession,
+  onRenameSession,
   onRestoreSession,
   onDeleteSessionForever,
   onSignIn,
@@ -466,6 +502,7 @@ function HostSection({
   onNewSession: (hostId: string, projectId: string) => void
   onToggleStar: (hostId: string, projectId: string) => void
   onArchiveSession: (hostId: string, sessionId: string) => void
+  onRenameSession: (hostId: string, sessionId: string, summary: string) => Promise<void>
   onRestoreSession: (hostId: string, sessionId: string) => Promise<void>
   onDeleteSessionForever: (hostId: string, sessionId: string) => Promise<void>
   onSignIn: (hostId: string) => void
@@ -546,6 +583,7 @@ function HostSection({
             onNewSession={() => onNewSession(hostId, project.projectId)}
             onToggleStar={() => onToggleStar(hostId, project.projectId)}
             onArchiveSession={(sessionId) => onArchiveSession(hostId, sessionId)}
+            onRenameSession={(sessionId, summary) => onRenameSession(hostId, sessionId, summary)}
           />
         )
       })}
@@ -592,6 +630,7 @@ export function Sidebar({
   creatingKey,
   onToggleStar,
   onArchiveSession,
+  onRenameSession,
   onRestoreSession,
   onDeleteSessionForever,
   onSignIn,
@@ -711,6 +750,7 @@ export function Sidebar({
             onNewSession={onNewSession}
             onToggleStar={onToggleStar}
             onArchiveSession={onArchiveSession}
+            onRenameSession={onRenameSession}
             onRestoreSession={onRestoreSession}
             onDeleteSessionForever={onDeleteSessionForever}
             onSignIn={onSignIn}
