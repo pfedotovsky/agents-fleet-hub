@@ -102,8 +102,8 @@ interface PendingImage {
 
 // Plan mode is intentionally absent: it's an independent toggle in the
 // composer (Shift+Tab), not a permission mode — see the planMode state.
-// Codex has no interactive approvals; the server remaps the same values onto
-// its sandbox instead (default → workspace-write + ask for untrusted,
+// Codex app-server can surface interactive approvals; the server maps these
+// values onto its effective sandbox/policy (default → workspace-write + ask untrusted,
 // acceptEdits → workspace-write + never ask, bypass → danger-full-access,
 // and the plan toggle → read-only), hence the second label set.
 const PERMISSION_MODES: { value: PermissionMode; label: string; codexLabel: string }[] = [
@@ -114,6 +114,19 @@ const PERMISSION_MODES: { value: PermissionMode; label: string; codexLabel: stri
 
 function formatTokens(count: number): string {
   return count >= 1000 ? `${(count / 1000).toFixed(count >= 10_000 ? 0 : 1)}k` : String(count)
+}
+
+function formatCodexSetting(value: unknown): string {
+  const raw =
+    typeof value === 'string'
+      ? value
+      : value && typeof value === 'object' && typeof (value as { type?: unknown }).type === 'string'
+        ? (value as { type: string }).type
+        : ''
+  return raw
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/-/g, ' ')
+    .toLowerCase()
 }
 
 /**
@@ -506,6 +519,9 @@ export function ChatPane({
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([])
   /** Latest persisted usage on open, superseded by a live per-turn status frame. */
   const [tokenBudget, setTokenBudget] = useState<TokenBudget | null>(null)
+  const [effectiveCodexSettings, setEffectiveCodexSettings] = useState<
+    ChatEvent['effectiveSettings'] | null
+  >(null)
   const receivedLiveTokenBudgetRef = useRef(false)
   /**
    * The first message typed into a draft chat, held until the freshly-created
@@ -600,10 +616,9 @@ export function ChatPane({
   const appendMessage = useCallback(
     (message: NormalizedMessage) => {
       if (message.id && seenIds.current.has(message.id)) {
-        // Codex can re-emit a tool_use under the same id once the item
-        // finishes, now carrying output/exitCode — update the row in place
-        // so it doesn't stay stuck as "running".
-        if (message.kind === 'tool_use') {
+        // Codex re-emits lifecycle items under one id: tools gain final
+        // output/status and readable reasoning summaries grow as deltas land.
+        if (message.kind === 'tool_use' || message.kind === 'thinking') {
           setMessages((prev) =>
             prev.map((existing) => (existing.id === message.id ? { ...existing, ...message } : existing)),
           )
@@ -679,7 +694,50 @@ export function ChatPane({
               !page.messages.some((p) => p.id === m.id) &&
               !persistedErrors.has(errorFingerprint(m)),
           )
-          const next = [...page.messages, ...carriedErrors]
+          // app-server emits fileChange items live, but Codex's JSONL rollout
+          // can omit them (notably for apply_patch). Keep those transient diffs
+          // after the completion refresh unless canonical history has the same
+          // FileChanges payload under its own id.
+          const persistedFileChanges = new Set(
+            page.messages
+              .filter((m) => m.kind === 'tool_use' && m.toolName === 'FileChanges')
+              .map((m) => JSON.stringify(m.toolInput)),
+          )
+          const carriedFileChanges = messagesRef.current.filter(
+            (m) =>
+              m.kind === 'tool_use' &&
+              m.toolName === 'FileChanges' &&
+              !page.messages.some((p) => p.id === m.id) &&
+              !persistedFileChanges.has(JSON.stringify(m.toolInput)),
+          )
+          // turn/plan/updated is a live app-server notification and is not
+          // persisted as a canonical rollout item. Retain the latest checklist
+          // across the completion refresh so progress does not vanish when the
+          // final assistant message arrives.
+          const carriedPlanUpdates = messagesRef.current.filter(
+            (m) =>
+              m.kind === 'tool_use' &&
+              m.toolName === 'TodoWrite' &&
+              m.id?.startsWith('codex_app_server_plan_') &&
+              !page.messages.some((p) => p.id === m.id),
+          )
+          // subAgentActivity is an app-server-only lifecycle item. Canonical
+          // rollouts retain the collaboration calls but not these child-agent
+          // activity markers, so keep them through the completion refresh.
+          const carriedSubAgentActivity = messagesRef.current.filter(
+            (m) =>
+              m.kind === 'tool_use' &&
+              m.toolName === 'Agent' &&
+              m.id?.startsWith('codex_app_server_activity_') &&
+              !page.messages.some((p) => p.id === m.id),
+          )
+          const next = [
+            ...page.messages,
+            ...carriedFileChanges,
+            ...carriedPlanUpdates,
+            ...carriedSubAgentActivity,
+            ...carriedErrors,
+          ]
           seenIds.current = new Set(next.filter((m) => m.id).map((m) => m.id as string))
           setMessages(next)
           setHasMore(page.hasMore)
@@ -821,6 +879,10 @@ export function ChatPane({
           ) {
             receivedLiveTokenBudgetRef.current = true
             setTokenBudget(event.tokenBudget as TokenBudget)
+          } else if (event.text === 'effective_settings' && event.effectiveSettings) {
+            setEffectiveCodexSettings(event.effectiveSettings)
+          } else if (event.text === 'provider_warning' && typeof event.content === 'string') {
+            setBanner(event.content)
           }
           return
         case 'loading_progress':
@@ -854,6 +916,7 @@ export function ChatPane({
       notifiedPermissionIds.current = new Set()
       setMessages([])
       setPermissions([])
+      setEffectiveCodexSettings(null)
       setBanner(null)
       setFatalError(null)
       setProcessing(false)
@@ -1970,6 +2033,15 @@ export function ChatPane({
                 </option>
               ))}
             </select>
+            {isCodex && effectiveCodexSettings && (
+              <span
+                className="max-w-48 truncate text-[10px] text-fg-faint"
+                title="Effective Codex settings returned by app-server"
+              >
+                Effective {formatCodexSetting(effectiveCodexSettings.approvalPolicy) || 'policy'} ·{' '}
+                {formatCodexSetting(effectiveCodexSettings.sandbox) || 'sandbox'}
+              </span>
+            )}
             {modelOptions.length > 0 && (
               <ModelSelect options={modelOptions} value={model} onChange={changeModel} />
             )}

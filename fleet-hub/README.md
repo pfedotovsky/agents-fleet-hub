@@ -82,12 +82,28 @@ own root URL is only a status page; it does not expose an account-setup UI.
   (from `GET /api/providers/:provider/models`; sent as `options.model/effort`
   in `chat.send`). Existing Claude and Codex sessions show their latest
   persisted context-window occupancy in the header as soon as they open; a
-  completed live turn refreshes it. Assistant replies render as Markdown (GFM tables, code
-  blocks with syntax highlighting and a copy button). Tool calls render like
+  completed live turn refreshes it. Assistant replies render as Markdown (GFM
+  tables, code blocks with syntax highlighting and a copy button). Feature-flagged Codex
+  app-server turns also stream provider-authored reasoning summaries into one
+  collapsed `thinking` row; raw reasoning is not exposed. Tool calls render like
   CloudCLI: Edit/Write as red/green diffs with file badges, Bash as a green
-  terminal line with collapsible output, TodoWrite as a checklist with
-  progress, Read/Grep/Glob as one-liners. Mid-run reconnects re-attach via
-  `chat.subscribe` seq replay. The composer autocompletes `@` file tags from
+  terminal line with collapsible output (including same-row command lifecycle
+  updates from feature-flagged Codex app-server hosts), Codex FileChanges as
+  per-file unified diffs that remain visible after completion, Codex WebSearch
+  activity as compact query rows that survive history refresh, and Codex MCP
+  calls as stable tool rows labelled with their MCP server that also survive a
+  reload. Codex collaboration calls render as compact Agent rows for spawning,
+  messaging, waiting, resuming, and closing subagents, including after a
+  history reload. Live child-agent activity adds compact started/interacted/
+  interrupted rows with the child path and remains visible when the completed
+  turn reconciles with history. Codex image views render as compact path-only
+  rows after completion and reload without forwarding image bytes. Codex
+  context compaction renders as a passive one-line marker without exposing
+  provider replacement history. TodoWrite renders as a checklist with progress; feature-flagged Codex
+  app-server plan updates advance one provider-authored checklist in place and
+  keep it visible after the turn completes. Read/Grep/Glob render as one-liners.
+  Mid-run reconnects
+  re-attach via `chat.subscribe` seq replay. The composer autocompletes `@` file tags from
   the project tree and `/` skills + custom commands (message start only) from
   the host's `.claude` directories — Tab/Enter inserts, and the command is
   sent as plain text for the host's Claude Code binary to expand.
@@ -96,7 +112,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
   opens in a docked right-hand drawer with
   approve / approve-and-accept-edits / revise buttons. Codex runs read-only
   while planning; when it finishes, a "plan ready" **Build** card appears in
-  the transcript to leave plan mode and have it implement.
+  the transcript to leave plan mode and have it implement. Hosts using the
+  experimental app-server adapter also show Codex's effective approval policy
+  and sandbox beside the requested mode, including managed-policy overrides.
 - **Chat side panels**: two header toggles dock the file browser or the git
   panel to the right of the conversation (Cursor-style) — resizable by
   dragging the edge, choice and width persisted in localStorage.

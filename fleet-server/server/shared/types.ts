@@ -74,6 +74,8 @@ export type ProviderModelOption = {
   value: string;
   label: string;
   description?: string;
+  inputModalities?: Array<'text' | 'image' | 'audio'>;
+  supportsPersonality?: boolean;
   effort?: {
     default?: string;
     values: {

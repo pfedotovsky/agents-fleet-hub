@@ -175,6 +175,298 @@ test('Codex history reports latest context occupancy instead of cumulative threa
   }
 });
 
+test('Codex history restores app-server web searches as native search rows', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-web-search-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(
+      tempRoot,
+      'codex-search-1',
+      workspacePath,
+      'Search official docs',
+    );
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: 'codex-search-1', cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:01.000Z',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'search-call-1',
+          input: 'const r = await tools.web__run({search_query:[{q:"site:developers.openai.com/codex/ \\"Codex\\""}]}); text(r)',
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:02.000Z',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'search-call-1',
+          output: 'opaque external search result',
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession('codex-search-1', 'codex', workspacePath, undefined, undefined, undefined, jsonlPath);
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-search-1');
+      const search = history.messages.find((message) => message.kind === 'tool_use');
+
+      assert.equal(search?.toolName, 'WebSearch');
+      assert.deepEqual(search?.toolInput, {
+        query: 'site:developers.openai.com/codex/ "Codex"',
+      });
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex history restores app-server MCP wrappers as native tool rows', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-mcp-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(
+      tempRoot,
+      'codex-mcp-1',
+      workspacePath,
+      'Search official docs through MCP',
+    );
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: 'codex-mcp-1', cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:01.000Z',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'mcp-call-1',
+          input: [
+            'const result = await tools.mcp__openaiDeveloperDocs__search_openai_docs({',
+            '  query: "Codex app server (official)",',
+            '  limit: 5',
+            '});',
+            'text(result);',
+          ].join('\n'),
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:02.000Z',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'mcp-call-1',
+          output: 'opaque MCP result metadata',
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession('codex-mcp-1', 'codex', workspacePath, undefined, undefined, undefined, jsonlPath);
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-mcp-1');
+      const tool = history.messages.find((message) => message.kind === 'tool_use');
+
+      assert.equal(tool?.toolName, 'search_openai_docs');
+      assert.equal(tool?.server, 'openaiDeveloperDocs');
+      assert.equal(tool?.toolInput, '{\n  query: "Codex app server (official)",\n  limit: 5\n}');
+      assert.equal(history.messages.some((message) => message.kind === 'tool_result'), false);
+      assert.equal(JSON.stringify(history.messages).includes('opaque MCP result metadata'), false);
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex history restores collaboration function calls as Agent rows', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-collab-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(
+      tempRoot,
+      'codex-collab-1',
+      workspacePath,
+      'Delegate one bounded check',
+    );
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: 'codex-collab-1', cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:01.000Z',
+        payload: {
+          type: 'function_call',
+          name: 'spawn_agent',
+          call_id: 'collab-call-1',
+          arguments: JSON.stringify({
+            task_name: 'confirm',
+            fork_turns: 'all',
+            message: 'opaque-provider-prompt',
+            model: 'gpt-5.6-terra',
+            reasoning_effort: 'low',
+          }),
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:02.000Z',
+        payload: {
+          type: 'function_call_output',
+          call_id: 'collab-call-1',
+          output: JSON.stringify({ task_name: '/root/confirm' }),
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession('codex-collab-1', 'codex', workspacePath, undefined, undefined, undefined, jsonlPath);
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-collab-1');
+      const tool = history.messages.find((message) => message.kind === 'tool_use');
+
+      assert.equal(tool?.toolName, 'Agent');
+      assert.deepEqual(JSON.parse(String(tool?.toolInput)), {
+        action: 'spawnAgent',
+        taskName: 'confirm',
+        forkTurns: 'all',
+        target: null,
+        timeoutMs: null,
+        model: 'gpt-5.6-terra',
+        reasoningEffort: 'low',
+      });
+      assert.ok(!JSON.stringify(tool).includes('opaque-provider-prompt'));
+      assert.equal(tool?.toolResult?.content, JSON.stringify({ task_name: '/root/confirm' }));
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex history restores image views without forwarding opaque output', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-image-view-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(
+      tempRoot,
+      'codex-image-view-1',
+      workspacePath,
+      'Inspect the icon',
+    );
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: 'codex-image-view-1', cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:01.000Z',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'image-call-1',
+          input: 'const r = await tools.view_image({ path: "/workspace/project/icon.png" });\nimage(r.image_url);',
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:02.000Z',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'image-call-1',
+          output: 'opaque image payload',
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession(
+        'codex-image-view-1',
+        'codex',
+        workspacePath,
+        undefined,
+        undefined,
+        undefined,
+        jsonlPath,
+      );
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-image-view-1');
+      const tool = history.messages.find((message) => message.kind === 'tool_use');
+
+      assert.equal(tool?.toolName, 'ViewImage');
+      assert.deepEqual(tool?.toolInput, {
+        path: '/workspace/project/icon.png',
+      });
+      assert.equal(history.messages.some((message) => message.kind === 'tool_result'), false);
+      assert.equal(JSON.stringify(history.messages).includes('opaque image payload'), false);
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex history restores context compaction without exposing replacement history', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-compaction-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(
+      tempRoot,
+      'codex-compaction-1',
+      workspacePath,
+      'Continue the long thread',
+    );
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: 'codex-compaction-1', cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'compacted',
+        timestamp: '2026-07-07T10:00:01.000Z',
+        payload: {
+          message: '',
+          replacement_history: [{ type: 'message', text: 'opaque replacement history' }],
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession(
+        'codex-compaction-1',
+        'codex',
+        workspacePath,
+        undefined,
+        undefined,
+        undefined,
+        jsonlPath,
+      );
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-compaction-1');
+      const tool = history.messages.find((message) => message.kind === 'tool_use');
+
+      assert.equal(tool?.toolName, 'ContextCompaction');
+      assert.deepEqual(tool?.toolInput, {});
+      assert.equal(JSON.stringify(history.messages).includes('opaque replacement history'), false);
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('Codex synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-app-'));
   const workspacePath = path.join(tempRoot, 'workspace');

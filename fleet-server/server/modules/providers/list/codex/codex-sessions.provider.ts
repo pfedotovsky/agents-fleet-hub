@@ -140,6 +140,129 @@ function extractCodexTextContent(content: unknown): string {
     .join('\n');
 }
 
+/**
+ * App-server persists hosted web searches as `exec` custom-tool wrappers
+ * around `tools.web__run`, not as rollout `web_search` items. Recover the
+ * provider query conservatively without evaluating the recorded JavaScript so
+ * history refreshes keep the native WebSearch row shown during the live turn.
+ */
+function extractAppServerWebSearchQuery(toolName: unknown, input: unknown): string | null {
+  if (toolName !== 'exec' || typeof input !== 'string' || !input.includes('tools.web__run')) {
+    return null;
+  }
+
+  const match = input.match(/(?:^|[,{]\s*)["']?q["']?\s*:\s*("(?:\\.|[^"\\])*")/);
+  if (!match) return null;
+  try {
+    const query = JSON.parse(match[1]);
+    return typeof query === 'string' && query.trim() ? query.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+type AppServerMcpWrapper = {
+  server: string;
+  tool: string;
+  argumentsText: string;
+};
+
+/**
+ * App-server persists Code Mode MCP calls as `exec` wrappers around a static
+ * `tools.mcp__<server>__<tool>(...)` reference. Recover only that verified
+ * identifier and its inert argument source; never evaluate recorded code.
+ */
+function extractAppServerMcpWrapper(toolName: unknown, input: unknown): AppServerMcpWrapper | null {
+  if (toolName !== 'exec' || typeof input !== 'string') return null;
+  const match = /tools\.mcp__([A-Za-z0-9_]+)__([A-Za-z0-9_]+)\s*\(/.exec(input);
+  if (!match) return null;
+
+  let depth = 1;
+  let quote: '"' | "'" | '`' | null = null;
+  let escaped = false;
+  for (let index = match.index + match[0].length; index < input.length; index += 1) {
+    const character = input[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '"' || character === "'" || character === '`') {
+      quote = character;
+      continue;
+    }
+    if (character === '(') depth += 1;
+    if (character !== ')') continue;
+    depth -= 1;
+    if (depth === 0) {
+      return {
+        server: match[1],
+        tool: match[2],
+        argumentsText: input.slice(match.index + match[0].length, index).trim(),
+      };
+    }
+  }
+  return null;
+}
+
+const APP_SERVER_COLLABORATION_TOOLS = {
+  spawn_agent: 'spawnAgent',
+  send_input: 'sendInput',
+  resume_agent: 'resumeAgent',
+  wait_agent: 'wait',
+  close_agent: 'closeAgent',
+} as const;
+
+function extractAppServerCollaboration(
+  toolName: unknown,
+  rawArguments: unknown,
+): Record<string, unknown> | null {
+  if (typeof toolName !== 'string' || !(toolName in APP_SERVER_COLLABORATION_TOOLS)) {
+    return null;
+  }
+  const action = APP_SERVER_COLLABORATION_TOOLS[
+    toolName as keyof typeof APP_SERVER_COLLABORATION_TOOLS
+  ];
+  let args: AnyRecord = {};
+  if (typeof rawArguments === 'string') {
+    try {
+      const parsed = JSON.parse(rawArguments);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        args = parsed as AnyRecord;
+      }
+    } catch {
+      // The action remains useful even when persisted arguments are malformed.
+    }
+  }
+
+  return {
+    action,
+    taskName: typeof args.task_name === 'string' ? args.task_name : null,
+    forkTurns: typeof args.fork_turns === 'string' ? args.fork_turns : null,
+    target: typeof args.target === 'string' ? args.target : null,
+    timeoutMs: typeof args.timeout_ms === 'number' ? args.timeout_ms : null,
+    model: typeof args.model === 'string' ? args.model : null,
+    reasoningEffort: typeof args.reasoning_effort === 'string' ? args.reasoning_effort : null,
+  };
+}
+
+function extractAppServerImageViewWrapper(toolName: unknown, input: unknown): string | null {
+  if (toolName !== 'exec' || typeof input !== 'string' || !input.includes('tools.view_image')) {
+    return null;
+  }
+  try {
+    const match = input.match(
+      /tools\.view_image\s*\(\s*\{[\s\S]*?["']?path["']?\s*:\s*("(?:\\.|[^"\\])*")/,
+    );
+    if (!match) return null;
+    const imagePath = JSON.parse(match[1]);
+    return typeof imagePath === 'string' && imagePath.trim() ? imagePath : null;
+  } catch {
+    return null;
+  }
+}
+
 async function getCodexSessionMessages(
   sessionId: string,
   limit: number | null = null,
@@ -155,6 +278,8 @@ async function getCodexSessionMessages(
 
     const messages: AnyRecord[] = [];
     let tokenUsage: AnyRecord | null = null;
+    const appServerMcpCallIds = new Set<string>();
+    const appServerImageViewCallIds = new Set<string>();
     for await (const line of readJsonlLines(sessionFilePath)) {
       if (!line.trim()) {
         continue;
@@ -175,6 +300,16 @@ async function getCodexSessionMessages(
               total: info.model_context_window || 200000,
             };
           }
+        }
+
+        if (entry.type === 'compacted' && typeof entry.timestamp === 'string' && entry.timestamp) {
+          messages.push({
+            type: 'tool_use',
+            timestamp: entry.timestamp,
+            toolName: 'ContextCompaction',
+            toolInput: {},
+            toolCallId: `compaction_${entry.timestamp}`,
+          });
         }
 
         if (entry.type === 'event_msg' && isVisibleCodexUserMessage(entry.payload as AnyRecord)) {
@@ -230,8 +365,12 @@ async function getCodexSessionMessages(
         if (entry.type === 'response_item' && entry.payload?.type === 'function_call') {
           let toolName = entry.payload.name;
           let toolInput = entry.payload.arguments;
+          const collaboration = extractAppServerCollaboration(toolName, toolInput);
 
-          if (toolName === 'shell_command') {
+          if (collaboration) {
+            toolName = 'Agent';
+            toolInput = JSON.stringify(collaboration);
+          } else if (toolName === 'shell_command') {
             toolName = 'Bash';
             try {
               const args = JSON.parse(entry.payload.arguments) as AnyRecord;
@@ -262,8 +401,38 @@ async function getCodexSessionMessages(
         if (entry.type === 'response_item' && entry.payload?.type === 'custom_tool_call') {
           const toolName = entry.payload.name || 'custom_tool';
           const input = entry.payload.input || '';
+          const webSearchQuery = extractAppServerWebSearchQuery(toolName, input);
+          const mcpWrapper = extractAppServerMcpWrapper(toolName, input);
+          const imageViewPath = extractAppServerImageViewWrapper(toolName, input);
 
-          if (toolName === 'apply_patch') {
+          if (webSearchQuery) {
+            messages.push({
+              type: 'tool_use',
+              timestamp: entry.timestamp,
+              toolName: 'WebSearch',
+              toolInput: { query: webSearchQuery },
+              toolCallId: entry.payload.call_id,
+            });
+          } else if (imageViewPath) {
+            appServerImageViewCallIds.add(entry.payload.call_id);
+            messages.push({
+              type: 'tool_use',
+              timestamp: entry.timestamp,
+              toolName: 'ViewImage',
+              toolInput: { path: imageViewPath },
+              toolCallId: entry.payload.call_id,
+            });
+          } else if (mcpWrapper) {
+            appServerMcpCallIds.add(entry.payload.call_id);
+            messages.push({
+              type: 'tool_use',
+              timestamp: entry.timestamp,
+              toolName: mcpWrapper.tool,
+              toolInput: mcpWrapper.argumentsText,
+              toolCallId: entry.payload.call_id,
+              server: mcpWrapper.server,
+            });
+          } else if (toolName === 'apply_patch') {
             const fileMatch = String(input).match(/\*\*\* Update File: (.+)/);
             const filePath = fileMatch ? fileMatch[1].trim() : 'unknown';
             const lines = String(input).split('\n');
@@ -301,6 +470,10 @@ async function getCodexSessionMessages(
         }
 
         if (entry.type === 'response_item' && entry.payload?.type === 'custom_tool_call_output') {
+          if (
+            appServerMcpCallIds.has(entry.payload.call_id)
+            || appServerImageViewCallIds.has(entry.payload.call_id)
+          ) continue;
           messages.push({
             type: 'tool_result',
             timestamp: entry.timestamp,
@@ -427,6 +600,7 @@ export class CodexSessionsProvider implements IProviderSessions {
         toolName: raw.toolName || 'Unknown',
         toolInput: raw.toolInput,
         toolId: raw.toolCallId || baseId,
+        server: raw.server,
       })];
     }
 
