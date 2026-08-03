@@ -53,6 +53,21 @@ export type CodexAppServerCommandExecution = {
   durationMs: number | null;
 };
 
+export type CodexAppServerFileUpdateChange = {
+  path: string;
+  kind:
+    | { type: 'add' }
+    | { type: 'delete' }
+    | { type: 'update'; move_path: string | null };
+  diff: string;
+};
+
+export type CodexAppServerFileChange = {
+  id: string;
+  changes: CodexAppServerFileUpdateChange[];
+  status: 'inProgress' | 'completed' | 'failed' | 'declined';
+};
+
 export type CodexAppServerConversationEvent =
   | {
       type: 'session';
@@ -61,6 +76,7 @@ export type CodexAppServerConversationEvent =
     }
   | { type: 'assistant_delta'; itemId: string; delta: string }
   | { type: 'command_execution'; command: CodexAppServerCommandExecution }
+  | { type: 'file_change'; fileChange: CodexAppServerFileChange }
   | { type: 'token_budget'; tokenBudget: CodexAppServerTokenBudget }
   | { type: 'warning'; message: string }
   | CodexAppServerInteractionEvent
@@ -170,6 +186,51 @@ function readCommandExecution(value: unknown): CodexAppServerCommandExecution | 
     exitCode: readNullableFiniteNumber(item.exitCode),
     durationMs: readNullableFiniteNumber(item.durationMs),
   };
+}
+
+function readFileUpdateChanges(value: unknown): CodexAppServerFileUpdateChange[] | null {
+  if (!Array.isArray(value)) return null;
+
+  const changes: CodexAppServerFileUpdateChange[] = [];
+  for (const rawChange of value) {
+    const change = readObjectRecord(rawChange);
+    const kind = readObjectRecord(change?.kind);
+    const path = readOptionalString(change?.path);
+    const diff = typeof change?.diff === 'string' ? change.diff : null;
+    if (!change || !kind || !path || diff === null) return null;
+
+    if (kind.type === 'add' || kind.type === 'delete') {
+      changes.push({ path, diff, kind: { type: kind.type } });
+      continue;
+    }
+    if (kind.type === 'update') {
+      const movePath = kind.move_path;
+      if (movePath !== null && typeof movePath !== 'string') return null;
+      changes.push({ path, diff, kind: { type: 'update', move_path: movePath } });
+      continue;
+    }
+    return null;
+  }
+  return changes;
+}
+
+function readFileChange(value: unknown): CodexAppServerFileChange | null {
+  const item = readObjectRecord(value);
+  if (item?.type !== 'fileChange') return null;
+  const id = readOptionalString(item.id);
+  const status = readOptionalString(item.status);
+  const changes = readFileUpdateChanges(item.changes);
+  if (
+    !id
+    || !changes
+    || (status !== 'inProgress'
+      && status !== 'completed'
+      && status !== 'failed'
+      && status !== 'declined')
+  ) {
+    return null;
+  }
+  return { id, changes, status };
 }
 
 function readThreadResponse(value: unknown): {
@@ -292,6 +353,7 @@ export async function runCodexAppServerConversation(
   let emittedAssistantText = false;
   const deltaItemIds = new Set<string>();
   const commandExecutions = new Map<string, CodexAppServerCommandExecution>();
+  const fileChanges = new Map<string, CodexAppServerFileChange>();
   const client = createClient({
     onNotification: (notification) => notifications.push(notification),
     onServerRequest: createCodexAppServerRequestHandler({
@@ -394,6 +456,12 @@ export async function runCodexAppServerConversation(
         if (command) {
           commandExecutions.set(command.id, command);
           onEvent({ type: 'command_execution', command });
+          continue;
+        }
+        const fileChange = readFileChange(params.item);
+        if (fileChange) {
+          fileChanges.set(fileChange.id, fileChange);
+          onEvent({ type: 'file_change', fileChange });
         }
         continue;
       }
@@ -410,6 +478,18 @@ export async function runCodexAppServerConversation(
         continue;
       }
 
+      if (notification.method === 'item/fileChange/patchUpdated') {
+        const itemId = readOptionalString(params.itemId);
+        const changes = readFileUpdateChanges(params.changes);
+        const fileChange = itemId ? fileChanges.get(itemId) : undefined;
+        if (fileChange && changes) {
+          const updated = { ...fileChange, changes };
+          fileChanges.set(fileChange.id, updated);
+          onEvent({ type: 'file_change', fileChange: updated });
+        }
+        continue;
+      }
+
       if (notification.method === 'item/completed') {
         const item = readObjectRecord(params.item);
         const command = readCommandExecution(item);
@@ -421,6 +501,12 @@ export async function runCodexAppServerConversation(
           };
           commandExecutions.set(command.id, completed);
           onEvent({ type: 'command_execution', command: completed });
+          continue;
+        }
+        const fileChange = readFileChange(item);
+        if (fileChange) {
+          fileChanges.set(fileChange.id, fileChange);
+          onEvent({ type: 'file_change', fileChange });
           continue;
         }
         const itemId = readOptionalString(item?.id);

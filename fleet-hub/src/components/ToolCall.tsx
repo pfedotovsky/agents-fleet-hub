@@ -342,10 +342,9 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
     return <OneLine category="search" label="Search" value={asString(input.query)} mono={false} />
   }
 
-  // Codex file_change → per-file diffs. `changes` has been seen both as a
-  // path-keyed record ({path: {add:{content}} | {update:{unified_diff}} |
-  // {delete}}) and as an array of {path, kind}; unknown shapes fall through
-  // to the generic raw-JSON renderer.
+  // Codex file_change → per-file diffs. Current app-server and rollout items
+  // use an array of {path, kind:{type,move_path?}, diff}; older history can be
+  // a path-keyed operation record. Unknown shapes fall through to raw JSON.
   if (name === 'FileChanges') {
     const changes: unknown = parseInput(message.toolInput)
     const entries: { path: string; kind: string; body?: React.ReactNode }[] = []
@@ -353,7 +352,25 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
       for (const change of changes) {
         const entry = asObject(change)
         if (typeof entry.path === 'string') {
-          entries.push({ path: entry.path, kind: asString(entry.kind) || 'update' })
+          const kind = asObject(entry.kind)
+          const kindType = kind.type === 'add' || kind.type === 'delete' || kind.type === 'update'
+            ? kind.type
+            : 'update'
+          const movePath = kindType === 'update' ? asString(kind.move_path) : ''
+          const diff = asString(entry.diff)
+          const badge = movePath ? 'Move' : kindType === 'add' ? 'New' : kindType === 'delete' ? 'Delete' : 'Edit'
+          entries.push({
+            path: entry.path,
+            kind: movePath ? `move → ${movePath}` : kindType,
+            body: diff ? (
+              <Diff
+                unified={diff}
+                filePath={entry.path}
+                badge={badge}
+                badgeColor={kindType === 'add' ? 'green' : kindType === 'delete' ? 'amber' : 'gray'}
+              />
+            ) : undefined,
+          })
         }
       }
     } else {
@@ -380,9 +397,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
             path,
             kind: 'update',
             body: diffText ? (
-              <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-line/60 bg-canvas/50 p-2 font-mono text-xs text-fg-muted">
-                {diffText}
-              </pre>
+              <Diff unified={diffText} filePath={path} badge="Edit" badgeColor="gray" />
             ) : undefined,
           })
         } else if ('delete' in opObj) {
@@ -401,10 +416,11 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
           <div className="space-y-2">
             {entries.map((entry) => (
               <div key={entry.path}>
-                <div className="mb-1 font-mono text-xs text-fg-faint">
-                  <span className="text-fg-muted">{entry.kind}</span> · {entry.path}
-                </div>
-                {entry.body}
+                {entry.body ?? (
+                  <div className="font-mono text-xs text-fg-faint">
+                    <span className="text-fg-muted">{entry.kind}</span> · {entry.path}
+                  </div>
+                )}
               </div>
             ))}
           </div>

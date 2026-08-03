@@ -201,6 +201,23 @@ source host entry was removed and the source server stopped after the check;
 the native task was retained because permanent deletion is an explicit user
 decision gate.
 
+Vertical slice 3e adds live file-change parity. The runner normalizes
+`item/started`, replacement `item/fileChange/patchUpdated` payloads, and the
+authoritative completed `fileChange` item into repeated same-id
+`FileChanges` tool frames. The Hub renders the current 0.146
+`{path, kind, diff}` shape as per-file unified diffs with add/delete/edit/move
+labels. Codex rollouts can omit the transient file-change item even while
+app-server streamed it, so the completion reconciliation retains unmatched
+live `FileChanges` payloads while still deduplicating canonical history.
+
+A source-UI verification requested one `apply_patch` edit and approved the
+real Edit card. Before approval the structured transcript showed the exact
+`FILECHANGE_BEFORE` → `FILECHANGE_AFTER` unified diff. After Codex completed
+and the delayed canonical-history refresh ran, the same single diff row
+remained visible and the scratch file contained the new value. The temporary
+host entry and source server were removed after verification; the native task
+was retained because permanent deletion remains a user decision gate.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified

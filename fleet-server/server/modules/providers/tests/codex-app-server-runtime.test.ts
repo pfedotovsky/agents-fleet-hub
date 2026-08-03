@@ -169,6 +169,65 @@ describe('Codex app-server runtime', () => {
     expect(runtime.isActive('thread-1')).toBeFalse();
   });
 
+  test('maps file-change lifecycle onto one normalized tool id', async () => {
+    const messages: NormalizedMessage[] = [];
+    const sessionIds: string[] = [];
+    const changes = [{
+      path: '/workspace/project/notes.txt',
+      kind: { type: 'update' as const, move_path: null },
+      diff: '@@ -1 +1 @@\n-old\n+new',
+    }];
+    const runtime = createCodexAppServerRuntime({
+      resolveSelection: async () => ({ model: 'gpt-5.6-sol', effort: 'high' }),
+      runConversation: async (_input, options) => {
+        options?.onEvent?.({
+          type: 'session',
+          providerSessionId: 'thread-files',
+          effectiveSettings,
+        });
+        options?.onEvent?.({
+          type: 'file_change',
+          fileChange: { id: 'file-change-1', changes, status: 'inProgress' },
+        });
+        options?.onEvent?.({
+          type: 'file_change',
+          fileChange: { id: 'file-change-1', changes, status: 'completed' },
+        });
+        options?.onEvent?.({ type: 'turn_complete', status: 'completed', error: null });
+        return {
+          providerSessionId: 'thread-files',
+          turnId: 'turn-files',
+          status: 'completed',
+          error: null,
+          emittedAssistantText: false,
+          effectiveSettings,
+        };
+      },
+    });
+
+    await runtime.query('Update notes', {
+      projectPath: '/workspace/project',
+      permissionMode: 'default',
+    }, createWriter(messages, sessionIds));
+
+    expect(messages.filter((message) => message.kind === 'tool_use')).toEqual([
+      expect.objectContaining({
+        id: 'codex_app_server_file-change-1',
+        toolName: 'FileChanges',
+        toolId: 'file-change-1',
+        toolInput: changes,
+        status: 'inProgress',
+      }),
+      expect.objectContaining({
+        id: 'codex_app_server_file-change-1',
+        toolName: 'FileChanges',
+        toolId: 'file-change-1',
+        toolInput: changes,
+        status: 'completed',
+      }),
+    ]);
+  });
+
   test('aborts an active turn without emitting a duplicate terminal frame', async () => {
     const messages: NormalizedMessage[] = [];
     const sessionIds: string[] = [];

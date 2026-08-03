@@ -383,6 +383,119 @@ describe('Codex app-server conversation runner', () => {
     ]);
   });
 
+  test('normalizes file-change lifecycle and replaces patch updates', async () => {
+    const events: CodexAppServerConversationEvent[] = [];
+    const initialChanges = [{
+      path: '/workspace/project/notes.txt',
+      kind: { type: 'update' as const, move_path: null },
+      diff: '@@ -1 +1 @@\n-old\n+draft',
+    }];
+    const finalChanges = [{
+      path: '/workspace/project/notes.txt',
+      kind: { type: 'update' as const, move_path: null },
+      diff: '@@ -1 +1 @@\n-old\n+final',
+    }];
+
+    await runCodexAppServerConversation({
+      cwd: '/workspace/project',
+      prompt: 'Update notes',
+    }, {
+      createClient: (options) => ({
+        start: async () => handshake,
+        request: async <Result>(method: string): Promise<Result> => {
+          if (method === 'thread/start') {
+            return {
+              thread: { id: 'thread-files' },
+              cwd: '/workspace/project',
+              model: 'gpt-5.6-sol',
+              approvalPolicy: 'untrusted',
+              sandbox: { type: 'workspaceWrite' },
+              reasoningEffort: null,
+            } as Result;
+          }
+          if (method === 'turn/start') {
+            queueMicrotask(() => {
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-files',
+                  turnId: 'turn-files',
+                  item: {
+                    type: 'fileChange',
+                    id: 'file-change-1',
+                    changes: initialChanges,
+                    status: 'inProgress',
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/fileChange/patchUpdated',
+                params: {
+                  threadId: 'thread-files',
+                  turnId: 'turn-files',
+                  itemId: 'file-change-1',
+                  changes: finalChanges,
+                },
+              });
+              options.onNotification?.({
+                method: 'item/completed',
+                params: {
+                  threadId: 'thread-files',
+                  turnId: 'turn-files',
+                  item: {
+                    type: 'fileChange',
+                    id: 'file-change-1',
+                    changes: finalChanges,
+                    status: 'completed',
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'turn/completed',
+                params: {
+                  threadId: 'thread-files',
+                  turn: { id: 'turn-files', status: 'completed', error: null },
+                },
+              });
+            });
+            return { turn: { id: 'turn-files' } } as Result;
+          }
+          throw new Error(`Unexpected method ${method}`);
+        },
+        stop: () => {},
+      }),
+      onEvent: (event) => events.push(event),
+      turnTimeoutMs: 1_000,
+    });
+
+    expect(events.filter((event) => event.type === 'file_change')).toEqual([
+      {
+        type: 'file_change',
+        fileChange: {
+          id: 'file-change-1',
+          changes: initialChanges,
+          status: 'inProgress',
+        },
+      },
+      {
+        type: 'file_change',
+        fileChange: {
+          id: 'file-change-1',
+          changes: finalChanges,
+          status: 'inProgress',
+        },
+      },
+      {
+        type: 'file_change',
+        fileChange: {
+          id: 'file-change-1',
+          changes: finalChanges,
+          status: 'completed',
+        },
+      },
+    ]);
+  });
+
   test('stops the transport when a thread response is invalid', async () => {
     let stopped = false;
     await expect(runCodexAppServerConversation({

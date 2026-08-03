@@ -27,9 +27,16 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   onto one stable `Bash` tool row: ordered output deltas update it in place and
   the authoritative completed item supplies final status, output, exit code,
   and duration. A second live source-UI run showed approved shell commands and
-  their complete output in the structured transcript. Routing, normalization,
-  command lifecycle, and single-terminal abort behavior are contract-tested.
-  Tracked in private backlog #37.
+  their complete output in the structured transcript. Codex `fileChange`
+  started, patch-updated, and completed items now likewise update one stable
+  `FileChanges` row, with add/delete/edit/move metadata and per-file unified
+  diffs. The Hub preserves a live app-server diff when Codex's canonical JSONL
+  rollout omits that transient item, so it no longer disappears after the
+  completion refresh. A final source-UI run displayed an approved one-line
+  `FILECHANGE_BEFORE` → `FILECHANGE_AFTER` patch and retained the diff after
+  the turn finished. Routing, normalization, command/file lifecycle, and
+  single-terminal abort behavior are contract-tested. Tracked in private
+  backlog #37.
 - **Codex app-server approvals now have a provider-neutral Hub bridge.** Pending
   interactions are scoped by provider and provider-native session, survive a
   browser reconnect through the existing `chat_subscribed.pendingPermissions`

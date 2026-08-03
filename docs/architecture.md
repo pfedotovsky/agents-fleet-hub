@@ -42,7 +42,7 @@ Browser (Agents Hub SPA)
 | `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts (allow / always-allow / deny), model/effort picker (`ModelSelect`, a custom dropdown that lists each model with its description inline), persisted permission mode, persisted unsent draft per session, abort, `chat.subscribe` seq replay on reconnect, composer autocomplete dropdown (`CompletionMenu`), plan-mode toggle (Shift+Tab, persisted per host), header toggles that dock `FileBrowser`/`GitPanel` as a resizable right-hand panel (state in `App.tsx`, persisted in `chatPanel`) and switch the primary session surface to Terminal. Holds `sessionId`/`provider` as state so a **draft** (empty id) can defer session creation to the first send: the composer shows a Claude/Codex toggle, then `createSession` runs and the message is flushed once the new session's socket re-subscribes. A provider-labelled context-window chip loads persisted usage through `GET /api/projects/:projectId/sessions/:sessionId/token-usage` on open; a later live `token_budget` frame supersedes it. The REST request is best-effort so stock/older hosts still load the transcript. |
 | `components/PlanPanel.tsx` | Docked right-hand drawer for a finished plan (ExitPlanMode request): decision buttons in the header, plan markdown below; a chip in the transcript reopens it. |
 | `hooks/useComposerAutocomplete.ts` | `@`-file and `/`-command completion state for the chat composer: trigger detection at the caret, lazy per-target catalogs (file tree / skills+commands), filtering, keyboard navigation. |
-| `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
+| `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, FileChanges = per-file unified diffs, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
 | `components/FileBrowser.tsx`, `FileTree.tsx`, `CodeEditor.tsx` | Project file tree + lazy-loaded CodeMirror editor (One Dark); Cmd+S saves via `PUT /file`. Also renders `embedded` as a chat side panel (close icon, narrower tree). |
 | `components/GitPanel.tsx` | Git status/stage/commit (AI message generation), branch switch/create, fetch/pull/push/publish, per-file diff. Full-screen via the project pane or `embedded` as a chat side panel. |
 | `lib/shellSocket.ts`, `components/TerminalPanel.tsx` | Reconnecting `/shell` PTY client + xterm full session view. Existing sessions resume their provider CLI by id; drafts start a new CLI in the project path. The PTY stays deliberately dark under both app themes. On unmount, queued xterm viewport animation frames drain before renderer disposal; immediate disposal races `Viewport.syncScrollArea()` against a missing renderer. |
@@ -352,7 +352,9 @@ when no delta arrived), maps `thread/tokenUsage/updated.last` together with the
 exact `modelContextWindow`, and tracks `commandExecution` items from their
 started notification through ordered output deltas to the authoritative
 completed item. Command output accumulated before completion is retained when
-the final item omits `aggregatedOutput`. The loop surfaces generic and
+the final item omits `aggregatedOutput`. It also tracks `fileChange` items from
+`item/started` through replacement `item/fileChange/patchUpdated` change lists
+to the authoritative completed item. The loop surfaces generic and
 configuration warnings and terminates only on the matching `turn/completed`.
 It never invents a context window when app-server reports none.
 
@@ -386,9 +388,15 @@ reconnect and abort lookup use the same identity. Each command lifecycle update
 becomes the existing normalized `tool_use` shape with tool name `Bash`, the
 stable app-server item id, command/cwd/action input, inline output, status, and
 final exit/duration metadata. ChatPane's same-id upsert therefore updates one
-tool row rather than appending lifecycle duplicates. An active abort signal
-sends `turn/interrupt`; runtime cleanup suppresses a duplicate terminal frame
-after the gateway has acknowledged the stop.
+tool row rather than appending lifecycle duplicates. File-change lifecycle
+updates use the same rule with tool name `FileChanges` and raw app-server
+`{path, kind, diff}` change arrays; `ToolCall` renders each unified diff with
+add/delete/edit/move metadata. The completion refresh normally swaps live ids
+for canonical JSONL history, but carries forward any live `FileChanges` payload
+that the rollout omitted, deduplicating it when canonical history does contain
+the same id or payload. An active abort signal sends `turn/interrupt`; runtime
+cleanup suppresses a duplicate terminal frame after the gateway has
+acknowledged the stop.
 
 `codex-runtime-router.ts` selects this runtime for every send when
 `CODEX_APP_SERVER_ENABLED=1`; otherwise it calls the unchanged SDK adapter.
@@ -408,6 +416,10 @@ A source-UI run then approved two harmless shell commands. The structured
 transcript rendered their app-server command lifecycle as `Bash` rows with
 complete inline output, while the resulting thread remained visible as a
 native task in the Codex app.
+A later source-UI run approved one `apply_patch` edit. The transcript showed
+the app-server `FileChanges` row as a one-line unified diff before approval and
+retained it after the turn completed even though that transient item was absent
+from the canonical JSONL refresh.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

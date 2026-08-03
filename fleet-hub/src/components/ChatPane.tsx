@@ -688,7 +688,23 @@ export function ChatPane({
               !page.messages.some((p) => p.id === m.id) &&
               !persistedErrors.has(errorFingerprint(m)),
           )
-          const next = [...page.messages, ...carriedErrors]
+          // app-server emits fileChange items live, but Codex's JSONL rollout
+          // can omit them (notably for apply_patch). Keep those transient diffs
+          // after the completion refresh unless canonical history has the same
+          // FileChanges payload under its own id.
+          const persistedFileChanges = new Set(
+            page.messages
+              .filter((m) => m.kind === 'tool_use' && m.toolName === 'FileChanges')
+              .map((m) => JSON.stringify(m.toolInput)),
+          )
+          const carriedFileChanges = messagesRef.current.filter(
+            (m) =>
+              m.kind === 'tool_use' &&
+              m.toolName === 'FileChanges' &&
+              !page.messages.some((p) => p.id === m.id) &&
+              !persistedFileChanges.has(JSON.stringify(m.toolInput)),
+          )
+          const next = [...page.messages, ...carriedFileChanges, ...carriedErrors]
           seenIds.current = new Set(next.filter((m) => m.id).map((m) => m.id as string))
           setMessages(next)
           setHasMore(page.hasMore)

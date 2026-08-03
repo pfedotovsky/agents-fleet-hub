@@ -208,6 +208,18 @@ export function createCodexAppServerRuntime(
             return;
           }
 
+          if (event.type === 'file_change') {
+            send({
+              id: `codex_app_server_${event.fileChange.id}`,
+              kind: 'tool_use',
+              toolName: 'FileChanges',
+              toolId: event.fileChange.id,
+              toolInput: event.fileChange.changes,
+              status: event.fileChange.status,
+            });
+            return;
+          }
+
           if (event.type === 'token_budget') {
             send({ kind: 'status', text: 'token_budget', tokenBudget: event.tokenBudget });
             return;
