@@ -255,6 +255,28 @@ export function createCodexAppServerRuntime(
             return;
           }
 
+          if (event.type === 'collaboration') {
+            send({
+              id: `codex_app_server_collab_${event.collaboration.id}`,
+              kind: 'tool_use',
+              toolName: 'Agent',
+              toolId: event.collaboration.id,
+              server: 'Codex collaboration',
+              toolInput: {
+                action: event.collaboration.tool,
+                prompt: event.collaboration.prompt,
+                senderThreadId: event.collaboration.senderThreadId,
+                receiverThreadIds: event.collaboration.receiverThreadIds,
+                model: event.collaboration.model,
+                reasoningEffort: event.collaboration.reasoningEffort,
+                agents: event.collaboration.agents,
+              },
+              status: event.collaboration.status,
+              ...(event.collaboration.status === 'failed' ? { exitCode: 1 } : {}),
+            });
+            return;
+          }
+
           if (event.type === 'command_execution') {
             send({
               id: `codex_app_server_${event.command.id}`,

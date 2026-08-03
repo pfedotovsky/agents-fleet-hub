@@ -483,6 +483,136 @@ describe('Codex app-server conversation runner', () => {
     ]);
   });
 
+  test('normalizes collaboration lifecycle and retains start metadata', async () => {
+    const events: CodexAppServerConversationEvent[] = [];
+
+    await runCodexAppServerConversation({
+      cwd: '/workspace/project',
+      prompt: 'Delegate one bounded check',
+    }, {
+      createClient: (options) => ({
+        start: async () => handshake,
+        request: async <Result>(method: string): Promise<Result> => {
+          if (method === 'thread/start') {
+            return {
+              thread: { id: 'thread-collab' },
+              cwd: '/workspace/project',
+              model: 'gpt-5.6-sol',
+              approvalPolicy: 'untrusted',
+              sandbox: { type: 'workspaceWrite' },
+              reasoningEffort: null,
+            } as Result;
+          }
+          if (method === 'turn/start') {
+            queueMicrotask(() => {
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-collab',
+                  turnId: 'turn-collab',
+                  item: {
+                    type: 'collabAgentToolCall',
+                    id: 'collab-1',
+                    tool: 'spawnAgent',
+                    status: 'inProgress',
+                    senderThreadId: 'thread-collab',
+                    receiverThreadIds: [],
+                    prompt: 'Return exactly SUBAGENT_OK.',
+                    model: 'gpt-5.6-terra',
+                    reasoningEffort: 'low',
+                    agentsStates: {},
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/started',
+                params: {
+                  threadId: 'thread-collab',
+                  turnId: 'turn-collab',
+                  item: {
+                    type: 'collabAgentToolCall',
+                    id: 'invalid-collab',
+                    tool: 'spawnAgent',
+                    status: 'unknown',
+                    senderThreadId: 'thread-collab',
+                    receiverThreadIds: [],
+                    agentsStates: {},
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'item/completed',
+                params: {
+                  threadId: 'thread-collab',
+                  turnId: 'turn-collab',
+                  item: {
+                    type: 'collabAgentToolCall',
+                    id: 'collab-1',
+                    tool: 'spawnAgent',
+                    status: 'completed',
+                    senderThreadId: 'thread-collab',
+                    receiverThreadIds: ['agent-thread-1'],
+                    prompt: null,
+                    model: null,
+                    reasoningEffort: null,
+                    agentsStates: {
+                      'agent-thread-1': { status: 'completed', message: 'SUBAGENT_OK' },
+                    },
+                  },
+                },
+              });
+              options.onNotification?.({
+                method: 'turn/completed',
+                params: {
+                  threadId: 'thread-collab',
+                  turn: { id: 'turn-collab', status: 'completed', error: null },
+                },
+              });
+            });
+            return { turn: { id: 'turn-collab' } } as Result;
+          }
+          throw new Error(`Unexpected method ${method}`);
+        },
+        stop: () => {},
+      }),
+      onEvent: (event) => events.push(event),
+      turnTimeoutMs: 1_000,
+    });
+
+    expect(events.filter((event) => event.type === 'collaboration')).toEqual([
+      {
+        type: 'collaboration',
+        collaboration: {
+          id: 'collab-1',
+          tool: 'spawnAgent',
+          status: 'inProgress',
+          senderThreadId: 'thread-collab',
+          receiverThreadIds: [],
+          prompt: 'Return exactly SUBAGENT_OK.',
+          model: 'gpt-5.6-terra',
+          reasoningEffort: 'low',
+          agents: [],
+        },
+      },
+      {
+        type: 'collaboration',
+        collaboration: {
+          id: 'collab-1',
+          tool: 'spawnAgent',
+          status: 'completed',
+          senderThreadId: 'thread-collab',
+          receiverThreadIds: ['agent-thread-1'],
+          prompt: 'Return exactly SUBAGENT_OK.',
+          model: 'gpt-5.6-terra',
+          reasoningEffort: 'low',
+          agents: [
+            { threadId: 'agent-thread-1', status: 'completed', message: 'SUBAGENT_OK' },
+          ],
+        },
+      },
+    ]);
+  });
+
   test('normalizes web-search lifecycle without forwarding opaque results', async () => {
     const events: CodexAppServerConversationEvent[] = [];
 

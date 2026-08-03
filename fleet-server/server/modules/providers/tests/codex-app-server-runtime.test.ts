@@ -296,6 +296,95 @@ describe('Codex app-server runtime', () => {
     ]);
   });
 
+  test('maps collaboration lifecycle onto one normalized Agent id', async () => {
+    const messages: NormalizedMessage[] = [];
+    const sessionIds: string[] = [];
+    const runtime = createCodexAppServerRuntime({
+      resolveSelection: async () => ({ model: 'gpt-5.6-sol', effort: 'high' }),
+      runConversation: async (_input, options) => {
+        options?.onEvent?.({
+          type: 'session',
+          providerSessionId: 'thread-collab',
+          effectiveSettings,
+        });
+        options?.onEvent?.({
+          type: 'collaboration',
+          collaboration: {
+            id: 'collab-1',
+            tool: 'spawnAgent',
+            status: 'inProgress',
+            senderThreadId: 'thread-collab',
+            receiverThreadIds: [],
+            prompt: 'Return exactly SUBAGENT_OK.',
+            model: 'gpt-5.6-terra',
+            reasoningEffort: 'low',
+            agents: [],
+          },
+        });
+        options?.onEvent?.({
+          type: 'collaboration',
+          collaboration: {
+            id: 'collab-1',
+            tool: 'spawnAgent',
+            status: 'completed',
+            senderThreadId: 'thread-collab',
+            receiverThreadIds: ['agent-thread-1'],
+            prompt: 'Return exactly SUBAGENT_OK.',
+            model: 'gpt-5.6-terra',
+            reasoningEffort: 'low',
+            agents: [
+              { threadId: 'agent-thread-1', status: 'completed', message: 'SUBAGENT_OK' },
+            ],
+          },
+        });
+        options?.onEvent?.({ type: 'turn_complete', status: 'completed', error: null });
+        return {
+          providerSessionId: 'thread-collab',
+          turnId: 'turn-collab',
+          status: 'completed',
+          error: null,
+          emittedAssistantText: false,
+          effectiveSettings,
+        };
+      },
+    });
+
+    await runtime.query('Delegate one bounded check', {
+      projectPath: '/workspace/project',
+      permissionMode: 'default',
+    }, createWriter(messages, sessionIds));
+
+    expect(messages.filter((message) => message.kind === 'tool_use')).toEqual([
+      expect.objectContaining({
+        id: 'codex_app_server_collab_collab-1',
+        toolName: 'Agent',
+        toolId: 'collab-1',
+        server: 'Codex collaboration',
+        toolInput: {
+          action: 'spawnAgent',
+          prompt: 'Return exactly SUBAGENT_OK.',
+          senderThreadId: 'thread-collab',
+          receiverThreadIds: [],
+          model: 'gpt-5.6-terra',
+          reasoningEffort: 'low',
+          agents: [],
+        },
+        status: 'inProgress',
+      }),
+      expect.objectContaining({
+        id: 'codex_app_server_collab_collab-1',
+        toolName: 'Agent',
+        toolInput: expect.objectContaining({
+          receiverThreadIds: ['agent-thread-1'],
+          agents: [
+            { threadId: 'agent-thread-1', status: 'completed', message: 'SUBAGENT_OK' },
+          ],
+        }),
+        status: 'completed',
+      }),
+    ]);
+  });
+
   test('maps web-search lifecycle onto one normalized tool id', async () => {
     const messages: NormalizedMessage[] = [];
     const sessionIds: string[] = [];

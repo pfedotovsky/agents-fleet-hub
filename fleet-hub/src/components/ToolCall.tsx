@@ -32,6 +32,7 @@ const CATEGORY: Record<string, Category> = {
   TodoWrite: 'todo',
   TodoRead: 'todo',
   Task: 'agent',
+  Agent: 'agent',
   ExitPlanMode: 'plan',
   exit_plan_mode: 'plan',
   // Codex synthesized tool names (server-normalized item types).
@@ -338,6 +339,63 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
   // Codex web search → one-line query.
   if (name === 'WebSearch') {
     return <OneLine category="search" label="Search" value={asString(input.query)} mono={false} />
+  }
+
+  if (name === 'Agent') {
+    const action = asString(input.action)
+    const title = {
+      spawnAgent: 'Spawn agent',
+      sendInput: 'Send input',
+      resumeAgent: 'Resume agent',
+      wait: 'Wait for agents',
+      closeAgent: 'Close agent',
+    }[action] ?? 'Agent'
+    const prompt = asString(input.prompt)
+    const taskName = asString(input.taskName)
+    const agents = Array.isArray(input.agents) ? input.agents : []
+    const receiverThreadIds = Array.isArray(input.receiverThreadIds)
+      ? input.receiverThreadIds.filter((value): value is string => typeof value === 'string')
+      : []
+    const statusByThread = new Map(
+      agents.flatMap((value): Array<[string, { status: string; message: string }]> => {
+        const agent = asObject(value)
+        const threadId = asString(agent.threadId)
+        if (!threadId) return []
+        return [[threadId, { status: asString(agent.status), message: asString(agent.message) }]]
+      }),
+    )
+    const threadIds = [...new Set([...receiverThreadIds, ...statusByThread.keys()])]
+    const model = asString(input.model)
+    const effort = asString(input.reasoningEffort)
+    return (
+      <Collapsible
+        category="agent"
+        title={title}
+        subtitle={[taskName, model, effort].filter(Boolean).join(' · ') || message.server || undefined}
+        defaultOpen={message.status === 'inProgress'}
+        copyText={prompt || undefined}
+      >
+        {prompt && <p className="text-xs leading-relaxed text-fg-muted">{prompt}</p>}
+        {threadIds.length > 0 && (
+          <div className="divide-y divide-line/70">
+            {threadIds.map((threadId) => {
+              const agent = statusByThread.get(threadId)
+              return (
+                <div key={threadId} className="flex min-w-0 items-start justify-between gap-3 py-1.5 text-xs">
+                  <span className="truncate font-mono text-fg-muted" title={threadId}>
+                    {threadId}
+                  </span>
+                  <span className="shrink-0 text-right text-fg-faint">
+                    {agent?.message || agent?.status || 'pending'}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {result && <ResultBlock content={result.content} isError={result.isError} />}
+      </Collapsible>
+    )
   }
 
   // Codex file_change → per-file diffs. Current app-server and rollout items

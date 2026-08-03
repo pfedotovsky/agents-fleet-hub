@@ -368,7 +368,9 @@ enter the browser protocol. The loop surfaces generic and
 configuration warnings and terminates only on the matching `turn/completed`.
 Matching `turn/plan/updated` notifications preserve their optional explanation
 and validated non-empty steps, filtering malformed statuses before they reach
-the runtime.
+the runtime. `collabAgentToolCall` items validate the 0.146 collaboration
+action/status enums and preserve sender/receiver ids, prompt, requested
+model/effort, and safe target-agent states from start through completion.
 Each turn requests `summary: 'auto'`, accumulates indexed readable reasoning
 summary deltas across section boundaries, and replaces them with the completed
 summary. Raw reasoning content and `item/reasoning/textDelta` are intentionally
@@ -431,6 +433,15 @@ provider explanation visible. Because canonical rollouts do not persist
 `turn/plan/updated`, ChatPane's completion reconciliation carries unmatched
 app-server plan rows forward for the lifetime of the mounted transcript. A
 later full reload cannot reconstruct a plan that the provider never persisted.
+Collaboration updates use one stable `Agent` tool row per app-server item. The
+live row shows the provider action, prompt, model/effort, receiver ids, and
+target status/message. Canonical rollouts persist the same operations as
+ordinary `function_call` items named `spawn_agent`, `send_input`,
+`resume_agent`, `wait_agent`, or `close_agent`; the history reader maps only
+those exact names back to `Agent` rows so completion refreshes and reloads do
+not expose raw tool names. It keeps safe scalar arguments and tool output while
+dropping the opaque encrypted `message` argument, which is not displayable
+prompt text.
 An active abort signal sends `turn/interrupt`;
 runtime cleanup suppresses a duplicate terminal frame after the gateway has
 acknowledged the stop.
@@ -474,6 +485,14 @@ A plan-mode source-UI turn then emitted repeated `turn/plan/updated`
 notifications for native task `77320d1f-3237-4537-9f93-5ea86f377058`. The Hub
 showed one checklist at `0/3` while the turn was active, updated that same row
 to `3/3`, and retained it after `PLAN_OK` and the delayed completion refresh.
+A single-subagent source-UI turn then created parent task
+`2e9ce4a8-92f1-4571-b989-f52044bd55d2` and child task
+`019fc79a-350b-72c2-9a0e-f546d88e78fc`. The active transcript showed the
+provider `Wait for agents` lifecycle. After rebuilding the source server and
+loading the parent session afresh, canonical history rendered exactly `Spawn
+agent · confirm` and `Wait for agents` rows beside `COLLAB_OK`; the raw
+`spawn_agent`/`wait_agent` names, encrypted prompt payload, and transient
+duplicate were absent.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

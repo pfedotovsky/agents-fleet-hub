@@ -206,6 +206,47 @@ function extractAppServerMcpWrapper(toolName: unknown, input: unknown): AppServe
   return null;
 }
 
+const APP_SERVER_COLLABORATION_TOOLS = {
+  spawn_agent: 'spawnAgent',
+  send_input: 'sendInput',
+  resume_agent: 'resumeAgent',
+  wait_agent: 'wait',
+  close_agent: 'closeAgent',
+} as const;
+
+function extractAppServerCollaboration(
+  toolName: unknown,
+  rawArguments: unknown,
+): Record<string, unknown> | null {
+  if (typeof toolName !== 'string' || !(toolName in APP_SERVER_COLLABORATION_TOOLS)) {
+    return null;
+  }
+  const action = APP_SERVER_COLLABORATION_TOOLS[
+    toolName as keyof typeof APP_SERVER_COLLABORATION_TOOLS
+  ];
+  let args: AnyRecord = {};
+  if (typeof rawArguments === 'string') {
+    try {
+      const parsed = JSON.parse(rawArguments);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        args = parsed as AnyRecord;
+      }
+    } catch {
+      // The action remains useful even when persisted arguments are malformed.
+    }
+  }
+
+  return {
+    action,
+    taskName: typeof args.task_name === 'string' ? args.task_name : null,
+    forkTurns: typeof args.fork_turns === 'string' ? args.fork_turns : null,
+    target: typeof args.target === 'string' ? args.target : null,
+    timeoutMs: typeof args.timeout_ms === 'number' ? args.timeout_ms : null,
+    model: typeof args.model === 'string' ? args.model : null,
+    reasoningEffort: typeof args.reasoning_effort === 'string' ? args.reasoning_effort : null,
+  };
+}
+
 async function getCodexSessionMessages(
   sessionId: string,
   limit: number | null = null,
@@ -297,8 +338,12 @@ async function getCodexSessionMessages(
         if (entry.type === 'response_item' && entry.payload?.type === 'function_call') {
           let toolName = entry.payload.name;
           let toolInput = entry.payload.arguments;
+          const collaboration = extractAppServerCollaboration(toolName, toolInput);
 
-          if (toolName === 'shell_command') {
+          if (collaboration) {
+            toolName = 'Agent';
+            toolInput = JSON.stringify(collaboration);
+          } else if (toolName === 'shell_command') {
             toolName = 'Bash';
             try {
               const args = JSON.parse(entry.payload.arguments) as AnyRecord;

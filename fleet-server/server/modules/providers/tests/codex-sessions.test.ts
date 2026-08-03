@@ -288,6 +288,73 @@ test('Codex history restores app-server MCP wrappers as native tool rows', { con
   }
 });
 
+test('Codex history restores collaboration function calls as Agent rows', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-collab-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(
+      tempRoot,
+      'codex-collab-1',
+      workspacePath,
+      'Delegate one bounded check',
+    );
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: 'codex-collab-1', cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:01.000Z',
+        payload: {
+          type: 'function_call',
+          name: 'spawn_agent',
+          call_id: 'collab-call-1',
+          arguments: JSON.stringify({
+            task_name: 'confirm',
+            fork_turns: 'all',
+            message: 'opaque-provider-prompt',
+            model: 'gpt-5.6-terra',
+            reasoning_effort: 'low',
+          }),
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:02.000Z',
+        payload: {
+          type: 'function_call_output',
+          call_id: 'collab-call-1',
+          output: JSON.stringify({ task_name: '/root/confirm' }),
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession('codex-collab-1', 'codex', workspacePath, undefined, undefined, undefined, jsonlPath);
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-collab-1');
+      const tool = history.messages.find((message) => message.kind === 'tool_use');
+
+      assert.equal(tool?.toolName, 'Agent');
+      assert.deepEqual(JSON.parse(String(tool?.toolInput)), {
+        action: 'spawnAgent',
+        taskName: 'confirm',
+        forkTurns: 'all',
+        target: null,
+        timeoutMs: null,
+        model: 'gpt-5.6-terra',
+        reasoningEffort: 'low',
+      });
+      assert.ok(!JSON.stringify(tool).includes('opaque-provider-prompt'));
+      assert.equal(tool?.toolResult?.content, JSON.stringify({ task_name: '/root/confirm' }));
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('Codex synchronizer titles app-created sessions from the first user message', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-app-'));
   const workspacePath = path.join(tempRoot, 'workspace');

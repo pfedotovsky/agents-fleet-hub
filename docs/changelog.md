@@ -56,8 +56,16 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   `TodoWrite` checklist with the provider's explanation, step text, and status;
   the Hub carries that transient checklist across the completion refresh when
   the canonical rollout omits it. A live plan-mode turn advanced one checklist
-  from `0/3` to `3/3` and retained it beside the final answer. Routing,
-  normalization, command/file/reasoning/search/MCP/plan lifecycle, and
+  from `0/3` to `3/3` and retained it beside the final answer. Codex
+  `collabAgentToolCall` lifecycles now update compact `Agent` rows for spawn,
+  send, resume, wait, and close operations, preserving provider target state
+  while live. Canonical rollout `spawn_agent`/`wait_agent` function calls are
+  restored as the same native row vocabulary after completion and reload;
+  opaque encrypted prompt arguments are deliberately excluded. A live
+  single-subagent turn showed `Wait for agents` while active, then exactly
+  `Spawn agent` and `Wait for agents` after a clean reload, with no raw or
+  duplicate collaboration cards. Routing, normalization,
+  command/file/reasoning/search/MCP/plan/collaboration lifecycle, and
   single-terminal abort behavior are contract-tested. Tracked in private
   backlog #37.
 - **Codex app-server approvals now have a provider-neutral Hub bridge.** Pending

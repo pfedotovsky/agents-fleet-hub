@@ -290,6 +290,28 @@ and retained it beside `PLAN_OK` after the delayed canonical-history refresh.
 The temporary source host and server data were removed; the native test task
 remains because permanent deletion is gated.
 
+Vertical slice 3j adds native collaboration lifecycle parity. App-server
+`collabAgentToolCall` start/completion items validate the five 0.146 actions
+(`spawnAgent`, `sendInput`, `resumeAgent`, `wait`, and `closeAgent`) and update
+one stable `Agent` row with the provider prompt, sender/receiver ids, requested
+model/effort, target status/message, and final success/failure. Canonical
+rollouts store these operations as ordinary `function_call` rows named
+`spawn_agent`, `send_input`, `resume_agent`, `wait_agent`, or `close_agent`.
+The history reader maps only those exact names back to the same Agent UI,
+retains safe scalar arguments and results, and omits the opaque encrypted
+`message` argument rather than exposing unusable ciphertext.
+
+A live source-UI turn created parent task
+`2e9ce4a8-92f1-4571-b989-f52044bd55d2` and child task
+`019fc79a-350b-72c2-9a0e-f546d88e78fc`. While active, the Hub showed the
+provider `Wait for agents` row. The first completion refresh exposed raw
+`spawn_agent` and `wait_agent` rows alongside the transient lifecycle; after
+adding canonical mapping, rebuilding, and loading the session afresh, the Hub
+showed exactly `Spawn agent · confirm` and `Wait for agents` beside
+`COLLAB_OK`, with no raw names, encrypted prompt, or duplicate. The temporary
+source host and server data were removed; both native tasks remain because
+permanent deletion is gated.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified

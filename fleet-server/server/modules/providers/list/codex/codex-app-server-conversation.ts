@@ -100,6 +100,29 @@ export type CodexAppServerPlanUpdate = {
   }>;
 };
 
+export type CodexAppServerCollaboration = {
+  id: string;
+  tool: 'spawnAgent' | 'sendInput' | 'resumeAgent' | 'wait' | 'closeAgent';
+  status: 'inProgress' | 'completed' | 'failed';
+  senderThreadId: string;
+  receiverThreadIds: string[];
+  prompt: string | null;
+  model: string | null;
+  reasoningEffort: string | null;
+  agents: Array<{
+    threadId: string;
+    status:
+      | 'pendingInit'
+      | 'running'
+      | 'interrupted'
+      | 'completed'
+      | 'errored'
+      | 'shutdown'
+      | 'notFound';
+    message: string | null;
+  }>;
+};
+
 export type CodexAppServerConversationEvent =
   | {
       type: 'session';
@@ -111,6 +134,7 @@ export type CodexAppServerConversationEvent =
   | { type: 'web_search'; webSearch: CodexAppServerWebSearch }
   | { type: 'mcp_tool_call'; mcpToolCall: CodexAppServerMcpToolCall }
   | { type: 'plan_update'; planUpdate: CodexAppServerPlanUpdate }
+  | { type: 'collaboration'; collaboration: CodexAppServerCollaboration }
   | { type: 'command_execution'; command: CodexAppServerCommandExecution }
   | { type: 'file_change'; fileChange: CodexAppServerFileChange }
   | { type: 'token_budget'; tokenBudget: CodexAppServerTokenBudget }
@@ -283,6 +307,65 @@ function readPlanUpdate(value: Record<string, unknown>): CodexAppServerPlanUpdat
     turnId,
     explanation: readOptionalString(value.explanation) ?? null,
     steps,
+  };
+}
+
+function readCollaboration(value: unknown): CodexAppServerCollaboration | null {
+  const item = readObjectRecord(value);
+  if (item?.type !== 'collabAgentToolCall') return null;
+  const id = readOptionalString(item.id);
+  const tool = readOptionalString(item.tool);
+  const status = readOptionalString(item.status);
+  const senderThreadId = readOptionalString(item.senderThreadId);
+  const receiverThreadIds = readStringArray(item.receiverThreadIds);
+  if (
+    !id
+    || !senderThreadId
+    || !receiverThreadIds
+    || (tool !== 'spawnAgent'
+      && tool !== 'sendInput'
+      && tool !== 'resumeAgent'
+      && tool !== 'wait'
+      && tool !== 'closeAgent')
+    || (status !== 'inProgress' && status !== 'completed' && status !== 'failed')
+  ) {
+    return null;
+  }
+
+  const agentsStates = readObjectRecord(item.agentsStates) ?? {};
+  const agents = Object.entries(agentsStates).flatMap(
+    ([threadId, value]): CodexAppServerCollaboration['agents'] => {
+      const state = readObjectRecord(value);
+      const agentStatus = readOptionalString(state?.status);
+      if (
+        agentStatus !== 'pendingInit'
+        && agentStatus !== 'running'
+        && agentStatus !== 'interrupted'
+        && agentStatus !== 'completed'
+        && agentStatus !== 'errored'
+        && agentStatus !== 'shutdown'
+        && agentStatus !== 'notFound'
+      ) {
+        return [];
+      }
+      return [{
+        threadId,
+        status: agentStatus,
+        message: readOptionalString(state?.message) ?? null,
+      }];
+    },
+  );
+
+  return {
+    id,
+    tool,
+    status,
+    senderThreadId,
+    receiverThreadIds,
+    prompt: readOptionalString(item.prompt) ?? null,
+    model: readOptionalString(item.model) ?? null,
+    reasoningEffort: readOptionalString(item.reasoningEffort) ?? null,
+    agents,
   };
 }
 
@@ -485,6 +568,7 @@ export async function runCodexAppServerConversation(
   const commandExecutions = new Map<string, CodexAppServerCommandExecution>();
   const fileChanges = new Map<string, CodexAppServerFileChange>();
   const mcpToolCalls = new Map<string, CodexAppServerMcpToolCall>();
+  const collaborations = new Map<string, CodexAppServerCollaboration>();
   const client = createClient({
     onNotification: (notification) => notifications.push(notification),
     onServerRequest: createCodexAppServerRequestHandler({
@@ -640,6 +724,12 @@ export async function runCodexAppServerConversation(
           onEvent({ type: 'mcp_tool_call', mcpToolCall });
           continue;
         }
+        const collaboration = readCollaboration(params.item);
+        if (collaboration) {
+          collaborations.set(collaboration.id, collaboration);
+          onEvent({ type: 'collaboration', collaboration });
+          continue;
+        }
         const command = readCommandExecution(params.item);
         if (command) {
           commandExecutions.set(command.id, command);
@@ -718,6 +808,23 @@ export async function runCodexAppServerConversation(
           };
           mcpToolCalls.set(completed.id, completed);
           onEvent({ type: 'mcp_tool_call', mcpToolCall: completed });
+          continue;
+        }
+        const collaboration = readCollaboration(item);
+        if (collaboration) {
+          const prior = collaborations.get(collaboration.id);
+          const completed = {
+            ...collaboration,
+            receiverThreadIds: collaboration.receiverThreadIds.length > 0
+              ? collaboration.receiverThreadIds
+              : prior?.receiverThreadIds ?? [],
+            prompt: collaboration.prompt ?? prior?.prompt ?? null,
+            model: collaboration.model ?? prior?.model ?? null,
+            reasoningEffort: collaboration.reasoningEffort ?? prior?.reasoningEffort ?? null,
+            agents: collaboration.agents.length > 0 ? collaboration.agents : prior?.agents ?? [],
+          };
+          collaborations.set(completed.id, completed);
+          onEvent({ type: 'collaboration', collaboration: completed });
           continue;
         }
         const command = readCommandExecution(item);
