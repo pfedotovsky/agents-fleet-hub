@@ -26,9 +26,9 @@ Browser (Agents Hub SPA)
 
 | Module | Role |
 | --- | --- |
-| `App.tsx` | View router: a `View` union (`feed` / `project` / `files` / `chat`) in component state. Only the open `chat` view syncs to the URL — mirrored into `location.hash` and hydrated back from an incoming hash once the host loads (see `lib/deepLink.ts`); all other navigation stays in-memory. |
+| `App.tsx` | View router: a `View` union (`feed` / `project` / `files` / `chat`) in component state. Only the open `chat` view syncs to the URL — mirrored into `location.hash` and hydrated back from an incoming hash once the host loads (see `lib/deepLink.ts`); all other navigation stays in-memory. The feed's global New session action opens a stable-key, initially unbound chat draft and supplies `ChatPane` with project targets derived from online `useFleet` runtimes. Selecting one replaces the draft's host/project fields without remounting it. |
 | `lib/deepLink.ts` | Shareable session links. Serializes an open chat to `#/s/<hostId>/<projectId>/<sessionId>` and back, and builds an absolute URL against `document.baseURI` so it resolves under `/fleet-hub/`, `/` (dev), and Tauri. Hash-only (no server routing); carries host+project because a session id is unique only per host and is resolved from the loaded projects list. |
-| `hooks/useFleet.ts` | The heart of the app: host configs + prefs from storage, 12 s polling loop per host, host status machine, merged cross-host session feed, star toggle, login. |
+| `hooks/useFleet.ts` | The heart of the app: host configs + prefs from storage, 12 s polling loop per host, host status machine, merged cross-host session feed, star toggle, session rename, login. Successful renames patch every loaded project/session copy without waiting for the next poll. |
 | `lib/api.ts` | All REST calls. `fetchJson` adds timeout (AbortController), Bearer header, captures `X-Refreshed-Token`, maps 401/403 → `AuthError`, network failure → `HostUnreachableError`. |
 | `lib/chatSocket.ts` | `ChatSocket` class — one reconnecting WS per chat (fixed 3 s retry until `close()`), typed senders: `chat.send` / `chat.subscribe` / `chat.abort` / `chat.permission-response` (with optional `rememberEntry`). |
 | `lib/storage.ts` | localStorage wrapper, keys `fleethub.v1.{hosts,tokens,prefs,recentProjects,models,permissions,permissionModes,planMode,sidebarWidth,drafts,chatPanel,autoAdded}`. "Always allow" grants are keyed `hostId:projectPath`, permission mode per hostId, unsent chat drafts `hostId:sessionId`; `prefs.defaultSessionView` persists `structured`/`terminal`. A legacy docked `chatPanel.kind === 'terminal'` is normalized to closed. |
@@ -36,13 +36,13 @@ Browser (Agents Hub SPA)
 | `lib/motion.ts` | Shared `motion` (Framer Motion) variants/transitions (message reveal, card enter/exit, overlay backdrop/modal/panel, list-row layout spring). Enters ~200-240ms ease-out, exits shorter ease-in. Reduced-motion is global via `<MotionConfig reducedMotion="user">` in `main.tsx`. Consumed by `Messages`, `ChatPane` (permission/plan cards in `AnimatePresence`), `SessionRow`/`SessionList` (`layout` reflow), and the overlays (`SettingsPanel`/`SearchOverlay`/`LoginModal`, wrapped in `AnimatePresence` in `App.tsx`). |
 | `lib/theme.ts` + `hooks/useTheme.ts` | Theme system. `index.css` holds a two-layer Tailwind v4 token set: one neutral-grayscale primitive ramp (`--color-ink-*`) and semantic tokens (`--color-canvas/surface/elevated/line/fg/accent/on-accent/…`) — components use **only** the semantic classes (`bg-surface`, `text-fg-muted`, `border-line`, …); no raw `ink-*` classes remain. It's a Codex-style **monochrome** system: there is no brand-color accent — the `accent` role is a high-contrast neutral (near-white primary on dark, near-black on light) that inverts for free because it points at the ramp ends. Color is limited to the functional status tokens and the host/provider identity marks (`lib/format.ts`, `Messages.tsx`). One type family (`--font-display` aliases `--font-sans`). `[data-theme="light"]` on `<html>` defines light by remapping the primitive ramp (plus color-scheme + status colors). Choice (`system`/`dark`/`light`) is persisted at `fleethub.v1.theme` and resolved before paint by an inline FOUC-guard script in `index.html`. `useResolvedTheme()` exposes the concrete dark/light value via a `data-theme` MutationObserver for the two spots that can't use a token — the Prism highlighter in `Markdown.tsx` (`oneLight`/`oneDark`) and the CodeMirror editor in `CodeEditor.tsx`. |
 | `types.ts` | Shared types: `HostConfig/HostRuntime/HostStatus`, `Project`, `SessionSummary`, `FleetSession`, `ChatEvent`, `PermissionMode`, model catalog. |
-| `components/Sidebar.tsx` | Hosts → projects → chats tree: starred first, then recency; long tails behind "N more"; per-project disclosure lists recent sessions inline (embedded poll data, capped at 6; "all N chats…" opens the project pane), each chat prefixed with its provider icon (Claude/Codex/…) from `PROVIDER_META`; the active chat's project auto-expands; status dots. Hover "+" per project row opens a **draft** chat directly (handler in `App.tsx`) — the session is created on first send with the provider chosen in the composer toggle (seeded from the last-picked provider). |
-| `components/SessionList.tsx` + `SessionRow.tsx` | "All sessions" merged feed rows. |
+| `components/Sidebar.tsx` | Hosts → projects → chats tree: starred first, then recency; long tails behind "N more"; per-project disclosure lists recent sessions inline (embedded poll data, capped at 6; "all N chats…" opens the project pane), each chat prefixed with its provider icon (Claude/Codex/…) from `PROVIDER_META`; the active chat's project auto-expands; status dots. Online session links expose the shared inline rename form. Hover "+" per project row opens a **draft** chat directly (handler in `App.tsx`) — the session is created on first send with the provider chosen in the composer toggle (seeded from the last-picked provider). |
+| `components/SessionList.tsx` + `SessionRow.tsx` + `SessionRenameForm.tsx` | "All sessions" merged feed rows and the shared inline rename interaction. Save awaits the host mutation; errors keep the editor open, Escape cancels, and stale/offline rows omit the action. `ProjectPane` reuses the row and additionally patches sessions loaded outside the fleet poll's initial page. |
 | `components/ProjectPane.tsx` | One project: paged session list, "New session" (opens a draft chat — provider is chosen in the composer, not here), Files button. |
-| `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts (allow / always-allow / deny), model/effort picker (`ModelSelect`, a custom dropdown that lists each model with its description inline), persisted permission mode, persisted unsent draft per session, abort, `chat.subscribe` seq replay on reconnect, composer autocomplete dropdown (`CompletionMenu`), plan-mode toggle (Shift+Tab, persisted per host), header toggles that dock `FileBrowser`/`GitPanel` as a resizable right-hand panel (state in `App.tsx`, persisted in `chatPanel`) and switch the primary session surface to Terminal. Holds `sessionId`/`provider` as state so a **draft** (empty id) can defer session creation to the first send: the composer shows a Claude/Codex toggle, then `createSession` runs and the message is flushed once the new session's socket re-subscribes. A provider-labelled context-window chip loads persisted usage through `GET /api/projects/:projectId/sessions/:sessionId/token-usage` on open; a later live `token_budget` frame supersedes it. The REST request is best-effort so stock/older hosts still load the transcript. |
+| `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts (allow / always-allow / deny), model/effort picker (`ModelSelect`, a custom dropdown that lists each model with its description inline), persisted permission mode, persisted unsent draft per session, abort, `chat.subscribe` seq replay on reconnect, composer autocomplete dropdown (`CompletionMenu`), plan-mode toggle (Shift+Tab, persisted per host), header toggles that dock `FileBrowser`/`GitPanel` as a resizable right-hand panel (state in `App.tsx`, persisted in `chatPanel`) and switch the primary session surface to Terminal. Holds `sessionId`/`provider` as state so a **draft** (empty id) can defer session creation to the first send: the composer shows a Claude/Codex toggle, then `createSession` runs and the message is flushed once the new session's socket re-subscribes. A top-level draft may also start without host/project fields: it opens no socket and disables message controls until its composer folder selector binds one of the online project targets supplied by `App.tsx`; the normal first-send path then takes over. A provider-labelled context-window chip loads persisted usage through `GET /api/projects/:projectId/sessions/:sessionId/token-usage` on open; a later live `token_budget` frame supersedes it. The REST request is best-effort so stock/older hosts still load the transcript. |
 | `components/PlanPanel.tsx` | Docked right-hand drawer for a finished plan (ExitPlanMode request): decision buttons in the header, plan markdown below; a chip in the transcript reopens it. |
 | `hooks/useComposerAutocomplete.ts` | `@`-file and `/`-command completion state for the chat composer: trigger detection at the caret, lazy per-target catalogs (file tree / skills+commands), filtering, keyboard navigation. |
-| `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
+| `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, FileChanges = per-file unified diffs, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
 | `components/FileBrowser.tsx`, `FileTree.tsx`, `CodeEditor.tsx` | Project file tree + lazy-loaded CodeMirror editor (One Dark); Cmd+S saves via `PUT /file`. Also renders `embedded` as a chat side panel (close icon, narrower tree). |
 | `components/GitPanel.tsx` + `GitHistory.tsx` | Changes/History Git workspace. Changes covers status/stage/commit (AI message generation), branch switch/create, fetch/pull/push/publish, and per-file diff. History lazily loads commits across branches/remotes/tags with bounded expansion and opens a selected commit's patch in the shared `Diff` viewer. Full-screen via the project pane or `embedded` as a chat side panel. |
 | `lib/shellSocket.ts`, `components/TerminalPanel.tsx` | Reconnecting `/shell` PTY client + xterm full session view. Existing sessions resume their provider CLI by id; drafts start a new CLI in the project path. The PTY stays deliberately dark under both app themes. On unmount, queued xterm viewport animation frames drain before renderer disposal; immediate disposal races `Viewport.syncScrollArea()` against a missing renderer. |
@@ -145,25 +145,38 @@ Browser (Agents Hub SPA)
   restart at 0 per run, so the mark resets on complete/send/mount/idle acks.
 - New session: `POST /api/providers/sessions {provider, projectPath}` creates
   an empty app session; the first `chat.send` actually starts the agent.
-- **Codex sessions** run server-side via `@openai/codex-sdk` threads and
-  resolve a host CLI because the compiled server does not ship the SDK's
-  npm-vendored binary. `CODEX_CLI_PATH` is the explicit override; otherwise
+- Rename: `PUT /api/providers/sessions/:sessionId {summary}` stores a trimmed
+  custom title and returns `{sessionId, summary}`. The source server rejects
+  empty titles and values over 500 characters. The hub waits for success, then
+  patches polled sessions, project-pagination extras, and the active chat target
+  in memory; a later poll or reload reads the same persisted title.
+- **Codex sessions** run server-side through a feature-flagged runtime router.
+  The default/flag-off path uses `@openai/codex-sdk`; with
+  `CODEX_APP_SERVER_ENABLED=1`, the same gateway contract uses the local Codex
+  0.146.x app-server adapter. Both resolve a host CLI because the compiled
+  server does not ship the SDK's npm-vendored binary. `CODEX_CLI_PATH` is the
+  explicit override; otherwise
   fleet-server compares PATH with bundled macOS ChatGPT/Codex application CLIs
   and selects the newest numeric version. This prevents an older PATH CLI from
   parsing a newer shared `~/.codex/models_cache.json` written by the desktop
-  app. Codex differs from claude in ways the hub accounts for: no interactive
-  approvals
-  (`permission_request` never fires; `permissionMode` is remapped to a
+  app. The SDK path has no interactive approvals; app-server maps its command,
+  file-change, managed-network, and supported question requests onto the
+  provider-neutral permission protocol. `permissionMode` is remapped to a
   sandbox — default→workspace-write+ask-untrusted, acceptEdits→never-ask,
   bypass→danger-full-access, and the plan toggle→`read-only` with a
-  planning preamble prepended to the prompt). The mode select is relabeled.
+  planning preamble prepended to the prompt on the SDK path). The mode select
+  is relabeled, and app-server turns display their effective returned policy
+  and sandbox next to it so managed overrides are explicit.
+  App-server `turn/plan/updated` notifications render as one live `TodoWrite`
+  checklist whose rows update in place from pending through completion.
   Plan mode is supported, but since Codex emits no `ExitPlanMode` request to
   drive `PlanPanel`, a completed plan-mode run shows a lightweight "plan
   ready" Build card in the transcript instead (Build leaves plan mode and
   sends a go-ahead so the same thread resumes writable). `toolsSettings`
   is ignored (not sent), live `tool_use` frames carry results inline
-  (`output`/`exitCode`, no `tool_result` frame; repeated ids are upserted in
-  place by `appendMessage`), history serializes `toolInput` as a JSON string
+  (`output`/`exitCode`, no `tool_result` frame; repeated tool and reasoning ids
+  are upserted in place by `appendMessage`), history serializes `toolInput` as
+  a JSON string
   and `toolResult.content` sometimes as `{type,text}[]` parts, history shell
   tools are named `exec_command`/`exec`/`write_stdin`, skills are
   `$`-prefixed. Existing chats populate the header usage chip from the REST
@@ -329,6 +342,216 @@ therefore means a feature-flagged app-server adapter for new turns/threads, with
 the current SDK adapter retained as rollback until local and SSH-host live
 verification passes. Detailed evidence and the staged recommendation are in
 `docs/codex-app-server-spike-2026-08-02.md`.
+
+**Adapter status (2026-08-03).** The first implementation slice lives under
+`fleet-server/server/modules/providers/list/codex/`: `codex-app-server-client.ts`
+supervises one local `codex app-server --listen stdio://` child and implements
+the JSONL lifecycle, while `app-server-protocol/` contains only the generated
+0.146 types currently consumed by the adapter. Initialization identifies the
+client as `agents_hub` / `Agents Hub`, opts into no experimental capabilities,
+correlates responses by id, bounds pending requests, and rejects in-flight work
+on timeout, transport failure, stop, or process exit. Provider stderr is drained
+but never logged because it may contain user or authentication data.
+
+`codex-app-server-config.ts` is the disabled-by-default construction boundary
+for `CODEX_APP_SERVER_ENABLED`. `CodexProviderModels` now uses it when the
+existing provider-model endpoint refreshes its Codex catalog: with the flag on,
+it pages through picker-visible `model/list` rows and maps the provider's order,
+explicit default, display metadata, reasoning efforts, personality capability,
+and input modalities onto the CloudCLI-compatible model response. Codex and
+Claude process-backed catalogs use a one-hour backend cache. A failed spawn,
+incompatible protocol, invalid response, or empty catalog falls back to the
+existing `~/.codex/models_cache.json` reader; the flag-off path is unchanged.
+
+The client accepts Codex CLI 0.146.x only,
+matching its generated protocol baseline, and fails before spawn for other
+minor versions. This deliberately fail-closed gate must be updated along with
+regenerated consumed types after compatibility verification. App-server remains
+strictly behind the authenticated fleet-server REST/WebSocket boundary.
+
+`codex-app-server-conversation.ts` is the next internal boundary. It sequences
+`thread/start` or `thread/resume` followed by `turn/start`, accepts an arbitrary
+host-local `cwd`, and returns the provider-native thread id plus the effective
+model, approval policy, sandbox, reasoning effort, and working directory from
+the app-server response. Its notification loop filters by thread and turn,
+streams `item/agentMessage/delta` (falling back to a completed agent message
+when no delta arrived), maps `thread/tokenUsage/updated.last` together with the
+exact `modelContextWindow`, and tracks `commandExecution` items from their
+started notification through ordered output deltas to the authoritative
+completed item. Command output accumulated before completion is retained when
+the final item omits `aggregatedOutput`. It also tracks `fileChange` items from
+`item/started` through replacement `item/fileChange/patchUpdated` change lists
+to the authoritative completed item. `webSearch` start/completion items likewise
+become lifecycle events carrying the provider query and action; opaque result
+payloads are not forwarded to the browser. `mcpToolCall` items are keyed by
+their provider item id from start through progress and completion. They preserve
+the server, tool name, arguments, textual progress/result, error message, and
+duration; only string or `{text}` result-content blocks cross the boundary, so
+structured content, `_meta`, app context, plugin ids, and binary blocks never
+enter the browser protocol. The loop surfaces generic and
+configuration warnings and terminates only on the matching `turn/completed`.
+Matching `turn/plan/updated` notifications preserve their optional explanation
+and validated non-empty steps, filtering malformed statuses before they reach
+the runtime. `collabAgentToolCall` items validate the 0.146 collaboration
+action/status enums and preserve sender/receiver ids, prompt, requested
+model/effort, and safe target-agent states from start through completion.
+Each turn requests `summary: 'auto'`, accumulates indexed readable reasoning
+summary deltas across section boundaries, and replaces them with the completed
+summary. Raw reasoning content and `item/reasoning/textDelta` are intentionally
+ignored. The loop never invents a context window when app-server reports none.
+
+`shared/pending-permissions.ts` now owns pending interaction state for every
+provider. Entries are scoped by provider plus provider-native session id, so
+`chat.subscribe` can reconstruct the authoritative pending cards after a
+reconnect without cross-provider id collisions; `chat.permission-response`
+resolves the same shared registry. Claude uses this service with its existing
+timeouts, cancellation frames, and UI message shapes, replacing its former
+private resolver map without changing behavior.
+
+`codex-app-server-interactions.ts` maps the 0.146 server requests that fit the
+existing Hub interaction contract: command execution to `Bash` (or
+`NetworkAccess` when managed-network context is present), file changes to
+`Edit`, and non-secret option-based `item/tool/requestUserInput` prompts that
+allow a free-form answer to the existing `AskUserQuestion` card. Allow,
+always-allow, and deny become
+`accept`/`acceptForSession`/`decline`; cancellation becomes `cancel`; question
+answers are translated from the UI's question-text keys back to app-server's
+question ids. Requests for another active thread/turn, secret questions,
+free-form-only questions, option prompts that disallow free-form answers,
+permission grants, MCP elicitation, dynamic tools, and every other unsupported
+method fail closed. Pending entries are also aborted when the conversation
+runner stops.
+
+`codex-app-server-runtime.ts` is the production protocol adapter. It accumulates
+assistant deltas per item and emits final text through the existing normalized
+writer, forwards exact token budgets, effective settings, warnings, approvals,
+errors, and exactly one terminal frame, and registers the provider-native id so
+reconnect and abort lookup use the same identity. Each command lifecycle update
+becomes the existing normalized `tool_use` shape with tool name `Bash`, the
+stable app-server item id, command/cwd/action input, inline output, status, and
+final exit/duration metadata. ChatPane's same-id upsert therefore updates one
+tool row rather than appending lifecycle duplicates. File-change lifecycle
+updates use the same rule with tool name `FileChanges` and raw app-server
+`{path, kind, diff}` change arrays; `ToolCall` renders each unified diff with
+add/delete/edit/move metadata. The completion refresh normally swaps live ids
+for canonical JSONL history, but carries forward any live `FileChanges` payload
+that the rollout omitted, deduplicating it when canonical history does contain
+the same id or payload. Reasoning summary lifecycle updates use the normalized
+`thinking` kind and the stable app-server item id, so ChatPane grows one
+collapsed row rather than appending delta duplicates. Web searches use the same
+stable-id rule with the existing `WebSearch` tool renderer. App-server rollouts
+persist those hosted searches as `exec` custom-tool wrappers around
+`tools.web__run`; the Codex history reader recognizes that conservative shape
+without evaluating recorded JavaScript and restores the native search query on
+completion/reload. MCP lifecycle updates likewise become same-id generic tool
+rows whose subtitle is the MCP server. Canonical rollouts persist MCP calls as
+`exec` wrappers around static `tools.mcp__SERVER__TOOL(...)` calls followed by
+opaque `custom_tool_call_output`; the history reader uses a balanced inert-text
+scanner (never `eval`) to recover only the identifier and argument source from
+that verified static shape, drops the matching opaque output, and leaves every
+other `exec` wrapper as Bash. Plan updates use a deterministic per-turn id and
+the existing `TodoWrite` renderer; the runtime translates app-server
+`inProgress` to the Hub's `in_progress` status and completes the row only when
+every step is complete. A later update with no explanation keeps the last
+provider explanation visible. Because canonical rollouts do not persist
+`turn/plan/updated`, ChatPane's completion reconciliation carries unmatched
+app-server plan rows forward for the lifetime of the mounted transcript. A
+later full reload cannot reconstruct a plan that the provider never persisted.
+Collaboration updates use one stable `Agent` tool row per app-server item. The
+live row shows the provider action, prompt, model/effort, receiver ids, and
+target status/message. Canonical rollouts persist the same operations as
+ordinary `function_call` items named `spawn_agent`, `send_input`,
+`resume_agent`, `wait_agent`, or `close_agent`; the history reader maps only
+those exact names back to `Agent` rows so completion refreshes and reloads do
+not expose raw tool names. It keeps safe scalar arguments and tool output while
+dropping the opaque encrypted `message` argument, which is not displayable
+prompt text.
+Image-view start/completion items use the same stable-id rule and become a
+compact `ViewImage` row containing only the provider path. App-server rollouts
+persist the same operation as an `exec` custom-tool wrapper around
+`tools.view_image(...)`, followed by a `custom_tool_call_output` that can contain
+the full base64 image. The history reader recognizes only that static wrapper,
+extracts its quoted path without evaluation, and suppresses the matching output,
+so completion refreshes and reloads keep the native row without sending image
+bytes to the browser.
+Context-compaction start/completion items likewise update one stable
+`ContextCompaction` row. The Hub presents this as a passive “Context compacted”
+marker rather than a control: it does not request compaction or mutate the
+thread. Canonical Codex rollouts persist compaction as a top-level `compacted`
+entry whose `replacement_history` is provider-owned context state. The history
+reader inspects only the entry type and timestamp, reconstructs the same marker,
+and never forwards or parses that payload into the browser transcript.
+An active abort signal sends `turn/interrupt`;
+runtime cleanup suppresses a duplicate terminal frame after the gateway has
+acknowledged the stop.
+
+`codex-runtime-router.ts` selects this runtime for every send when
+`CODEX_APP_SERVER_ENABLED=1`; otherwise it calls the unchanged SDK adapter.
+Abort checks app-server first and then the SDK. There is deliberately no
+same-send fallback after an app-server failure because the provider may already
+have started the turn, and replaying the prompt through the SDK could duplicate
+work. Turning the flag off is the rollback for later sends. App-server stays
+strictly behind fleet-server rather than being exposed to the browser.
+
+An ephemeral read-only live turn confirmed the runner captures the effective
+managed fallback (`never` requested, `untrusted` returned), its warning,
+assistant deltas, and exact token budget.
+A second ephemeral probe attempted one temp-file command: app-server emitted a
+real `item/commandExecution/requestApproval`, the bridge returned `decline`,
+the turn completed as denied, and the target file was not created.
+A source-UI run then approved two harmless shell commands. The structured
+transcript rendered their app-server command lifecycle as `Bash` rows with
+complete inline output, while the resulting thread remained visible as a
+native task in the Codex app.
+A later source-UI run approved one `apply_patch` edit. The transcript showed
+the app-server `FileChanges` row as a one-line unified diff before approval and
+retained it after the turn completed even though that transient item was absent
+from the canonical JSONL refresh.
+A high-effort source-UI turn then emitted one readable reasoning summary. The
+Hub rendered it as one collapsed `thinking` row, updated by stable id, while raw
+reasoning remained absent from the normalized protocol and transcript.
+A cached-search source-UI turn emitted two native `webSearch` lifecycles. The
+Hub showed both as compact `Search` rows during execution and, after a full page
+reload, restored the same queries from canonical rollout history instead of
+exposing the internal `tools.web__run` wrapper as Bash.
+An MCP-only source-UI turn then used `openaiDeveloperDocs`. Search and fetch
+calls appeared as stable native rows labelled with that server during execution.
+After rebuilding fleet-server and navigating away before a clean reload, the
+same calls were reconstructed from canonical rollout wrappers; no
+`tools.mcp__...` call was exposed as Bash. Structured and binary MCP result
+payloads stayed outside the normalized transcript.
+A plan-mode source-UI turn then emitted repeated `turn/plan/updated`
+notifications for native task `77320d1f-3237-4537-9f93-5ea86f377058`. The Hub
+showed one checklist at `0/3` while the turn was active, updated that same row
+to `3/3`, and retained it after `PLAN_OK` and the delayed completion refresh.
+A single-subagent source-UI turn then created parent task
+`2e9ce4a8-92f1-4571-b989-f52044bd55d2` and child task
+`019fc79a-350b-72c2-9a0e-f546d88e78fc`. The active transcript showed the
+provider `Wait for agents` lifecycle. After rebuilding the source server and
+loading the parent session afresh, canonical history rendered exactly `Spawn
+agent · confirm` and `Wait for agents` rows beside `COLLAB_OK`; the raw
+`spawn_agent`/`wait_agent` names, encrypted prompt payload, and transient
+duplicate were absent.
+A later one-subagent turn confirmed that 0.146 `subAgentActivity` items emit a
+separate child-agent activity lifecycle. The runner validates the exact
+`started`/`interacted`/`interrupted` kind plus child thread id and agent path,
+then maps start/completion onto one stable `Agent` row. Canonical rollouts keep
+the collaboration function calls but not these activity markers, so ChatPane
+retains live activity across completion reconciliation for the mounted
+transcript; a later full reload cannot reconstruct an item the provider did not
+persist. Parent task `019fc7b5-f68c-7140-8352-b3dbf3fee439` displayed `Agent
+started · /root/activitycheck` with child task
+`019fc7b6-1785-7370-b07e-ef1783103d5a` beside `ACTIVITY_OK`.
+A source-UI image-view turn then created native task
+`019fc7cf-d975-7f10-a81a-f36bc4f4c804`. After a clean server rebuild and page
+reload, its transcript showed one compact `View image` row for
+`fleet-hub/src-tauri/icons/64x64.png` beside `IMAGE_VIEW_OK`; the internal
+`tools.view_image` wrapper and base64 tool output were absent.
+A source-UI history check against an isolated synthetic rollout then rendered
+one compact `Context compacted · Earlier messages were summarized` row beside
+`COMPACTION_HISTORY_OK`. A sentinel stored only inside `replacement_history`
+was absent from the DOM. The synthetic session, host entry, and source-server
+data were removed after verification.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

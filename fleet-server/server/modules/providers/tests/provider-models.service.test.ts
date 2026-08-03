@@ -111,67 +111,66 @@ test('provider models are cached for the three-day ttl', async () => {
       }),
     });
 
-    const first = await service.getProviderModels('codex');
-    const cached = await service.getProviderModels('codex');
+    const first = await service.getProviderModels('cursor');
+    const cached = await service.getProviderModels('cursor');
     assert.equal(loadCount, 1);
     assert.equal(cached.models.DEFAULT, first.models.DEFAULT);
     assert.equal(cached.cache.source, 'memory');
 
     currentTime += PROVIDER_MODELS_CACHE_TTL_MS - 1;
-    await service.getProviderModels('codex');
+    await service.getProviderModels('cursor');
     assert.equal(loadCount, 1);
 
     currentTime += 2;
-    const refreshed = await service.getProviderModels('codex');
+    const refreshed = await service.getProviderModels('cursor');
     assert.equal(loadCount, 2);
-    assert.equal(refreshed.models.DEFAULT, 'codex-2');
+    assert.equal(refreshed.models.DEFAULT, 'cursor-2');
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
 
-test('claude provider models are cached with a one-hour ttl', async () => {
+test('claude and codex provider models are cached with a one-hour ttl', async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'provider-model-cache-claude-ttl-'));
-  let currentTime = 1_000;
-  let loadCount = 0;
-  const CLAUDE_TTL_MS = 60 * 60 * 1000;
+  const PROVIDER_PROCESS_TTL_MS = 60 * 60 * 1000;
 
   try {
-    const service = createProviderModelsService({
-      cachePath: path.join(tempRoot, 'models-cache.json'),
-      now: () => currentTime,
-      resolveProvider: (provider) => ({
-        models: {
-          getSupportedModels: async () => {
-            loadCount += 1;
-            return createModels(`${provider}-${loadCount}`);
+    for (const selectedProvider of ['claude', 'codex'] as const) {
+      let currentTime = 1_000;
+      let loadCount = 0;
+      const service = createProviderModelsService({
+        cachePath: path.join(tempRoot, `${selectedProvider}-models-cache.json`),
+        now: () => currentTime,
+        resolveProvider: (provider) => ({
+          models: {
+            getSupportedModels: async () => {
+              loadCount += 1;
+              return createModels(`${provider}-${loadCount}`);
+            },
+            getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`),
+            changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
           },
-          getCurrentActiveModel: async () => createCurrentActiveModel(`${provider}-active`),
-          changeActiveModel: async (input) => createSessionActiveModelChange(provider, input),
-        },
-      }),
-    });
+        }),
+      });
 
-    const first = await service.getProviderModels('claude');
-    const cached = await service.getProviderModels('claude');
-    assert.equal(loadCount, 1);
-    assert.equal(first.models.DEFAULT, 'claude-1');
-    assert.equal(cached.models.DEFAULT, 'claude-1');
-    assert.equal(cached.cache.source, 'memory');
+      const first = await service.getProviderModels(selectedProvider);
+      const cached = await service.getProviderModels(selectedProvider);
+      assert.equal(loadCount, 1);
+      assert.equal(first.models.DEFAULT, `${selectedProvider}-1`);
+      assert.equal(cached.models.DEFAULT, `${selectedProvider}-1`);
+      assert.equal(cached.cache.source, 'memory');
 
-    // Still cached just before the one-hour boundary.
-    currentTime += CLAUDE_TTL_MS - 1;
-    await service.getProviderModels('claude');
-    assert.equal(loadCount, 1);
+      currentTime += PROVIDER_PROCESS_TTL_MS - 1;
+      await service.getProviderModels(selectedProvider);
+      assert.equal(loadCount, 1);
 
-    // Re-probed once the one-hour TTL lapses.
-    currentTime += 2;
-    const refreshed = await service.getProviderModels('claude');
-    assert.equal(loadCount, 2);
-    assert.equal(refreshed.models.DEFAULT, 'claude-2');
+      currentTime += 2;
+      const refreshed = await service.getProviderModels(selectedProvider);
+      assert.equal(loadCount, 2);
+      assert.equal(refreshed.models.DEFAULT, `${selectedProvider}-2`);
+    }
 
-    // Codex keeps the default three-day TTL, so it is unaffected by the override.
-    assert.equal(CLAUDE_TTL_MS < PROVIDER_MODELS_CACHE_TTL_MS, true);
+    assert.equal(PROVIDER_PROCESS_TTL_MS < PROVIDER_MODELS_CACHE_TTL_MS, true);
   } finally {
     await rm(tempRoot, { recursive: true, force: true });
   }

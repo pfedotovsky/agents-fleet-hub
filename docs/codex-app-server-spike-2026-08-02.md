@@ -98,12 +98,278 @@ verified:
 Do not expose app-server directly to the browser or a public network. The
 fleet-server REST/WebSocket gateway remains the authenticated remote boundary.
 
+## Implementation status — 2026-08-03
+
+Vertical slice 1 is implemented on private backlog #37. The fleet-server
+foundation now includes:
+
+- a supervised local stdio child lifecycle with initialize/initialized,
+  correlated requests, bounded pending work, request timeouts, and restart;
+- an honest `agents_hub` / `Agents Hub` identity with no experimental protocol
+  opt-in;
+- a minimal checked-in protocol subset generated from Codex CLI 0.146.0 and an
+  exact 0.146.x compatibility gate;
+- notification and server-request dispatch points, with unsupported server
+  requests answered explicitly;
+- a disabled-by-default construction boundary; flag-off keeps the SDK as the
+  production default.
+
+Vertical slice 2a now routes feature-flagged Codex model discovery through
+paginated `model/list`. The mapper preserves provider order, explicit default,
+display metadata, reasoning efforts, personality support, and input modalities;
+hidden rows remain excluded and missing modality metadata uses the documented
+text+image compatibility default. A failed app-server lookup returns to the
+existing Codex cache, and the flag-off path is unchanged.
+
+The focused lifecycle and model suites pass 11 tests, the full fleet-server
+suite passes 135 tests, and typechecking passes. A sanitized live probe against
+the installed Codex CLI 0.146.0 returned seven picker-visible models,
+`gpt-5.6-sol` as the explicit default, the current effort catalogs, and model
+modalities without creating a thread. Token-usage notifications and effective
+settings/warnings are the remaining vertical-slice-2 work.
+
+Vertical slice 3a adds a reusable conversation runner for `thread/start` or
+`thread/resume` plus `turn/start`. It normalizes provider session identity,
+effective returned settings, assistant deltas (with a completed-item fallback),
+exact last-turn/context-window usage, warnings, and terminal status while
+filtering unrelated thread/turn notifications. Unsupported server-initiated
+requests still fail closed, so production chat intentionally remains on the SDK
+until approval and request-user-input forwarding is implemented.
+
+A live ephemeral read-only turn completed with the expected assistant text and
+reported `17,833 / 258,400` tokens. Managed requirements rejected the requested
+`never` approval policy, returned effective `untrusted`, and emitted the warning
+the runner surfaced. This simultaneously verifies effective-setting truth and
+the reason production routing must wait for the approval bridge. The full
+fleet-server suite now passes 139 tests; typechecking passes.
+
+The next interaction slice moves Claude's private pending-approval map into a
+provider-neutral, provider/session-scoped registry used by the chat gateway.
+Codex app-server command, managed-network, and file-change approvals now reach
+the existing permission-card contract and translate allow/always-allow/deny/
+cancel back to the 0.146 decision schema. Non-secret questions with visible
+options and a permitted free-form answer reuse the existing `AskUserQuestion`
+card and translate its question-text answers back to app-server question ids.
+Reconnect lookup, resolution, timeout, abort cleanup, scope rejection, and
+fail-closed secret or unsupported prompts are covered by contract tests. The
+full fleet-server suite passes 144 tests and typechecking passes.
+
+A live ephemeral 0.146 turn then attempted a single temp-file command under the
+managed read-only fallback. App-server emitted a real
+`item/commandExecution/requestApproval`; the probe resolved the Hub request as
+deny; Codex reported the denial and completed the turn; a filesystem check
+confirmed that the target file was never created. This verifies the actual
+wire request and response mapping, not only the generated schema and fixtures.
+
+Vertical slice 3c connects the runner to the production gateway through a
+per-send runtime router. With `CODEX_APP_SERVER_ENABLED=1`, the adapter maps
+provider session identity, effective settings, warnings, exact token usage,
+permission events, accumulated assistant text, errors, and terminal state onto
+the existing normalized chat protocol. Stop requests propagate as
+`turn/interrupt`, and the runtime suppresses a second completion after the
+gateway acknowledges the abort. Flag-off remains the unchanged SDK path; an
+app-server error is not automatically retried through the SDK because a turn
+may already have started. The Hub shows the effective returned policy and
+sandbox as a quiet inline label beside its requested permission mode. The
+Hub's placeholder `default` model is resolved before `thread/start`; a live
+draft initially exposed that app-server otherwise rejects the literal value
+for ChatGPT accounts.
+
+Routing, normalization, and abort behavior are contract-tested. A same-machine
+source-UI run created provider thread
+`019fc6ea-a4f7-7e10-8ef7-85d58ad51dd1`; the Codex app cross-source task list
+returned that same id, title, cwd, and local backing. The Hub displayed the
+effective `untrusted` / `workspace write` settings, a real Bash approval, and
+exact `19k / 258k` context occupancy. Denying the request reached Codex, which
+reported that execution was declined, and the target temp file remained
+absent. SSH-host validation is still required before app-server can become the
+default.
+
+Vertical slice 3d adds live command-execution parity. The conversation runner
+tracks `item/started`, ordered `item/commandExecution/outputDelta` notifications,
+and the authoritative `item/completed` payload for each command item. The
+runtime emits those states as repeated same-id `Bash` tool-use frames, which the
+existing Hub transcript upserts into one row with command/cwd/action input,
+inline output, status, exit code, and duration. Contract tests cover ordered
+delta accumulation and a completed item that omits its aggregate output.
+
+A source-UI verification created native Codex task
+`a83ad990-865c-4af0-8773-12bfa3107586`, approved two harmless shell commands,
+and rendered their complete `PARITY_START`/`PARITY_END` and
+`STREAM_START`/`STREAM_END` output in structured `Bash` rows. The temporary
+source host entry was removed and the source server stopped after the check;
+the native task was retained because permanent deletion is an explicit user
+decision gate.
+
+Vertical slice 3e adds live file-change parity. The runner normalizes
+`item/started`, replacement `item/fileChange/patchUpdated` payloads, and the
+authoritative completed `fileChange` item into repeated same-id
+`FileChanges` tool frames. The Hub renders the current 0.146
+`{path, kind, diff}` shape as per-file unified diffs with add/delete/edit/move
+labels. Codex rollouts can omit the transient file-change item even while
+app-server streamed it, so the completion reconciliation retains unmatched
+live `FileChanges` payloads while still deduplicating canonical history.
+
+A source-UI verification requested one `apply_patch` edit and approved the
+real Edit card. Before approval the structured transcript showed the exact
+`FILECHANGE_BEFORE` → `FILECHANGE_AFTER` unified diff. After Codex completed
+and the delayed canonical-history refresh ran, the same single diff row
+remained visible and the scratch file contained the new value. The temporary
+host entry and source server were removed after verification; the native task
+was retained because permanent deletion remains a user decision gate.
+
+Vertical slice 3f adds readable reasoning-summary parity. Every app-server turn
+requests the protocol's `summary: "auto"` mode. The runner accumulates indexed
+`item/reasoning/summaryTextDelta` sections, observes summary-part boundaries,
+and treats the completed reasoning item's summary as authoritative. It emits
+only those provider-authored readable summaries: raw reasoning content and
+`item/reasoning/textDelta` are intentionally ignored. Repeated summary states
+map to one stable normalized `thinking` id, and ChatPane updates that collapsed
+row in place.
+
+The initial live probe documented why the explicit mode is required: reasoning
+items were present in the rollout but their summaries were empty under the
+ambient default. After enabling `summary: "auto"`, a high-effort source-UI turn
+rendered exactly one collapsed `thinking` row with the readable summary
+“Designing idempotent event identity algorithm”, followed by the final answer.
+No raw reasoning appeared. The temporary source host was removed and the server
+stopped; the native task remains because permanent deletion is gated.
+
+Vertical slice 3g adds native web-search lifecycle parity. App-server
+`webSearch` started/completed items map to repeated same-id `WebSearch` tool
+frames containing the provider query/action; opaque result payloads stay out of
+the browser protocol. Codex's canonical rollout stores these hosted searches
+as `exec` custom-tool wrappers around `tools.web__run` rather than native
+`web_search` response items. The history reader therefore recognizes the
+conservative wrapper shape and recovers only its quoted query without evaluating
+the recorded JavaScript.
+
+A cached-search source-UI turn produced two searches and the expected final
+official Codex URL. Both appeared as compact `Search` rows while the turn ran.
+The first completion refresh exposed the canonical-history mismatch as Bash
+rows; after adding the safe history mapping, a full page reload restored only
+the two native search rows and the final answer. The temporary source host and
+server were removed; the native test task remains because permanent deletion is
+gated.
+
+Vertical slice 3h adds native MCP tool-call lifecycle parity. App-server
+`mcpToolCall` start, progress, and completion notifications update one stable
+generic tool row containing the MCP server, tool name, inert arguments, safe
+text output, final status, error, and duration. Structured content, `_meta`,
+app/plugin context, and binary blocks are deliberately excluded. Canonical
+rollouts persist these calls as `exec` wrappers around
+`tools.mcp__SERVER__TOOL(...)`, followed by opaque custom-tool output. The
+history reader recognizes only that static identifier shape, scans its balanced
+argument source without evaluation, and suppresses the matching opaque output;
+ordinary `exec` calls remain Bash.
+
+A source-UI turn created native Codex thread
+`019fc764-1273-7040-a822-10d4f33ca3b8` and used the configured
+`openaiDeveloperDocs` MCP server. Its search and fetch calls appeared as native
+rows with the server label while running. After rebuilding the compiled server,
+navigating to a blank page, and loading the session afresh, the same rows were
+recovered from canonical history and no `tools.mcp__...` wrapper appeared as
+Bash. The final official URL remained visible. The temporary source host and
+server data were removed; the native test task remains because permanent
+deletion is gated.
+
+Vertical slice 3i adds native plan-progress parity. Matching
+`turn/plan/updated` notifications retain the optional provider explanation and
+validated step text/status, then map every update for a turn to one stable
+`TodoWrite` checklist. App-server `inProgress` becomes the Hub's
+`in_progress`; the row reaches completed only when every step does. The
+canonical rollout does not currently persist these notifications, so the Hub
+carries the live checklist across its completion refresh for the mounted
+transcript. A later full reload cannot reconstruct provider state that was
+never recorded.
+
+A plan-mode source-UI turn created native Codex task
+`77320d1f-3237-4537-9f93-5ea86f377058`. The transcript showed a single
+three-step checklist at `0/3` while Codex worked, updated that row to `3/3`,
+and retained it beside `PLAN_OK` after the delayed canonical-history refresh.
+The temporary source host and server data were removed; the native test task
+remains because permanent deletion is gated.
+
+Vertical slice 3j adds native collaboration lifecycle parity. App-server
+`collabAgentToolCall` start/completion items validate the five 0.146 actions
+(`spawnAgent`, `sendInput`, `resumeAgent`, `wait`, and `closeAgent`) and update
+one stable `Agent` row with the provider prompt, sender/receiver ids, requested
+model/effort, target status/message, and final success/failure. Canonical
+rollouts store these operations as ordinary `function_call` rows named
+`spawn_agent`, `send_input`, `resume_agent`, `wait_agent`, or `close_agent`.
+The history reader maps only those exact names back to the same Agent UI,
+retains safe scalar arguments and results, and omits the opaque encrypted
+`message` argument rather than exposing unusable ciphertext.
+
+A live source-UI turn created parent task
+`2e9ce4a8-92f1-4571-b989-f52044bd55d2` and child task
+`019fc79a-350b-72c2-9a0e-f546d88e78fc`. While active, the Hub showed the
+provider `Wait for agents` row. The first completion refresh exposed raw
+`spawn_agent` and `wait_agent` rows alongside the transient lifecycle; after
+adding canonical mapping, rebuilding, and loading the session afresh, the Hub
+showed exactly `Spawn agent · confirm` and `Wait for agents` beside
+`COLLAB_OK`, with no raw names, encrypted prompt, or duplicate. The temporary
+source host and server data were removed; both native tasks remain because
+permanent deletion is gated.
+
+Vertical slice 3k adds native child-agent activity parity. App-server
+`subAgentActivity` start/completion items validate the exact 0.146
+`started`/`interacted`/`interrupted` kind plus child thread id and agent path,
+then update one stable compact Agent row. These activity markers are not
+present in canonical rollout history, so the Hub retains them across the
+completion refresh for the lifetime of the mounted transcript; a later full
+reload cannot recover provider state that was never persisted.
+
+A live source-UI turn created parent task
+`019fc7b5-f68c-7140-8352-b3dbf3fee439` and child task
+`019fc7b6-1785-7370-b07e-ef1783103d5a`. After the turn completed and history
+reconciled, the transcript showed `Agent started · /root/activitycheck` with
+the child thread id beside `Spawn agent`, `Wait for agents`, and `ACTIVITY_OK`.
+The temporary source host and server data were removed; native test tasks remain
+because permanent deletion is gated.
+
+Vertical slice 3l adds native image-view lifecycle parity. App-server
+`imageView` start/completion items validate the exact id and path, then update
+one stable compact `ViewImage` row. Canonical rollouts persist the same action
+as an `exec` wrapper around `tools.view_image(...)`; its following custom-tool
+output can contain the complete base64 image. The history reader therefore
+recognizes only that static wrapper, extracts its quoted path without evaluating
+the recorded JavaScript, and suppresses the matching output so image bytes do
+not enter the browser transcript.
+
+A source-UI turn created native Codex task
+`019fc7cf-d975-7f10-a81a-f36bc4f4c804` and viewed
+`fleet-hub/src-tauri/icons/64x64.png` exactly once. The first completion refresh
+exposed the canonical wrapper as Bash, which identified the real persistence
+shape. After adding the safe history mapping, rebuilding the source server, and
+reloading the page, the transcript showed one `View image` row beside
+`IMAGE_VIEW_OK`; the raw wrapper and base64 result were absent. The temporary
+source host and server data were removed; the native task remains because
+permanent deletion is gated.
+
+Vertical slice 3m adds passive context-compaction transcript parity. App-server
+`contextCompaction` start/completion items validate the stable id and update one
+compact `ContextCompaction` row. Canonical rollouts record the same transition
+as a top-level `compacted` entry; the history reader uses only its type and
+timestamp and deliberately ignores provider-owned `replacement_history`. This
+slice observes compaction but does not expose `thread/compact/start`, steer a
+running turn, or otherwise mutate context.
+
+An isolated synthetic rollout containing a replacement-history sentinel was
+loaded through the compiled source server and embedded Hub. The structured UI
+showed exactly one `Context compacted · Earlier messages were summarized` row
+beside `COMPACTION_HISTORY_OK`, while the sentinel was absent from the DOM. The
+temporary source host, server process, transcript, and database were removed
+after verification.
+
 ## Remaining uncertainty
 
 - The desktop-visible `vscode` source produced for a custom client is verified
   but not clearly promised by the public source-kind documentation.
 - This spike verified same-machine desktop visibility. SSH-host visibility is
   still required before rollout to remote fleet hosts.
-- Exact compatibility behavior when the host CLI is older or newer than the
-  schemas compiled into fleet-server needs a version handshake and explicit
-  fallback policy.
+- Compatibility currently fails closed before spawn when the host CLI's
+  major/minor differs from the generated 0.146 baseline. A future CLI upgrade
+  therefore requires regenerating the consumed subset and running compatibility
+  verification; automatic fallback selection belongs to the later provider
+  wiring slice.

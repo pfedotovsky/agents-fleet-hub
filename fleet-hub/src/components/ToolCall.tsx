@@ -29,9 +29,12 @@ const CATEGORY: Record<string, Category> = {
   Grep: 'search',
   Glob: 'search',
   Read: 'read',
+  ViewImage: 'read',
+  ContextCompaction: 'read',
   TodoWrite: 'todo',
   TodoRead: 'todo',
   Task: 'agent',
+  Agent: 'agent',
   ExitPlanMode: 'plan',
   exit_plan_mode: 'plan',
   // Codex synthesized tool names (server-normalized item types).
@@ -112,10 +115,11 @@ interface TodoItem {
   status: 'pending' | 'in_progress' | 'completed'
 }
 
-function TodoList({ todos }: { todos: TodoItem[] }) {
+function TodoList({ todos, explanation }: { todos: TodoItem[]; explanation?: string }) {
   const done = todos.filter((t) => t.status === 'completed').length
   return (
     <div className="rounded-md border border-line bg-surface/50 p-2.5 text-xs">
+      {explanation && <p className="mb-2 text-fg-muted">{explanation}</p>}
       <div className="mb-1.5 text-xs font-medium text-fg-muted">
         Todo list · {done}/{todos.length}
       </div>
@@ -292,11 +296,8 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
       return [{ content, status }]
     })
     if (todos.length > 0) {
-      return (
-        <div className="rounded-md border border-line bg-surface/30 py-1 pl-2.5 pr-2">
-          <TodoList todos={todos} />
-        </div>
-      )
+      const explanation = typeof input.explanation === 'string' ? input.explanation : undefined
+      return <TodoList todos={todos} explanation={explanation} />
     }
   }
 
@@ -342,10 +343,80 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
     return <OneLine category="search" label="Search" value={asString(input.query)} mono={false} />
   }
 
-  // Codex file_change → per-file diffs. `changes` has been seen both as a
-  // path-keyed record ({path: {add:{content}} | {update:{unified_diff}} |
-  // {delete}}) and as an array of {path, kind}; unknown shapes fall through
-  // to the generic raw-JSON renderer.
+  if (name === 'Agent') {
+    const action = asString(input.action)
+    const activityKind = asString(input.activityKind)
+    const title = activityKind
+      ? ({
+          started: 'Agent started',
+          interacted: 'Agent interacted',
+          interrupted: 'Agent interrupted',
+        }[activityKind] ?? 'Agent activity')
+      : ({
+          spawnAgent: 'Spawn agent',
+          sendInput: 'Send input',
+          resumeAgent: 'Resume agent',
+          wait: 'Wait for agents',
+          closeAgent: 'Close agent',
+        }[action] ?? 'Agent')
+    const prompt = asString(input.prompt)
+    const taskName = asString(input.taskName)
+    const agents = Array.isArray(input.agents) ? input.agents : []
+    const receiverThreadIds = Array.isArray(input.receiverThreadIds)
+      ? input.receiverThreadIds.filter((value): value is string => typeof value === 'string')
+      : []
+    const statusByThread = new Map(
+      agents.flatMap((value): Array<[string, { status: string; message: string }]> => {
+        const agent = asObject(value)
+        const threadId = asString(agent.threadId)
+        if (!threadId) return []
+        return [[threadId, { status: asString(agent.status), message: asString(agent.message) }]]
+      }),
+    )
+    const threadIds = [...new Set([...receiverThreadIds, ...statusByThread.keys()])]
+    const activityThreadId = asString(input.agentThreadId)
+    if (activityThreadId && !threadIds.includes(activityThreadId)) threadIds.push(activityThreadId)
+    const model = asString(input.model)
+    const effort = asString(input.reasoningEffort)
+    const agentPath = asString(input.agentPath)
+    return (
+      <Collapsible
+        category="agent"
+        title={title}
+        subtitle={
+          [taskName, agentPath, model, effort].filter(Boolean).join(' · ')
+          || message.server
+          || undefined
+        }
+        defaultOpen={message.status === 'inProgress'}
+        copyText={prompt || undefined}
+      >
+        {prompt && <p className="text-xs leading-relaxed text-fg-muted">{prompt}</p>}
+        {threadIds.length > 0 && (
+          <div className="divide-y divide-line/70">
+            {threadIds.map((threadId) => {
+              const agent = statusByThread.get(threadId)
+              return (
+                <div key={threadId} className="flex min-w-0 items-start justify-between gap-3 py-1.5 text-xs">
+                  <span className="truncate font-mono text-fg-muted" title={threadId}>
+                    {threadId}
+                  </span>
+                  <span className="shrink-0 text-right text-fg-faint">
+                    {agent?.message || agent?.status || (activityKind ? activityKind : 'pending')}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+        {result && <ResultBlock content={result.content} isError={result.isError} />}
+      </Collapsible>
+    )
+  }
+
+  // Codex file_change → per-file diffs. Current app-server and rollout items
+  // use an array of {path, kind:{type,move_path?}, diff}; older history can be
+  // a path-keyed operation record. Unknown shapes fall through to raw JSON.
   if (name === 'FileChanges') {
     const changes: unknown = parseInput(message.toolInput)
     const entries: { path: string; kind: string; body?: React.ReactNode }[] = []
@@ -353,7 +424,25 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
       for (const change of changes) {
         const entry = asObject(change)
         if (typeof entry.path === 'string') {
-          entries.push({ path: entry.path, kind: asString(entry.kind) || 'update' })
+          const kind = asObject(entry.kind)
+          const kindType = kind.type === 'add' || kind.type === 'delete' || kind.type === 'update'
+            ? kind.type
+            : 'update'
+          const movePath = kindType === 'update' ? asString(kind.move_path) : ''
+          const diff = asString(entry.diff)
+          const badge = movePath ? 'Move' : kindType === 'add' ? 'New' : kindType === 'delete' ? 'Delete' : 'Edit'
+          entries.push({
+            path: entry.path,
+            kind: movePath ? `move → ${movePath}` : kindType,
+            body: diff ? (
+              <Diff
+                unified={diff}
+                filePath={entry.path}
+                badge={badge}
+                badgeColor={kindType === 'add' ? 'green' : kindType === 'delete' ? 'amber' : 'gray'}
+              />
+            ) : undefined,
+          })
         }
       }
     } else {
@@ -380,9 +469,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
             path,
             kind: 'update',
             body: diffText ? (
-              <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words rounded border border-line/60 bg-canvas/50 p-2 font-mono text-xs text-fg-muted">
-                {diffText}
-              </pre>
+              <Diff unified={diffText} filePath={path} badge="Edit" badgeColor="gray" />
             ) : undefined,
           })
         } else if ('delete' in opObj) {
@@ -401,10 +488,11 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
           <div className="space-y-2">
             {entries.map((entry) => (
               <div key={entry.path}>
-                <div className="mb-1 font-mono text-xs text-fg-faint">
-                  <span className="text-fg-muted">{entry.kind}</span> · {entry.path}
-                </div>
-                {entry.body}
+                {entry.body ?? (
+                  <div className="font-mono text-xs text-fg-faint">
+                    <span className="text-fg-muted">{entry.kind}</span> · {entry.path}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -414,6 +502,16 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
   }
 
   // Read / Grep / Glob → one-line.
+  if (name === 'ContextCompaction')
+    return (
+      <OneLine
+        category="read"
+        label="Context compacted"
+        value="Earlier messages were summarized"
+        mono={false}
+      />
+    )
+  if (name === 'ViewImage') return <OneLine category="read" label="View image" value={filePath} />
   if (name === 'Read') return <OneLine category="read" label="Read" value={filePath} />
   if (name === 'Grep')
     return (
@@ -432,7 +530,7 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
     <Collapsible
       category={category}
       title={name}
-      subtitle={filePath || undefined}
+      subtitle={message.server || filePath || undefined}
       copyText={inputText}
     >
       <pre className="max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-xs text-fg-muted">
