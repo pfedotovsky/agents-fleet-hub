@@ -40,6 +40,17 @@ interface RequestOptions {
   onTokenRefresh?: (token: string) => void
 }
 
+function apiErrorMessage(body: unknown): string | undefined {
+  if (!body || typeof body !== 'object') return undefined
+  const error = (body as { error?: unknown }).error
+  if (typeof error === 'string') return error
+  if (!error || typeof error !== 'object') return undefined
+  const message = (error as { message?: unknown }).message
+  const details = (error as { details?: unknown }).details
+  if (typeof message !== 'string') return undefined
+  return typeof details === 'string' && details !== message ? `${message}: ${details}` : message
+}
+
 async function fetchJson(baseUrl: string, path: string, opts: RequestOptions = {}): Promise<unknown> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 5000)
@@ -67,14 +78,14 @@ async function fetchJson(baseUrl: string, path: string, opts: RequestOptions = {
   if (res.status === 401 || res.status === 403) {
     const message = await res
       .json()
-      .then((body) => (body as { error?: string }).error)
+      .then(apiErrorMessage)
       .catch(() => undefined)
     throw new AuthError(message)
   }
   if (!res.ok) {
     const message = await res
       .json()
-      .then((body) => (body as { error?: string }).error)
+      .then(apiErrorMessage)
       .catch(() => undefined)
     throw new Error(message ?? `${res.status} ${res.statusText}`)
   }
@@ -188,6 +199,23 @@ export async function getProjects(
     onTokenRefresh,
     timeoutMs: 10000,
   })) as Project[]
+}
+
+/** Creates or registers a project folder on one host. */
+export async function createProject(
+  baseUrl: string,
+  token: string,
+  projectPath: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<Project> {
+  const body = (await fetchJson(baseUrl, '/api/projects/create-project', {
+    method: 'POST',
+    token,
+    body: { path: projectPath },
+    onTokenRefresh,
+    timeoutMs: 10000,
+  })) as { success: boolean; project: Project }
+  return body.project
 }
 
 /** App-facing ids of sessions whose agent run is currently processing (status-only, cheap). */

@@ -7,6 +7,17 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-04
 
 ### Changed
+- **New sessions can start from an arbitrary host folder.** The global New
+  session composer now offers an inline “Other folder…” path form per online
+  host. It calls the host's existing create-project route, which registers an
+  existing directory or creates a missing one within that server's configured
+  workspace root, makes the project immediately selectable without waiting for
+  the next poll, and leaves actual session creation deferred until first send.
+  Existing project paths are reused client-side; validation failures stay in
+  the composer with the server's structured message and details instead of
+  degrading to `[object Object]`. Clone, rename, archive, restore, and project
+  deletion remain separate project-management slices. Tracked in private
+  backlog #9.
 - **Codex child-agent rollouts no longer pollute ordinary session discovery.**
   The server now derives an explicit top-level/child relationship from Codex
   `session_meta` (`thread_source` plus `parent_thread_id`), keeps spawned and
