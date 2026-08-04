@@ -15,8 +15,8 @@ cycle:
 schedule:
   cadence: hourly
   standalone_task_per_run: true
-  preferred_model: gpt-5.6-terra
-  preferred_reasoning: medium
+  preferred_model: gpt-5.6-sol
+  preferred_reasoning: high
   archive_completed_tasks: true
 
 limits:
@@ -28,6 +28,9 @@ limits:
   max_consecutive_no_progress_runs: 3
   expires_after_days: 7
   on_limit: pause_and_report
+  model_cost_policy: >-
+    Sol High may reach the existing credit limits in fewer runs; do not extend
+    any credit or run cap without a new explicit approval.
 
 execution:
   max_active_code_slices: 1
