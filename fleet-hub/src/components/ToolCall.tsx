@@ -33,6 +33,7 @@ const CATEGORY: Record<string, Category> = {
   ContextCompaction: 'read',
   TodoWrite: 'todo',
   TodoRead: 'todo',
+  CodeMode: 'default',
   Task: 'agent',
   Agent: 'agent',
   ExitPlanMode: 'plan',
@@ -341,6 +342,17 @@ export function ToolCall({ message }: { message: NormalizedMessage }) {
   // Codex web search → one-line query.
   if (name === 'WebSearch') {
     return <OneLine category="search" label="Search" value={asString(input.query)} mono={false} />
+  }
+
+  if (name === 'CodeMode') {
+    return (
+      <OneLine
+        category="default"
+        label="Code Mode"
+        value="Internal tool orchestration"
+        mono={false}
+      />
+    )
   }
 
   if (name === 'Agent') {

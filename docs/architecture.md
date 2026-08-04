@@ -448,15 +448,22 @@ rows whose subtitle is the MCP server. Canonical rollouts persist MCP calls as
 `exec` wrappers around static `tools.mcp__SERVER__TOOL(...)` calls followed by
 opaque `custom_tool_call_output`; the history reader uses a balanced inert-text
 scanner (never `eval`) to recover only the identifier and argument source from
-that verified static shape, drops the matching opaque output, and leaves every
-other `exec` wrapper as Bash. Plan updates use a deterministic per-turn id and
-the existing `TodoWrite` renderer; the runtime translates app-server
+that verified static shape and drops the matching opaque output. The same
+scanner recognizes static `tools.exec_command({cmd: "..."})` wrappers as
+native `Bash` rows with their result. Other Code Mode `exec` wrappers become a
+compact `Code Mode` row and discard their opaque internal output, so recorded
+orchestration JavaScript is never presented as a shell command. Plan updates
+use a deterministic per-turn id and the existing `TodoWrite` renderer; the
+runtime translates app-server
 `inProgress` to the Hub's `in_progress` status and completes the row only when
 every step is complete. A later update with no explanation keeps the last
-provider explanation visible. Because canonical rollouts do not persist
-`turn/plan/updated`, ChatPane's completion reconciliation carries unmatched
-app-server plan rows forward for the lifetime of the mounted transcript. A
-later full reload cannot reconstruct a plan that the provider never persisted.
+provider explanation visible. Canonical rollouts persist Code Mode plan changes
+as static `tools.update_plan({...})` wrappers rather than
+`turn/plan/updated`. The history reader inertly validates that exact plan shape,
+maps statuses to `TodoWrite`, collapses repeated updates in one turn to the
+latest checklist, reuses the live deterministic turn id, and suppresses the
+matching opaque outputs. Completion reconciliation and a later full reload
+therefore show the same native checklist without executing recorded JavaScript.
 Collaboration updates use one stable `Agent` tool row per app-server item. The
 live row shows the provider action, prompt, model/effort, receiver ids, and
 target status/message. Canonical rollouts persist the same operations as
@@ -524,6 +531,13 @@ A plan-mode source-UI turn then emitted repeated `turn/plan/updated`
 notifications for native task `77320d1f-3237-4537-9f93-5ea86f377058`. The Hub
 showed one checklist at `0/3` while the turn was active, updated that same row
 to `3/3`, and retained it after `PLAN_OK` and the delayed completion refresh.
+A later Code Mode plan probe used native task
+`cb659f4d-ce70-43cb-b700-0d6e2f464e8b`. After a clean server restart and full
+page reload, canonical history restored exactly one `Todo list · 2/2` row beside
+`AUDIT_PLAN_OK`. A separate MCP probe restored its internal `ALL_TOOLS`
+discovery as a compact `Code Mode` row, while the following
+`openaiDeveloperDocs` search/fetch calls kept their server-labelled native rows
+and the raw JavaScript and opaque discovery output remained absent.
 A single-subagent source-UI turn then created parent task
 `2e9ce4a8-92f1-4571-b989-f52044bd55d2` and child task
 `019fc79a-350b-72c2-9a0e-f546d88e78fc`. The active transcript showed the

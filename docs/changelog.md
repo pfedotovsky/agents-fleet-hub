@@ -7,6 +7,17 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-04
 
 ### Changed
+- **Persisted Codex plans now keep their native semantics after reload.** The
+  history reader conservatively parses static Code Mode
+  `tools.update_plan({...})` wrappers without evaluating recorded JavaScript,
+  collapses repeated updates in a turn to one latest `TodoWrite` checklist,
+  and reuses the live turn id so completion reconciliation cannot duplicate it.
+  Static `tools.exec_command` wrappers remain native Bash rows with results;
+  other internal Code Mode orchestration is represented by one compact row and
+  its opaque output is suppressed. A source-UI restart and full reload restored
+  `Todo list · 2/2` beside `AUDIT_PLAN_OK`, removed raw `ALL_TOOLS` JavaScript,
+  and preserved native `openaiDeveloperDocs` MCP rows. Tracked in private
+  backlog #40.
 - **The Codex parity report now reflects a live current-source audit.** A local
   app-server run verified the seven-model catalog and per-model effort choices,
   exact latest-turn context occupancy, and native command, diff, search, MCP,

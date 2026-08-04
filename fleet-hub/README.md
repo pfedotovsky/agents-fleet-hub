@@ -103,7 +103,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
   context compaction renders as a passive one-line marker without exposing
   provider replacement history. TodoWrite renders as a checklist with progress; feature-flagged Codex
   app-server plan updates advance one provider-authored checklist in place and
-  keep it visible after the turn completes. Read/Grep/Glob render as one-liners.
+  keep it visible after the turn completes and after a history reload. Internal
+  Code Mode orchestration uses a compact row instead of exposing recorded
+  JavaScript as Bash. Read/Grep/Glob render as one-liners.
   Mid-run reconnects
   re-attach via `chat.subscribe` seq replay. The composer autocompletes `@` file tags from
   the project tree and `/` skills + custom commands (message start only) from

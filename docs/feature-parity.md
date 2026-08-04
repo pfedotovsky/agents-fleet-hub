@@ -25,7 +25,7 @@ host APIs; others (plugins, Electron) are out of scope for a static hub SPA.
 | **Chat: send / stream / abort** | ✅ | ✅ | Parity over the same WS protocol; hub adds seq-replay resubscribe on reconnect ➕ |
 | **Permission prompts & modes** | ✅ ➕ | ✅ | Hub adds durable "Always allow" per host:project **with write-through to `.claude/settings.local.json`**; per-host mode persistence |
 | **Model + reasoning-effort selection** | ✅ | ✅ | Parity (per-provider catalog, per-host:provider persisted choice) |
-| **Markdown / code highlighting / tool-call rendering** | ⚠️ | ✅ | GFM, Prism, diffs, Bash, search, MCP, collaboration, image-view, and compaction rows are covered; persisted Codex `update_plan` wrappers still lose native checklist semantics ([2026-08-04 audit](codex-parity-audit-2026-08-04.md)) |
+| **Markdown / code highlighting / tool-call rendering** | ✅ | ✅ | GFM, Prism, diffs, Bash, search, MCP, collaboration, image-view, compaction, and persisted Codex plan rows are covered; internal Code Mode orchestration no longer masquerades as Bash ([2026-08-04 audit](codex-parity-audit-2026-08-04.md)) |
 | **KaTeX math & Mermaid diagrams in messages** | ❌ | ✅ | CloudCLI bundles KaTeX + Mermaid |
 | **Image attachments in chat** | ✅ | ✅ | Paste / drag-drop / attach button → `POST /api/assets/images`, sent via `options.images`; history renders via authenticated blob fetch |
 | **Voice input (transcription)** | ❌ | ✅ | CloudCLI proxies audio to OpenAI transcription (`/api/voice`) |
