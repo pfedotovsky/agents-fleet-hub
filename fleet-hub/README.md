@@ -152,10 +152,14 @@ own root URL is only a status page; it does not expose an account-setup UI.
 
 - Hosts are polled every 12 s (`GET /api/projects?sessionsLimit=5`).
 - The global new-session folder selector is built from those poll results and
-  lists projects from online hosts only. **Other folder…** calls
+  lists projects from online hosts only. **Add folder… → Use folder** calls
   `POST /api/projects/create-project {path}` on the chosen host: an existing
   directory is registered, while a missing directory is created only inside
   that server's configured workspace root (the host user's home by default).
+  **Clone repository** streams authenticated `GET /api/projects/clone-progress`
+  updates for an HTTPS, SSH, or host-local Git source, supports cancellation,
+  and selects the registered project immediately on success. Repository
+  credentials stay on the host; the form does not collect a token.
 - Project archive uses `DELETE /api/projects/:id` without `force`; archived
   projects are fetched lazily from `GET /api/projects/archived` and restored
   through `POST /api/projects/:id/restore`. The hub does not expose permanent

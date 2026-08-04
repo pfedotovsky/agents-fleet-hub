@@ -7,6 +7,14 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-04
 
 ### Changed
+- **New sessions can clone a repository with live host progress.** The global
+  session draft's Add folder flow now switches between registering a host path
+  and cloning an HTTPS, SSH, or host-local Git source into a chosen absolute
+  destination. Agents Hub consumes the authenticated `/clone-progress` SSE
+  stream, surfaces the latest host message, keeps failures editable, supports
+  cancellation with partial-folder cleanup, and binds the registered project
+  immediately on success without waiting for the next poll. Permanent project
+  deletion remains intentionally unavailable. Tracked in private backlog #9.
 - **Projects can now be renamed in place without moving their host folder.**
   Online project rows and project headers expose the same save/cancel editor;
   Enter saves, Escape cancels, failures preserve the typed value, and leaving
@@ -33,9 +41,7 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   the next poll, and leaves actual session creation deferred until first send.
   Existing project paths are reused client-side; validation failures stay in
   the composer with the server's structured message and details instead of
-  degrading to `[object Object]`. Clone, archive, restore, and project
-  deletion remain separate project-management slices. Tracked in private
-  backlog #9.
+  degrading to `[object Object]`. Tracked in private backlog #9.
 - **Codex child-agent rollouts no longer pollute ordinary session discovery.**
   The server now derives an explicit top-level/child relationship from Codex
   `session_meta` (`thread_source` plus `parent_thread_id`), keeps spawned and

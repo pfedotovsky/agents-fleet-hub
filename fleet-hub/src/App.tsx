@@ -411,6 +411,25 @@ export default function App() {
                   }
                 : undefined
             }
+            onCloneDraftProject={
+              view.target.key === 'global::draft'
+                ? async (hostId, workspacePath, repositoryUrl, onProgress, signal) => {
+                    const hostIndex = fleet.hosts.findIndex(
+                      (runtime) => runtime.config.id === hostId,
+                    )
+                    const runtime = hostIndex >= 0 ? fleet.hosts[hostIndex] : undefined
+                    if (!runtime) throw new Error('Host is no longer available')
+                    const project = await fleet.cloneProject(
+                      hostId,
+                      workspacePath,
+                      repositoryUrl,
+                      onProgress,
+                      signal,
+                    )
+                    return draftTargetFor(runtime, hostIndex, project)
+                  }
+                : undefined
+            }
             onDraftTargetChange={(nextTarget) => {
               fleet.markProjectOpened(nextTarget.hostId, nextTarget.projectId)
               setView((current) =>

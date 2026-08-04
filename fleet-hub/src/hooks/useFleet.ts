@@ -5,6 +5,7 @@ import {
   HostUnreachableError,
   archiveProject as apiArchiveProject,
   archiveSession as apiArchiveSession,
+  cloneProject as apiCloneProject,
   createProject as apiCreateProject,
   deleteSessionPermanently as apiDeleteSessionPermanently,
   discoverLocalHosts,
@@ -237,6 +238,23 @@ export function useFleet() {
 
   const [recent, setRecent] = useState<Record<string, number>>(() => storage.loadRecentProjects())
 
+  const upsertRuntimeProject = useCallback((hostId: string, project: Project) => {
+    setRuntimes((prev) => {
+      const existing = prev[hostId]
+      if (!existing) return prev
+      return {
+        ...prev,
+        [hostId]: {
+          ...existing,
+          projects: [
+            project,
+            ...existing.projects.filter((item) => item.projectId !== project.projectId),
+          ],
+        },
+      }
+    })
+  }, [])
+
   const markProjectOpened = useCallback((hostId: string, projectId: string) => {
     const at = Date.now()
     storage.markProjectOpened(hostId, projectId, at)
@@ -284,23 +302,35 @@ export function useFleet() {
       const project = await apiCreateProject(config.baseUrl, token, projectPath, (refreshed) =>
         storage.saveToken(hostId, refreshed),
       )
-      setRuntimes((prev) => {
-        const existing = prev[hostId]
-        if (!existing) return prev
-        return {
-          ...prev,
-          [hostId]: {
-            ...existing,
-            projects: [
-              project,
-              ...existing.projects.filter((item) => item.projectId !== project.projectId),
-            ],
-          },
-        }
-      })
+      upsertRuntimeProject(hostId, project)
       return project
     },
-    [],
+    [upsertRuntimeProject],
+  )
+
+  /** Clones a repository on one host and makes the registered project available immediately. */
+  const cloneProject = useCallback(
+    async (
+      hostId: string,
+      workspacePath: string,
+      repositoryUrl: string,
+      onProgress: (message: string) => void,
+      signal?: AbortSignal,
+    ): Promise<Project> => {
+      const config = hostsRef.current.find((host) => host.id === hostId)
+      const token = storage.getToken(hostId)
+      if (!config || !token) throw new Error('Not signed in to this host')
+      const project = await apiCloneProject(config.baseUrl, token, {
+        workspacePath,
+        repositoryUrl,
+        onProgress,
+        signal,
+        onTokenRefresh: (refreshed) => storage.saveToken(hostId, refreshed),
+      })
+      upsertRuntimeProject(hostId, project)
+      return project
+    },
+    [upsertRuntimeProject],
   )
 
   /** Archives one project after host confirmation, then removes it from active fleet state. */
@@ -548,6 +578,7 @@ export function useFleet() {
     clearTokens,
     refresh,
     createProject,
+    cloneProject,
     archiveProject,
     restoreProject,
     renameProject,
