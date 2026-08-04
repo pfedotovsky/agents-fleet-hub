@@ -37,7 +37,7 @@
 <body>
 <main>
   <h1>Agents Hub vs. CloudCLI Web App — Feature Parity</h1>
-  <p class="meta">Agents Hub (this repo, <code>fleet-hub/</code>) vs. CloudCLI v1.36.1 web UI. First compared 2026-07-11; status updated 2026-08-02. Canonical source: <code>feature-parity.md</code> (this HTML is a regenerated view). Planned work lives in GitHub issues (private <code>pfedotovsky/agents-fleet-hub-backlog</code> repo).</p>
+  <p class="meta">Agents Hub (this repo, <code>fleet-hub/</code>) vs. CloudCLI v1.36.1 web UI. First compared 2026-07-11; status updated 2026-08-04. Canonical source: <code>feature-parity.md</code> (this HTML is a regenerated view). Planned work lives in GitHub issues (private <code>pfedotovsky/agents-fleet-hub-backlog</code> repo).</p>
   <p>Agents Hub is a <strong>multi-host aggregator</strong> over per-VM CloudCLI APIs; CloudCLI's own UI is a <strong>single-host</strong> full-featured client. Many CloudCLI features are server APIs Agents Hub can adopt with frontend-only work; a few (plugins, Electron) are out of scope for a static hub SPA.</p>
   <div class="legend"><span class="full">✅ full</span><span class="part">⚠️ partial</span><span class="miss">❌ missing</span><span class="plus">➕ Agents Hub advantage</span></div>
 
@@ -50,7 +50,7 @@
       <tr><td>Chat: send / stream / abort</td><td class="s full">✅</td><td class="s full">✅</td><td>Same WS protocol; hub adds seq-replay resubscribe on reconnect ➕</td></tr>
       <tr><td>Permission prompts &amp; modes</td><td class="s full">✅ <span class="plus">➕</span></td><td class="s full">✅</td><td>Hub: durable "Always allow" per host:project + write-through to <code>.claude/settings.local.json</code></td></tr>
       <tr><td>Model + reasoning-effort selection</td><td class="s full">✅</td><td class="s full">✅</td><td>Per-provider catalog, per-host persisted choice</td></tr>
-      <tr><td>Markdown / highlighting / tool-call rendering</td><td class="s full">✅</td><td class="s full">✅</td><td>GFM, Prism, edit diffs, todo checklists, Bash cards</td></tr>
+      <tr><td>Markdown / highlighting / tool-call rendering</td><td class="s part">⚠️</td><td class="s full">✅</td><td>GFM, Prism, diffs, Bash, search, MCP, collaboration, image-view, and compaction rows are covered; persisted Codex <code>update_plan</code> wrappers still lose native checklist semantics (<a href="codex-parity-audit-2026-08-04.md">2026-08-04 audit</a>)</td></tr>
       <tr><td>KaTeX math &amp; Mermaid diagrams</td><td class="s miss">❌</td><td class="s full">✅</td><td>CloudCLI bundles KaTeX + Mermaid</td></tr>
       <tr><td>Image attachments in chat</td><td class="s full">✅</td><td class="s full">✅</td><td>Paste / drag-drop / attach button → <code>POST /api/assets/images</code>, sent via <code>options.images</code>; history renders via authenticated blob fetch</td></tr>
       <tr><td>Voice input (transcription)</td><td class="s miss">❌</td><td class="s full">✅</td><td>Audio proxied to OpenAI transcription (<code>/api/voice</code>)</td></tr>
@@ -63,7 +63,7 @@
       <tr><td>File tree + editor (view/edit/save)</td><td class="s full">✅</td><td class="s full">✅</td><td>CodeMirror both sides; hub adds Cmd+S, dirty guard</td></tr>
       <tr><td>File create / delete / rename / upload</td><td class="s miss">❌</td><td class="s part">⚠️</td><td>Neither is strong; CloudCLI has image upload + shell escape hatch</td></tr>
       <tr><td>Integrated terminal / shell</td><td class="s full">✅</td><td class="s full">✅</td><td>Hub: full per-session xterm view over <code>/shell</code>, resumable Claude/Codex CLI, persisted default Structured/Terminal choice</td></tr>
-      <tr><td>Git panel</td><td class="s part">⚠️</td><td class="s full">✅</td><td>Hub: status, unified diffs, stage/unstage, commit (+AI messages), branches, fetch/pull/push/publish. Missing: commit history, discard, revert</td></tr>
+      <tr><td>Git panel</td><td class="s part">⚠️</td><td class="s full">✅</td><td>Hub: status, unified diffs, stage/unstage, commit (+AI messages), commit history, branches, fetch/pull/push/publish. Missing: discard, revert</td></tr>
       <tr><td>MCP server management</td><td class="s miss">❌</td><td class="s full">✅</td><td>Per-provider + global, stdio/HTTP transports</td></tr>
       <tr><td>Slash commands</td><td class="s full">✅</td><td class="s full">✅</td><td><code>/</code> composer autocomplete over skills + <code>.claude/commands</code>; codex <code>$</code>-skills too ➕</td></tr>
       <tr><td>Skills management</td><td class="s miss">❌</td><td class="s full">✅</td><td>List/add/delete per provider (hub only <em>lists</em> them in autocomplete)</td></tr>
