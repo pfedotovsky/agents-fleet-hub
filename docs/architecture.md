@@ -574,6 +574,7 @@ them by id, and permanent project cleanup deliberately uses the unfiltered
 repository query so hidden rows cannot be orphaned. Parent Agent rows are
 unchanged because they are reconstructed from the parent transcript's
 collaboration calls/activity, independently of child-session discovery.
+
 A source-UI image-view turn then created native task
 `019fc7cf-d975-7f10-a81a-f36bc4f4c804`. After a clean server rebuild and page
 reload, its transcript showed one compact `View image` row for
