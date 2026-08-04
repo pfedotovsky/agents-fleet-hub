@@ -6,6 +6,14 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-08-04
 
+### Added
+- **The autonomous backlog worker now runs a finite, reviewable Cycle 2.** Its
+  source-controlled manifest allowlists private backlog issues #1, #37, and #9,
+  fixes their acceptance and destructive-safety boundaries, caps estimated
+  credits and run counts, requires a fresh standalone task per hourly run, and
+  forbids replacement work. The loop now pauses on completion, budget, repeated
+  no-progress checks, or a decision gate instead of growing an open-ended task.
+
 ### Changed
 - **Files can be uploaded directly from Explorer.** The Files panel now accepts
   multiple text or binary files through an upload button at the project root or

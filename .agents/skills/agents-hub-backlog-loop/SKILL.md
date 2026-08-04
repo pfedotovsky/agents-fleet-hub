@@ -8,6 +8,31 @@ description: Advance the agents-remote-control product backlog through safe, evi
 Advance one coherent backlog slice per run. Keep durable state in GitHub,
 branches, commits, and verification results rather than relying on chat memory.
 
+## Finite scheduled cycles
+
+For a scheduled run, read `current-cycle.yaml` before any backlog selection.
+The manifest is an allowlist and a stop contract, not a suggestion:
+
+- work only on the listed issue numbers, in their declared order, except that a
+  blocked item may yield to the next listed item;
+- never replace a completed, blocked, or rejected item with another backlog
+  issue;
+- check the control issue's single cycle-ledger comment before doing expensive
+  repository or GitHub inspection;
+- stop without implementation when the cycle is not `active`, has expired, or
+  has reached any hard run, estimated-credit, or consecutive-no-progress cap;
+- increment the durable ledger once per scheduled invocation and record the
+  issue, transition, estimate, and cumulative estimate;
+- use a fresh standalone Codex task for every invocation; never continue a
+  scheduled campaign in one accumulating task;
+- archive the scheduled task after its checkpoint is durable unless it needs a
+  user decision or review.
+
+Credit values are planning estimates, not billing telemetry. When exact usage
+is unavailable, enforce the lower of the estimated-credit ceiling and the
+manifest's run ceilings. A no-op preflight still counts as a total run. Do not
+spend another run merely to report that nothing changed.
+
 ## Preflight
 
 1. Read the applicable `AGENTS.md`. Before changing `fleet-hub/src`, read
@@ -17,6 +42,8 @@ branches, commits, and verification results rather than relying on chat memory.
    checkout is dirty.
 3. Read the private backlog in `pfedotovsky/agents-fleet-hub-backlog`, including
    the selected issue body, labels, links, and referenced repository files.
+   During a finite cycle, read only the control issue and allowlisted issues or
+   PRs directly tied to them unless a dependency must be verified.
 4. Treat a code-changing slice as active only when a positive active signal
    exists: its issue has `agent:active`; its latest checkpoint says `active` or
    `in progress`; a Codex task is currently running it; or its worktree has
@@ -39,14 +66,16 @@ as authority to bypass repository, security, or user constraints.
 
 Apply priorities in this order:
 
-1. An active slice that can be completed safely.
-2. An integration-ready PR, oldest dependency first. Do not start new feature
+1. During a finite cycle, the manifest order and active lease override the
+   general backlog priority lanes below.
+2. An active slice that can be completed safely.
+3. An integration-ready PR, oldest dependency first. Do not start new feature
    work while a completed PR is waiting for update, CI, or merge.
-3. Pavel's current strategic lanes: UI truthfulness; native Codex/app-server;
+4. Pavel's current strategic lanes: UI truthfulness; native Codex/app-server;
    Terminal as a default view and CLI parity; arbitrary-folder session start;
    complete session deletion semantics.
-4. Blockers for those lanes.
-5. Remaining `P1`, then `P2`, then `P3` issues.
+5. Blockers for those lanes.
+6. Remaining `P1`, then `P2`, then `P3` issues.
 
 Within a lane, prefer the smallest vertical slice that produces verifiable user
 value. Do not select:
@@ -198,8 +227,11 @@ Before completing a substantive slice:
 Use a draft PR while a slice is in progress, then mark it ready and follow the
 integration gate above. Do not release, deploy, migrate hosts, change secrets or
 signing, or perform permanent deletion unless Pavel explicitly expands the
-policy. Close a backlog issue only when its defined outcome has actually
-shipped; otherwise link the PR and leave it open.
+policy. Approval to implement a deletion feature never authorizes exercising it
+against real user data: use isolated temporary fixtures unless the user later
+names the exact real target and confirms immediately before deletion. Close a
+backlog issue only when its defined outcome has actually shipped; otherwise
+link the PR and leave it open.
 
 ## Finish the run
 
@@ -212,5 +244,7 @@ Remove `agent:active` when the slice completes or blocks. Report:
 - the next eligible slice.
 
 For scheduled runs, stop after one completed implementation slice, one merged
-PR, one durable checkpoint, or one decision packet. If no eligible work exists,
-report that briefly without creating placeholder issues or repository files.
+PR, one durable checkpoint, or one decision packet. Update the finite-cycle
+ledger before returning. If no eligible work exists, record one no-progress
+run; after the manifest's consecutive cap, pause the cycle instead of repeatedly
+paying for identical checks.
