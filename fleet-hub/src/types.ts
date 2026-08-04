@@ -28,6 +28,11 @@ export interface Project {
   sessionMeta: { hasMore: boolean; total: number }
 }
 
+/** One project hidden from active navigation but still restorable on its host. */
+export interface ArchivedProject extends Project {
+  isArchived: true
+}
+
 export interface HostRuntime {
   config: HostConfig
   status: HostStatus

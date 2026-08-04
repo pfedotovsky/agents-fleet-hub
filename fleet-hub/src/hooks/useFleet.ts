@@ -3,6 +3,7 @@ import type { FleetSession, HostConfig, HostRuntime, HostStatus, Prefs, Project 
 import {
   AuthError,
   HostUnreachableError,
+  archiveProject as apiArchiveProject,
   archiveSession as apiArchiveSession,
   createProject as apiCreateProject,
   deleteSessionPermanently as apiDeleteSessionPermanently,
@@ -14,6 +15,7 @@ import {
   login,
   renameSession as apiRenameSession,
   register,
+  restoreProject as apiRestoreProject,
   restoreSession as apiRestoreSession,
   toggleProjectStar,
 } from '../lib/api'
@@ -300,6 +302,44 @@ export function useFleet() {
     [],
   )
 
+  /** Archives one project after host confirmation, then removes it from active fleet state. */
+  const archiveProject = useCallback(
+    async (hostId: string, projectId: string): Promise<void> => {
+      const config = hostsRef.current.find((host) => host.id === hostId)
+      const token = storage.getToken(hostId)
+      if (!config || !token) throw new Error('Not signed in to this host')
+      await apiArchiveProject(config.baseUrl, token, projectId, (refreshed) =>
+        storage.saveToken(hostId, refreshed),
+      )
+      setRuntimes((prev) => {
+        const existing = prev[hostId]
+        if (!existing) return prev
+        return {
+          ...prev,
+          [hostId]: {
+            ...existing,
+            projects: existing.projects.filter((project) => project.projectId !== projectId),
+          },
+        }
+      })
+    },
+    [],
+  )
+
+  /** Restores one archived project and re-polls so active navigation sees it again. */
+  const restoreProject = useCallback(
+    async (hostId: string, projectId: string): Promise<void> => {
+      const config = hostsRef.current.find((host) => host.id === hostId)
+      const token = storage.getToken(hostId)
+      if (!config || !token) throw new Error('Not signed in to this host')
+      await apiRestoreProject(config.baseUrl, token, projectId, (refreshed) =>
+        storage.saveToken(hostId, refreshed),
+      )
+      void pollHost(config)
+    },
+    [pollHost],
+  )
+
   /** Renames a session on its host, then updates every currently loaded copy. */
   const renameSession = useCallback(
     async (hostId: string, sessionId: string, summary: string): Promise<void> => {
@@ -457,6 +497,8 @@ export function useFleet() {
     clearTokens,
     refresh,
     createProject,
+    archiveProject,
+    restoreProject,
     toggleStar,
     renameSession,
     markProjectOpened,

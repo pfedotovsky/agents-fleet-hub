@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronDown, FolderTree, GitBranch, LoaderCircle, Plus } from 'lucide-react'
+import { Archive, ChevronDown, FolderTree, GitBranch, LoaderCircle, Plus, X } from 'lucide-react'
 import type { FleetSession, HostRuntime, Project, Provider, SessionSummary } from '../types'
 import { getProjectSessions } from '../lib/api'
 import { getToken, loadLastProvider, saveToken } from '../lib/storage'
@@ -13,6 +13,7 @@ interface Props {
   onOpenSession: (target: FleetSession) => void
   onOpenFiles: () => void
   onOpenGit: () => void
+  onArchiveProject: () => Promise<void>
   onArchiveSession: (sessionId: string) => void
   onRenameSession: (sessionId: string, summary: string) => Promise<void>
 }
@@ -24,6 +25,7 @@ export function ProjectPane({
   onOpenSession,
   onOpenFiles,
   onOpenGit,
+  onArchiveProject,
   onArchiveSession,
   onRenameSession,
 }: Props) {
@@ -31,6 +33,8 @@ export function ProjectPane({
   const [hasMore, setHasMore] = useState(project.sessionMeta.hasMore)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmArchive, setConfirmArchive] = useState(false)
+  const [archiving, setArchiving] = useState(false)
 
   const color = hostColor(hostColorIdx)
 
@@ -83,6 +87,19 @@ export function ProjectPane({
     }
   }
 
+  async function archiveProject() {
+    setArchiving(true)
+    setError(null)
+    try {
+      await onArchiveProject()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to archive project')
+      setConfirmArchive(false)
+    } finally {
+      setArchiving(false)
+    }
+  }
+
   /**
    * Opens a draft chat. The real session is created on the first send, with the
    * provider chosen in the composer toggle (seeded from the last-picked one).
@@ -118,8 +135,8 @@ export function ProjectPane({
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col overflow-y-auto">
       <header className="sticky top-0 z-10 border-b border-line bg-canvas/90 px-6 py-4 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="w-full min-w-0 lg:w-auto lg:flex-1">
             <div className="flex items-center gap-2 text-[11px] text-fg-faint">
               <span className="inline-flex items-center gap-1 font-medium text-fg-muted">
                 <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} />
@@ -131,7 +148,7 @@ export function ProjectPane({
             <h2 className="font-display truncate text-base font-semibold text-fg">{project.displayName}</h2>
             <p className="truncate font-mono text-xs text-fg-subtle">{project.fullPath}</p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               onClick={onOpenFiles}
@@ -148,6 +165,45 @@ export function ProjectPane({
             >
               <GitBranch size={13} /> Git
             </button>
+            {confirmArchive ? (
+              <div
+                role="group"
+                aria-label="Confirm project archive"
+                className="flex items-center gap-1.5 rounded-md border border-line bg-surface px-1.5 py-1"
+              >
+                <span className="hidden text-xs text-fg-muted sm:inline">
+                  Hide project and sessions?
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void archiveProject()}
+                  disabled={archiving}
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-warning hover:bg-elevated disabled:opacity-50"
+                >
+                  {archiving ? <LoaderCircle size={12} className="animate-spin" /> : <Archive size={12} />}
+                  Archive
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmArchive(false)}
+                  disabled={archiving}
+                  aria-label="Cancel project archive"
+                  className="rounded p-0.5 text-fg-faint hover:bg-elevated hover:text-fg disabled:opacity-50"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmArchive(true)}
+                disabled={runtime.status !== 'online'}
+                title="Archive project without deleting files or sessions"
+                className="inline-flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-xs text-fg-secondary transition-colors hover:bg-elevated disabled:opacity-50"
+              >
+                <Archive size={13} /> Archive
+              </button>
+            )}
             <button
               type="button"
               onClick={startNewSession}
