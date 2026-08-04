@@ -21,6 +21,15 @@ be as simple as possible — **one command per host** for the server and
 > Codex auth/version hand-patches described below are fixed in the fork itself.
 > The sections below remain accurate for hosts still on stock CloudCLI.
 
+As of 2026-08-04, the fleet-server installer also performs a non-secret
+provider readiness check. It uses `claude auth status` and `codex login status`
+with all provider output suppressed, reports only missing / sign-in-required /
+ready, and prints the provider-owned install or login command for each missing
+step. `--check-agents` runs only this diagnostic. `--service` records both
+detected absolute CLI paths so launchd/systemd does not depend on an interactive
+shell PATH. Provider installation and interactive authentication remain
+deliberately user-controlled.
+
 Written 2026-07-12 after auditing the actual install paths. Facts below are
 verified against CloudCLI 1.36.1, Agents Hub v0.1.4, `release.yml`, and the
 homebrew-tap cask.
