@@ -1,3 +1,5 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
+
 const USER_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,6 +112,10 @@ CREATE TABLE IF NOT EXISTS sessions (
     project_path TEXT,
     jsonl_path TEXT,
     isArchived BOOLEAN DEFAULT 0,
+    -- Provider-internal child sessions remain addressable by id, but do not
+    -- participate in ordinary project/session discovery.
+    isTopLevel BOOLEAN DEFAULT 1,
+    parentSessionId TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (session_id),

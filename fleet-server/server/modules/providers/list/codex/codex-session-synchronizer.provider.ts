@@ -1,3 +1,5 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
+
 import os from 'node:os';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
@@ -17,6 +19,8 @@ type ParsedSession = {
   sessionId: string;
   projectPath: string;
   sessionName?: string;
+  isTopLevel: boolean;
+  parentSessionId: string | null;
 };
 
 /**
@@ -69,7 +73,11 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
-        filePath
+        filePath,
+        {
+          isTopLevel: parsed.isTopLevel,
+          parentSessionId: parsed.parentSessionId,
+        },
       );
       failedScanFilesDb.clearFailure(filePath);
       processed += 1;
@@ -103,7 +111,11 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       parsed.sessionName,
       timestamps.createdAt,
       timestamps.updatedAt,
-      filePath
+      filePath,
+      {
+        isTopLevel: parsed.isTopLevel,
+        parentSessionId: parsed.parentSessionId,
+      },
     );
   }
 
@@ -119,6 +131,10 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       const payload = data.payload as Record<string, unknown> | undefined;
       const sessionId = typeof payload?.id === 'string' ? payload.id : undefined;
       const projectPath = typeof payload?.cwd === 'string' ? payload.cwd : undefined;
+      const threadSource = typeof payload?.thread_source === 'string' ? payload.thread_source : undefined;
+      const parentSessionId = typeof payload?.parent_thread_id === 'string'
+        ? payload.parent_thread_id.trim() || null
+        : null;
 
       if (!sessionId || !projectPath) {
         return null;
@@ -127,6 +143,8 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       return {
         sessionId,
         projectPath,
+        isTopLevel: threadSource !== 'subagent',
+        parentSessionId,
       };
     });
 

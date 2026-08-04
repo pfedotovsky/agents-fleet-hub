@@ -556,6 +556,25 @@ transcript; a later full reload cannot reconstruct an item the provider did not
 persist. Parent task `019fc7b5-f68c-7140-8352-b3dbf3fee439` displayed `Agent
 started · /root/activitycheck` with child task
 `019fc7b6-1785-7370-b07e-ef1783103d5a` beside `ACTIVITY_OK`.
+
+Codex also writes a standalone rollout for each child agent. Its initial
+`session_meta` identifies the relationship explicitly with
+`thread_source: "subagent"` and `parent_thread_id`; guardian/internal children
+use the same thread source while their `source.subagent` payload differs. The
+Codex synchronizer persists this as `sessions.isTopLevel = 0` plus
+`parentSessionId`. Ordinary session queries, pagination/counts, archived-list
+queries, global search input, and `session_upserted` broadcasts accept only
+top-level rows, so child rollouts cannot enter the sidebar, project page, or
+All sessions through either initial loading or the filesystem watcher. This is
+an explicit metadata contract, never a title or path heuristic.
+
+Hidden child rows and their JSONL paths remain in the database. Direct
+`GET /api/providers/sessions/:sessionId/messages` history reads still resolve
+them by id, and permanent project cleanup deliberately uses the unfiltered
+repository query so hidden rows cannot be orphaned. Parent Agent rows are
+unchanged because they are reconstructed from the parent transcript's
+collaboration calls/activity, independently of child-session discovery.
+
 A source-UI image-view turn then created native task
 `019fc7cf-d975-7f10-a81a-f36bc4f4c804`. After a clean server rebuild and page
 reload, its transcript showed one compact `View image` row for

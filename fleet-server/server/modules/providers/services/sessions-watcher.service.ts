@@ -1,3 +1,5 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
+
 import os from 'node:os';
 import path from 'node:path';
 import { promises as fsPromises } from 'node:fs';
@@ -126,7 +128,7 @@ function queuePendingWatcherUpdate(
 async function buildSessionUpsertedEvent(updatedProviderSessionId: string): Promise<string | null> {
   const row = sessionsDb.getSessionByProviderSessionId(updatedProviderSessionId)
     ?? sessionsDb.getSessionById(updatedProviderSessionId);
-  if (!row || row.isArchived) {
+  if (!row || row.isArchived || !row.isTopLevel) {
     return null;
   }
 

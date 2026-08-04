@@ -84,7 +84,10 @@ own root URL is only a status page; it does not expose an account-setup UI.
   (from `GET /api/providers/:provider/models`; sent as `options.model/effort`
   in `chat.send`). Existing Claude and Codex sessions show their latest
   persisted context-window occupancy in the header as soon as they open; a
-  completed live turn refreshes it. Assistant replies render as Markdown (GFM
+  completed live turn refreshes it. Codex child-agent rollouts stay out of the
+  sidebar, project pages, All sessions, archives, and global search; parent
+  Agent activity remains visible, and a known child id can still resolve its
+  preserved history. Assistant replies render as Markdown (GFM
   tables, code blocks with syntax highlighting and a copy button). Feature-flagged Codex
   app-server turns also stream provider-authored reasoning summaries into one
   collapsed `thinking` row; raw reasoning is not exposed. Tool calls render like

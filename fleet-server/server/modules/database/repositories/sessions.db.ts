@@ -1,3 +1,5 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
+
 import { getConnection } from '@/modules/database/connection.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
 import { normalizeProjectPath } from '@/shared/utils.js';
@@ -10,12 +12,19 @@ type SessionRow = {
   jsonl_path: string | null;
   custom_name: string | null;
   isArchived: number;
+  isTopLevel: number;
+  parentSessionId: string | null;
   created_at: string;
   updated_at: string;
 };
 
 const SESSION_ROW_COLUMNS =
-  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, isArchived, created_at, updated_at';
+  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, isArchived, isTopLevel, parentSessionId, created_at, updated_at';
+
+type SessionHierarchy = {
+  isTopLevel?: boolean;
+  parentSessionId?: string | null;
+};
 
 const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
@@ -74,12 +83,15 @@ export const sessionsDb = {
     customName?: string,
     createdAt?: string,
     updatedAt?: string,
-    jsonlPath?: string | null
+    jsonlPath?: string | null,
+    hierarchy: SessionHierarchy = {},
   ): string {
     const db = getConnection();
     const createdAtValue = normalizeTimestamp(createdAt);
     const updatedAtValue = normalizeTimestamp(updatedAt);
     const normalizedProjectPath = normalizeProjectPathForProvider(provider, projectPath);
+    const isTopLevel = hierarchy.isTopLevel !== false;
+    const parentSessionId = hierarchy.parentSessionId?.trim() || null;
 
     // First, ensure the project path is recorded in the projects table,
     // since it's a foreign key in the sessions table.
@@ -101,6 +113,8 @@ export const sessionsDb = {
            project_path = ?,
            jsonl_path = ?,
            isArchived = 0,
+           isTopLevel = ?,
+           parentSessionId = ?,
            custom_name = COALESCE(?, custom_name)
          WHERE session_id = ?`
       ).run(
@@ -108,6 +122,8 @@ export const sessionsDb = {
         updatedAtValue,
         normalizedProjectPath,
         jsonlPath ?? null,
+        isTopLevel ? 1 : 0,
+        parentSessionId,
         customName ?? null,
         existing.session_id
       );
@@ -119,8 +135,8 @@ export const sessionsDb = {
     // keyed by the provider-native id for both columns. The ON CONFLICT path
     // covers legacy rows that predate the provider_session_id mapping.
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, isTopLevel, parentSessionId, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
        ON CONFLICT(session_id) DO UPDATE SET
          provider = excluded.provider,
          provider_session_id = excluded.provider_session_id,
@@ -128,6 +144,8 @@ export const sessionsDb = {
          project_path = excluded.project_path,
          jsonl_path = excluded.jsonl_path,
          isArchived = 0,
+         isTopLevel = excluded.isTopLevel,
+         parentSessionId = excluded.parentSessionId,
          custom_name = COALESCE(excluded.custom_name, sessions.custom_name)`
     ).run(
       providerSessionId,
@@ -136,6 +154,8 @@ export const sessionsDb = {
       customName ?? null,
       normalizedProjectPath,
       jsonlPath ?? null,
+      isTopLevel ? 1 : 0,
+      parentSessionId,
       createdAtValue,
       updatedAtValue
     );
@@ -158,8 +178,8 @@ export const sessionsDb = {
     projectsDb.createProjectPath(normalizedProjectPath);
 
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-       VALUES (?, ?, NULL, NULL, ?, NULL, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, isTopLevel, parentSessionId, created_at, updated_at)
+       VALUES (?, ?, NULL, NULL, ?, NULL, 0, 1, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
     ).run(sessionId, provider, normalizedProjectPath);
 
     return sessionId;
@@ -194,9 +214,18 @@ export const sessionsDb = {
              provider_session_id = ?,
              jsonl_path = COALESCE(jsonl_path, ?),
              custom_name = COALESCE(custom_name, ?),
+             isTopLevel = ?,
+             parentSessionId = ?,
              updated_at = CURRENT_TIMESTAMP
            WHERE session_id = ?`
-        ).run(providerSessionId, duplicate.jsonl_path, duplicate.custom_name, sessionId);
+        ).run(
+          providerSessionId,
+          duplicate.jsonl_path,
+          duplicate.custom_name,
+          duplicate.isTopLevel,
+          duplicate.parentSessionId,
+          sessionId,
+        );
         return;
       }
 
@@ -300,7 +329,8 @@ export const sessionsDb = {
       .prepare(
         `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
-         WHERE isArchived = 0`
+         WHERE isArchived = 0
+           AND isTopLevel = 1`
       )
       .all() as SessionRow[];
 
@@ -318,6 +348,7 @@ export const sessionsDb = {
         `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
          WHERE isArchived = 1
+           AND isTopLevel = 1
          ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC`
       )
       .all() as SessionRow[];
@@ -333,7 +364,8 @@ export const sessionsDb = {
         `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
          WHERE project_path = ?
-           AND isArchived = 0`
+           AND isArchived = 0
+           AND isTopLevel = 1`
       )
       .all(normalizedProjectPath) as SessionRow[];
 
@@ -358,6 +390,26 @@ export const sessionsDb = {
     return normalizeSessionRows(rows);
   },
 
+  /**
+   * Returns only user-discoverable rows while preserving archived sessions.
+   * Permanent deletion uses the unfiltered sibling above so hidden child rows
+   * cannot be orphaned.
+   */
+  getTopLevelSessionsByProjectPathIncludingArchived(projectPath: string): SessionRow[] {
+    const db = getConnection();
+    const normalizedProjectPath = normalizeProjectPath(projectPath);
+    const rows = db
+      .prepare(
+        `SELECT ${SESSION_ROW_COLUMNS}
+         FROM sessions
+         WHERE project_path = ?
+           AND isTopLevel = 1`
+      )
+      .all(normalizedProjectPath) as SessionRow[];
+
+    return normalizeSessionRows(rows);
+  },
+
   getSessionsByProjectPathPage(projectPath: string, limit: number, offset: number): SessionRow[] {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
@@ -367,6 +419,7 @@ export const sessionsDb = {
          FROM sessions
          WHERE project_path = ?
            AND isArchived = 0
+           AND isTopLevel = 1
          ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC
          LIMIT ? OFFSET ?`
       )
@@ -383,7 +436,8 @@ export const sessionsDb = {
         `SELECT COUNT(*) AS count
          FROM sessions
          WHERE project_path = ?
-           AND isArchived = 0`
+           AND isArchived = 0
+           AND isTopLevel = 1`
       )
       .get(normalizedProjectPath) as { count: number } | undefined;
 
