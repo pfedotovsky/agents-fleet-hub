@@ -33,6 +33,7 @@ import {
   saveToken,
 } from '../lib/storage'
 import { PROVIDER_META } from './Messages'
+import { ProjectRenameForm } from './ProjectRenameForm'
 import { SessionRenameForm } from './SessionRenameForm'
 
 const COLLAPSED_COUNT = 7
@@ -50,6 +51,7 @@ interface Props {
   /** `hostId:projectId` of the project whose session is being created, if any. */
   creatingKey: string | null
   onToggleStar: (hostId: string, projectId: string) => void
+  onRenameProject: (hostId: string, projectId: string, displayName: string) => Promise<void>
   onArchiveSession: (hostId: string, sessionId: string) => void
   onRenameSession: (hostId: string, sessionId: string, summary: string) => Promise<void>
   onRestoreSession: (hostId: string, sessionId: string) => Promise<void>
@@ -211,6 +213,7 @@ function ProjectRow({
   onOpenSession,
   onNewSession,
   onToggleStar,
+  onRenameProject,
   onArchiveSession,
   onRenameSession,
 }: {
@@ -228,9 +231,11 @@ function ProjectRow({
   onOpenSession: (session: SessionSummary) => void
   onNewSession: () => void
   onToggleStar: () => void
+  onRenameProject: (displayName: string) => Promise<void>
   onArchiveSession: (sessionId: string) => void
   onRenameSession: (sessionId: string, summary: string) => Promise<void>
 }) {
+  const [renaming, setRenaming] = useState(false)
   const sessions = expanded
     ? [...project.sessions]
         .sort((a, b) => Date.parse(b.lastActivity) - Date.parse(a.lastActivity))
@@ -255,27 +260,50 @@ function ProjectRow({
         >
           <Chevron size={13} />
         </button>
-        <button
-          type="button"
-          onClick={onSelect}
-          title={project.fullPath}
-          className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-1 text-[15px] ${
-            active ? 'text-fg' : 'text-fg-muted'
-          }`}
-        >
-          <Folder size={14} className="shrink-0 text-fg-subtle" />
-          <span className="min-w-0 flex-1 truncate text-left">{project.displayName}</span>
-          {hasActivity && (
-            <span
-              title={runningIds ? 'Has a running agent' : 'Has a session active in the last 2 minutes'}
-              className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400"
+        {renaming ? (
+          <div className="flex min-w-0 flex-1 items-center gap-2 py-1 pl-1">
+            <Folder size={14} className="shrink-0 text-fg-subtle" />
+            <ProjectRenameForm
+              displayName={project.displayName}
+              onRename={onRenameProject}
+              onCancel={() => setRenaming(false)}
+              className="flex-1"
             />
-          )}
-          <span className="tnum shrink-0 font-mono text-[12px] text-fg-subtle">
-            {project.sessionMeta.total}
-          </span>
-        </button>
-        {canCreate && (
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={onSelect}
+            title={project.fullPath}
+            className={`flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-1 text-[15px] ${
+              active ? 'text-fg' : 'text-fg-muted'
+            }`}
+          >
+            <Folder size={14} className="shrink-0 text-fg-subtle" />
+            <span className="min-w-0 flex-1 truncate text-left">{project.displayName}</span>
+            {hasActivity && (
+              <span
+                title={runningIds ? 'Has a running agent' : 'Has a session active in the last 2 minutes'}
+                className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-400"
+              />
+            )}
+            <span className="tnum shrink-0 font-mono text-[12px] text-fg-subtle">
+              {project.sessionMeta.total}
+            </span>
+          </button>
+        )}
+        {!dimmed && !renaming && (
+          <button
+            type="button"
+            onClick={() => setRenaming(true)}
+            title="Rename project"
+            aria-label={`Rename ${project.displayName}`}
+            className="shrink-0 rounded p-1 text-fg-subtle opacity-0 transition-opacity hover:bg-elevated-strong hover:text-fg group-hover:opacity-100 focus:opacity-100"
+          >
+            <Pencil size={13} />
+          </button>
+        )}
+        {canCreate && !renaming && (
           <button
             type="button"
             onClick={onNewSession}
@@ -292,16 +320,18 @@ function ProjectRow({
             )}
           </button>
         )}
-        <button
-          type="button"
-          onClick={onToggleStar}
-          title={project.isStarred ? 'Unpin' : 'Pin'}
-          className={`shrink-0 rounded p-1 transition-opacity hover:bg-elevated-strong ${
-            project.isStarred ? 'text-amber-400' : 'text-fg-subtle opacity-0 group-hover:opacity-100'
-          }`}
-        >
-          <Star size={13} fill={project.isStarred ? 'currentColor' : 'none'} />
-        </button>
+        {!renaming && (
+          <button
+            type="button"
+            onClick={onToggleStar}
+            title={project.isStarred ? 'Unpin' : 'Pin'}
+            className={`shrink-0 rounded p-1 transition-opacity hover:bg-elevated-strong ${
+              project.isStarred ? 'text-amber-400' : 'text-fg-subtle opacity-0 group-hover:opacity-100'
+            }`}
+          >
+            <Star size={13} fill={project.isStarred ? 'currentColor' : 'none'} />
+          </button>
+        )}
       </div>
       {expanded && (
         <div className="mb-0.5 ml-[13px] border-l border-line/90">
@@ -603,6 +633,7 @@ function HostSection({
   onOpenSession,
   onNewSession,
   onToggleStar,
+  onRenameProject,
   onArchiveSession,
   onRenameSession,
   onRestoreSession,
@@ -619,6 +650,7 @@ function HostSection({
   onOpenSession: (hostId: string, projectId: string, session: SessionSummary) => void
   onNewSession: (hostId: string, projectId: string) => void
   onToggleStar: (hostId: string, projectId: string) => void
+  onRenameProject: (hostId: string, projectId: string, displayName: string) => Promise<void>
   onArchiveSession: (hostId: string, sessionId: string) => void
   onRenameSession: (hostId: string, sessionId: string, summary: string) => Promise<void>
   onRestoreSession: (hostId: string, sessionId: string) => Promise<void>
@@ -701,6 +733,9 @@ function HostSection({
             onOpenSession={(session) => onOpenSession(hostId, project.projectId, session)}
             onNewSession={() => onNewSession(hostId, project.projectId)}
             onToggleStar={() => onToggleStar(hostId, project.projectId)}
+            onRenameProject={(displayName) =>
+              onRenameProject(hostId, project.projectId, displayName)
+            }
             onArchiveSession={(sessionId) => onArchiveSession(hostId, sessionId)}
             onRenameSession={(sessionId, summary) => onRenameSession(hostId, sessionId, summary)}
           />
@@ -754,6 +789,7 @@ export function Sidebar({
   onNewSession,
   creatingKey,
   onToggleStar,
+  onRenameProject,
   onArchiveSession,
   onRenameSession,
   onRestoreSession,
@@ -875,6 +911,7 @@ export function Sidebar({
             onOpenSession={onOpenSession}
             onNewSession={onNewSession}
             onToggleStar={onToggleStar}
+            onRenameProject={onRenameProject}
             onArchiveSession={onArchiveSession}
             onRenameSession={onRenameSession}
             onRestoreSession={onRestoreSession}

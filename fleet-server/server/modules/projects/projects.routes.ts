@@ -231,8 +231,8 @@ router.put('/:projectId/rename', (req, res) => {
   try {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const { displayName } = req.body as { displayName?: unknown };
-    updateProjectDisplayName(projectId, displayName);
-    res.json({ success: true });
+    const renamed = updateProjectDisplayName(projectId, displayName);
+    res.json({ success: true, ...renamed });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to rename project' });
   }

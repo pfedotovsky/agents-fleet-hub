@@ -150,6 +150,18 @@ export default function App() {
     )
   }
 
+  /** Renames a project and keeps an already-open chat or draft label in sync. */
+  const renameProject = async (hostId: string, projectId: string, displayName: string) => {
+    const resolvedName = await fleet.renameProject(hostId, projectId, displayName)
+    setView((current) =>
+      current.kind === 'chat' &&
+      current.target.hostId === hostId &&
+      current.target.projectId === projectId
+        ? { ...current, target: { ...current.target, projectName: resolvedName } }
+        : current,
+    )
+  }
+
   const openSessionFromSidebar = (hostId: string, projectId: string, session: SessionSummary) => {
     const { hostIndex, runtime, project } = findProject(hostId, projectId)
     if (!runtime || !project) return
@@ -487,6 +499,7 @@ export default function App() {
             await fleet.archiveProject(view.hostId, view.projectId)
             setView({ kind: 'feed' })
           }}
+          onRenameProject={(displayName) => renameProject(view.hostId, view.projectId, displayName)}
           onArchiveSession={(sessionId) => archiveSession(view.hostId, sessionId)}
           onRenameSession={(sessionId, summary) =>
             renameSession(view.hostId, sessionId, summary)
@@ -538,6 +551,7 @@ export default function App() {
         onNewSession={(hostId, projectId) => void newSession(hostId, projectId)}
         creatingKey={creatingKey}
         onToggleStar={(hostId, projectId) => void fleet.toggleStar(hostId, projectId)}
+        onRenameProject={renameProject}
         onArchiveSession={archiveSession}
         onRenameSession={renameSession}
         onRestoreSession={fleet.restoreSession}

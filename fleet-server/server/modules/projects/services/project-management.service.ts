@@ -21,6 +21,11 @@ type CreateProjectDependencies = {
   getProjectByPath: (projectPath: string) => ProjectRepositoryRow | null;
 };
 
+type UpdateProjectDependencies = {
+  updateCustomName: (projectId: string, customName: string | null) => void;
+  getProjectById: (projectId: string) => ProjectRepositoryRow | null;
+};
+
 type ProjectApiView = {
   projectId: string;
   path: string;
@@ -57,6 +62,12 @@ const defaultDependencies: CreateProjectDependencies = {
     projectsDb.createProjectPath(projectPath, customName),
   getProjectByPath: (projectPath: string): ProjectRepositoryRow | null =>
     projectsDb.getProjectPath(projectPath),
+};
+
+const defaultUpdateDependencies: UpdateProjectDependencies = {
+  updateCustomName: (projectId, customName) =>
+    projectsDb.updateCustomProjectNameById(projectId, customName),
+  getProjectById: (projectId) => projectsDb.getProjectById(projectId),
 };
 
 function resolveDisplayName(customName: string | null | undefined, projectPath: string): string {
@@ -135,10 +146,25 @@ export async function createProject(
   };
 }
 
-/**
- * Sets `projects.custom_project_name` for the given `projectId` (or clears it when empty).
- */
-export function updateProjectDisplayName(projectId: string, newDisplayName: unknown): void {
+/** Sets a stable display name without moving the project folder. */
+export function updateProjectDisplayName(
+  projectId: string,
+  newDisplayName: unknown,
+  dependencies: UpdateProjectDependencies = defaultUpdateDependencies,
+): { displayName: string; customName: string | null } {
+  const project = dependencies.getProjectById(projectId);
+  if (!project) {
+    throw new Error(`Project not found: ${projectId}`);
+  }
+
   const trimmed = typeof newDisplayName === 'string' ? newDisplayName.trim() : '';
-  projectsDb.updateCustomProjectNameById(projectId, trimmed.length > 0 ? trimmed : null);
+  // Persist the basename on reset. Leaving this null would let the project
+  // list regenerate a display name from session content on its next poll.
+  const customName = trimmed.length > 0 ? trimmed : resolveDisplayName(null, project.project_path);
+  dependencies.updateCustomName(projectId, customName);
+
+  return {
+    displayName: customName,
+    customName,
+  };
 }

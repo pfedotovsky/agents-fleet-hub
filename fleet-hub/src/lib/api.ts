@@ -249,6 +249,28 @@ export async function restoreProject(
   })
 }
 
+/** Changes only a project's user-visible name; the host folder path is untouched. */
+export async function renameProject(
+  baseUrl: string,
+  token: string,
+  projectId: string,
+  displayName: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<{ displayName: string; customName: string | null } | null> {
+  const body = (await fetchJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/rename`, {
+    method: 'PUT',
+    token,
+    body: { displayName },
+    onTokenRefresh,
+    timeoutMs: 10000,
+  })) as { success: boolean; displayName?: unknown; customName?: unknown }
+  if (typeof body.displayName !== 'string') return null
+  return {
+    displayName: body.displayName,
+    customName: typeof body.customName === 'string' ? body.customName : null,
+  }
+}
+
 /** All soft-archived projects on a host, including preserved session summaries. */
 export async function getArchivedProjects(
   baseUrl: string,
