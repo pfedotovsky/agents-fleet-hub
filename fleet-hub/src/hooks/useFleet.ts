@@ -4,6 +4,7 @@ import {
   AuthError,
   HostUnreachableError,
   archiveSession as apiArchiveSession,
+  createProject as apiCreateProject,
   deleteSessionPermanently as apiDeleteSessionPermanently,
   discoverLocalHosts,
   getAuthStatus,
@@ -271,6 +272,34 @@ export function useFleet() {
     }
   }, [runtimes])
 
+  /** Creates or registers a host folder and makes it available immediately. */
+  const createProject = useCallback(
+    async (hostId: string, projectPath: string): Promise<Project> => {
+      const config = hostsRef.current.find((host) => host.id === hostId)
+      const token = storage.getToken(hostId)
+      if (!config || !token) throw new Error('Not signed in to this host')
+      const project = await apiCreateProject(config.baseUrl, token, projectPath, (refreshed) =>
+        storage.saveToken(hostId, refreshed),
+      )
+      setRuntimes((prev) => {
+        const existing = prev[hostId]
+        if (!existing) return prev
+        return {
+          ...prev,
+          [hostId]: {
+            ...existing,
+            projects: [
+              project,
+              ...existing.projects.filter((item) => item.projectId !== project.projectId),
+            ],
+          },
+        }
+      })
+      return project
+    },
+    [],
+  )
+
   /** Renames a session on its host, then updates every currently loaded copy. */
   const renameSession = useCallback(
     async (hostId: string, sessionId: string, summary: string): Promise<void> => {
@@ -427,6 +456,7 @@ export function useFleet() {
     loginHost,
     clearTokens,
     refresh,
+    createProject,
     toggleStar,
     renameSession,
     markProjectOpened,

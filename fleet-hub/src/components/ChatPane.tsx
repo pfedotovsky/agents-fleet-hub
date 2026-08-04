@@ -454,6 +454,10 @@ interface Props {
   onSessionCreated?: (sessionId: string) => void
   /** Online project targets offered by a top-level, initially unbound draft. */
   draftTargets?: FleetSession[]
+  /** Online hosts that can create or register another folder for the draft. */
+  draftHosts?: { id: string; name: string }[]
+  /** Creates or registers a host folder and returns its draft target. */
+  onCreateDraftProject?: (hostId: string, projectPath: string) => Promise<FleetSession>
   /** Binds an unbound draft to its selected host project without remounting it. */
   onDraftTargetChange?: (target: FleetSession) => void
 }
@@ -469,6 +473,8 @@ export function ChatPane({
   onOpenTerminal,
   onSessionCreated,
   draftTargets,
+  draftHosts,
+  onCreateDraftProject,
   onDraftTargetChange,
 }: Props) {
   // A draft chat opens with an empty id and no provider chosen yet; the real
@@ -493,6 +499,11 @@ export function ChatPane({
   const [socketState, setSocketState] = useState<SocketState>('connecting')
   const [permissions, setPermissions] = useState<PermissionRequest[]>([])
   const [input, setInput] = useState(() => loadDraft(target.hostId, sessionId))
+  const [customFolderOpen, setCustomFolderOpen] = useState(false)
+  const [customFolderHostId, setCustomFolderHostId] = useState(() => draftHosts?.[0]?.id ?? '')
+  const [customFolderPath, setCustomFolderPath] = useState('')
+  const [customFolderBusy, setCustomFolderBusy] = useState(false)
+  const [customFolderError, setCustomFolderError] = useState<string | null>(null)
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(() => {
     const stored = loadPermissionMode(target.hostId, target.projectPath) ?? 'default'
     // 'plan' written by older builds migrates to the separate planMode toggle.
@@ -1538,15 +1549,51 @@ export function ChatPane({
     return [...groups.values()]
   }, [draftTargets])
 
-  function selectDraftTarget(key: string) {
-    const next = draftTargets?.find((option) => option.key === key)
-    if (!next) return
+  function bindDraftTarget(next: FleetSession) {
     const storedMode = loadPermissionMode(next.hostId, next.projectPath)
     setProvider(next.session.provider)
     setPermissionMode(storedMode === 'plan' ? 'default' : (storedMode ?? 'default'))
     setPlanMode(loadPlanMode(next.hostId) ?? storedMode === 'plan')
     setAllowedTools(loadPermissions(next.hostId, next.projectPath).allowedTools ?? [])
     onDraftTargetChange?.(next)
+  }
+
+  function selectDraftTarget(key: string) {
+    const next = draftTargets?.find((option) => option.key === key)
+    if (!next) return
+    setCustomFolderOpen(false)
+    setCustomFolderError(null)
+    bindDraftTarget(next)
+  }
+
+  async function submitCustomFolder(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const projectPath = customFolderPath.trim()
+    if (!customFolderHostId || !projectPath || !onCreateDraftProject) return
+    const comparablePath = projectPath.replace(/[\\/]+$/, '')
+    const existing = draftTargets?.find(
+      (option) =>
+        option.hostId === customFolderHostId &&
+        option.projectPath.replace(/[\\/]+$/, '') === comparablePath,
+    )
+    if (existing) {
+      bindDraftTarget(existing)
+      setCustomFolderOpen(false)
+      setCustomFolderError(null)
+      return
+    }
+    setCustomFolderBusy(true)
+    setCustomFolderError(null)
+    try {
+      const next = await onCreateDraftProject(customFolderHostId, projectPath)
+      bindDraftTarget(next)
+      setCustomFolderPath('')
+      setCustomFolderOpen(false)
+    } catch (error) {
+      setCustomFolderError(error instanceof Error ? error.message : 'Could not use this folder')
+    } finally {
+      setCustomFolderBusy(false)
+    }
   }
 
   const planRequest = permissions.find(isPlanRequest)
@@ -1820,29 +1867,97 @@ export function ChatPane({
             }}
           >
             {isDraft && draftTargets !== undefined && (
-              <label className="mb-2 flex items-center gap-2 rounded-lg border border-line bg-canvas/40 px-2.5 py-2">
-                <Folder size={15} className="shrink-0 text-fg-faint" />
-                <span className="shrink-0 text-xs font-medium text-fg-muted">Work in</span>
-                <select
-                  value={target.projectPath ? `${target.hostId}::draft:${target.projectId}` : ''}
-                  onChange={(event) => selectDraftTarget(event.target.value)}
-                  aria-label="Session folder"
-                  className="min-w-0 flex-1 truncate bg-transparent text-xs text-fg outline-none"
-                >
-                  <option value="">
-                    {draftTargets.length > 0 ? 'Choose a host and folder…' : 'No online project folders'}
-                  </option>
-                  {draftTargetsByHost.map((options) => (
-                    <optgroup key={options[0].hostId} label={options[0].hostName}>
-                      {options.map((option) => (
-                        <option key={option.key} value={option.key}>
-                          {option.projectName} — {option.projectPath}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </label>
+              <div className="mb-2 rounded-lg border border-line bg-canvas/40">
+                <div className="flex items-center gap-2 px-2.5 py-2">
+                  <Folder size={15} className="shrink-0 text-fg-faint" />
+                  <span className="shrink-0 text-xs font-medium text-fg-muted">Work in</span>
+                  <select
+                    value={target.projectPath ? `${target.hostId}::draft:${target.projectId}` : ''}
+                    onChange={(event) => selectDraftTarget(event.target.value)}
+                    aria-label="Session folder"
+                    className="min-w-0 flex-1 truncate bg-transparent text-xs text-fg outline-none"
+                  >
+                    <option value="">
+                      {draftTargets.length > 0
+                        ? 'Choose a host and folder…'
+                        : draftHosts?.length
+                          ? 'Create or open a folder…'
+                          : 'No online hosts'}
+                    </option>
+                    {draftTargetsByHost.map((options) => (
+                      <optgroup key={options[0].hostId} label={options[0].hostName}>
+                        {options.map((option) => (
+                          <option key={option.key} value={option.key}>
+                            {option.projectName} — {option.projectPath}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomFolderOpen((open) => !open)
+                      setCustomFolderHostId((current) => current || draftHosts?.[0]?.id || '')
+                      setCustomFolderError(null)
+                    }}
+                    disabled={!draftHosts?.length || customFolderBusy}
+                    aria-expanded={customFolderOpen}
+                    className="shrink-0 rounded-md border border-line px-2 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:border-line-strong hover:text-fg disabled:opacity-40"
+                  >
+                    Other folder…
+                  </button>
+                </div>
+                {customFolderOpen && (
+                  <form
+                    onSubmit={(event) => void submitCustomFolder(event)}
+                    className="border-t border-line px-2.5 py-2"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={customFolderHostId}
+                        onChange={(event) => setCustomFolderHostId(event.target.value)}
+                        aria-label="Host for folder"
+                        disabled={customFolderBusy}
+                        className="max-w-44 rounded-md border border-line bg-surface px-2 py-1.5 text-xs text-fg outline-none focus:border-accent/60 disabled:opacity-50"
+                      >
+                        {(draftHosts ?? []).map((host) => (
+                          <option key={host.id} value={host.id}>
+                            {host.name}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={customFolderPath}
+                        onChange={(event) => setCustomFolderPath(event.target.value)}
+                        aria-label="Folder path"
+                        placeholder="/Users/you/projects/new-project"
+                        autoComplete="off"
+                        disabled={customFolderBusy}
+                        className="min-w-52 flex-1 rounded-md border border-line bg-surface px-2 py-1.5 font-mono text-xs text-fg outline-none placeholder:text-fg-subtle focus:border-accent/60 disabled:opacity-50"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!customFolderHostId || !customFolderPath.trim() || customFolderBusy}
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-strong disabled:opacity-40"
+                      >
+                        {customFolderBusy && <LoaderCircle size={12} className="animate-spin" />}
+                        Use folder
+                      </button>
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-fg-subtle">
+                      Enter an absolute path on the selected host. Missing folders are created under
+                      that host&apos;s workspace root.
+                    </p>
+                    {customFolderError && (
+                      <p role="alert" className="mt-1 text-[11px] text-rose-400">
+                        {customFolderError}
+                      </p>
+                    )}
+                  </form>
+                )}
+              </div>
             )}
             {pendingImages.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-2 px-1">

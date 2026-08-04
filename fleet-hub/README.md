@@ -66,8 +66,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
   (Claude / Codex / …). Online session rows can be renamed in place from their
   hover actions; the new title is reflected in the feed, project view, sidebar,
   and an already-open chat. The feed's **New session** action opens a draft whose
-  composer chooses any project folder from an online host. Hovering a project
-  row still reveals a **+** that opens a draft already bound to that project.
+  composer chooses any project folder from an online host, or creates/opens an
+  arbitrary absolute path through the selected host. Hovering a project row
+  still reveals a **+** that opens a draft already bound to that project.
   In either path, the provider (Claude / Codex) is chosen in the composer and
   the session is created on the first send.
 - **Project view**: the project's sessions (paged), "New session" (opens a
@@ -145,8 +146,10 @@ own root URL is only a status page; it does not expose an account-setup UI.
 
 - Hosts are polled every 12 s (`GET /api/projects?sessionsLimit=5`).
 - The global new-session folder selector is built from those poll results and
-  lists projects from online hosts only; it does not browse or mutate the host
-  filesystem.
+  lists projects from online hosts only. **Other folder…** calls
+  `POST /api/projects/create-project {path}` on the chosen host: an existing
+  directory is registered, while a missing directory is created only inside
+  that server's configured workspace root (the host user's home by default).
 - Transcripts: `GET /api/providers/sessions/:id/messages` (normalized across
   providers; `offset=0` is the newest page). New sessions:
   `POST /api/providers/sessions {provider, projectPath}`, then the first

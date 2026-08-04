@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Plus, Server, X } from 'lucide-react'
-import type { FleetSession, Provider, SessionSummary, SessionView } from './types'
+import type {
+  FleetSession,
+  HostRuntime,
+  Project,
+  Provider,
+  SessionSummary,
+  SessionView,
+} from './types'
 import { EASE_OUT } from './lib/motion'
 import type { ChatPanelKind } from './lib/storage'
 import {
@@ -197,33 +204,40 @@ export default function App() {
     })
   }
 
+  function draftTargetFor(runtime: HostRuntime, hostIndex: number, project: Project): FleetSession {
+    const last = loadLastProvider(runtime.config.id)
+    const provider: Provider =
+      last === 'claude' || last === 'codex' || last === 'opencode' ? last : 'claude'
+    return {
+      key: `${runtime.config.id}::draft:${project.projectId}`,
+      hostId: runtime.config.id,
+      hostName: runtime.config.name,
+      hostColorIdx: hostIndex,
+      baseUrl: runtime.config.baseUrl,
+      projectName: project.displayName,
+      projectPath: project.fullPath,
+      projectId: project.projectId,
+      session: {
+        id: '',
+        provider,
+        summary: '',
+        messageCount: 0,
+        lastActivity: new Date().toISOString(),
+      },
+      href: '',
+      stale: false,
+      justUpdated: false,
+    }
+  }
+
   const draftTargets = fleet.hosts.flatMap((runtime, hostIndex) =>
     runtime.status === 'online'
-      ? runtime.projects.map((project): FleetSession => {
-          const last = loadLastProvider(runtime.config.id)
-          const provider: Provider =
-            last === 'claude' || last === 'codex' || last === 'opencode' ? last : 'claude'
-          return {
-            key: `${runtime.config.id}::draft:${project.projectId}`,
-            hostId: runtime.config.id,
-            hostName: runtime.config.name,
-            hostColorIdx: hostIndex,
-            baseUrl: runtime.config.baseUrl,
-            projectName: project.displayName,
-            projectPath: project.fullPath,
-            projectId: project.projectId,
-            session: {
-              id: '',
-              provider,
-              summary: '',
-              messageCount: 0,
-              lastActivity: new Date().toISOString(),
-            },
-            href: '',
-            stale: false,
-            justUpdated: false,
-          }
-        })
+      ? runtime.projects.map((project) => draftTargetFor(runtime, hostIndex, project))
+      : [],
+  )
+  const draftHosts = fleet.hosts.flatMap((runtime) =>
+    runtime.status === 'online'
+      ? [{ id: runtime.config.id, name: runtime.config.name }]
       : [],
   )
 
@@ -371,6 +385,20 @@ export default function App() {
                 : undefined
             }
             draftTargets={view.target.key === 'global::draft' ? draftTargets : undefined}
+            draftHosts={view.target.key === 'global::draft' ? draftHosts : undefined}
+            onCreateDraftProject={
+              view.target.key === 'global::draft'
+                ? async (hostId, projectPath) => {
+                    const hostIndex = fleet.hosts.findIndex(
+                      (runtime) => runtime.config.id === hostId,
+                    )
+                    const runtime = hostIndex >= 0 ? fleet.hosts[hostIndex] : undefined
+                    if (!runtime) throw new Error('Host is no longer available')
+                    const project = await fleet.createProject(hostId, projectPath)
+                    return draftTargetFor(runtime, hostIndex, project)
+                  }
+                : undefined
+            }
             onDraftTargetChange={(nextTarget) => {
               fleet.markProjectOpened(nextTarget.hostId, nextTarget.projectId)
               setView((current) =>
