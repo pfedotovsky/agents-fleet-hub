@@ -82,3 +82,37 @@ test('repository reads normalize SQLite UTC timestamps to ISO strings', async ()
     assert.match(row?.updated_at ?? '', /^\d{4}-\d{2}-\d{2}T/);
   });
 });
+
+test('session discovery excludes hidden child rows without deleting direct access', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createSession('session-parent', 'codex', '/workspace/demo-project', 'Parent');
+    sessionsDb.createSession(
+      'session-child',
+      'codex',
+      '/workspace/demo-project',
+      'Child',
+      undefined,
+      undefined,
+      '/tmp/session-child.jsonl',
+      { isTopLevel: false, parentSessionId: 'session-parent' },
+    );
+
+    assert.deepEqual(
+      sessionsDb.getSessionsByProjectPath('/workspace/demo-project').map((session) => session.session_id),
+      ['session-parent'],
+    );
+    assert.deepEqual(
+      sessionsDb.getTopLevelSessionsByProjectPathIncludingArchived('/workspace/demo-project')
+        .map((session) => session.session_id),
+      ['session-parent'],
+    );
+    assert.deepEqual(
+      sessionsDb.getSessionsByProjectPathIncludingArchived('/workspace/demo-project')
+        .map((session) => session.session_id)
+        .sort(),
+      ['session-child', 'session-parent'],
+    );
+    assert.equal(sessionsDb.countSessionsByProjectPath('/workspace/demo-project'), 1);
+    assert.equal(sessionsDb.getSessionById('session-child')?.parentSessionId, 'session-parent');
+  });
+});

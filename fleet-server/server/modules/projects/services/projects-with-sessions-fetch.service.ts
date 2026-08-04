@@ -1,3 +1,5 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
+
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -128,7 +130,7 @@ function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummary {
 }
 
 function readProjectSessionsIncludingArchived(projectPath: string): ProjectSessionsPageResult {
-  const rows = sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath) as SessionRepositoryRow[];
+  const rows = sessionsDb.getTopLevelSessionsByProjectPathIncludingArchived(projectPath) as SessionRepositoryRow[];
 
   return {
     sessions: rows.map(mapSessionRowToSummary),

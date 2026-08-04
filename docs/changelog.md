@@ -7,6 +7,14 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-04
 
 ### Changed
+- **Codex child-agent rollouts no longer pollute ordinary session discovery.**
+  The server now derives an explicit top-level/child relationship from Codex
+  `session_meta` (`thread_source` plus `parent_thread_id`), keeps spawned and
+  guardian rollouts in the database for intentional history reads by id, and
+  excludes them from project pages, the sidebar, All sessions, archives,
+  global search, and realtime session upserts. Parent transcripts retain their
+  native Agent activity rows. Existing indexed children are reclassified on
+  the next synchronization. Tracked in private backlog #41.
 - **Persisted Codex plans now keep their native semantics after reload.** The
   history reader conservatively parses static Code Mode
   `tools.update_plan({...})` wrappers without evaluating recorded JavaScript,

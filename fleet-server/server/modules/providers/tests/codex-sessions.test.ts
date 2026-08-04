@@ -48,12 +48,16 @@ const writeCodexTranscript = async (
   codexSessionId: string,
   workspacePath: string,
   firstUserMessage?: string,
+  sessionMetadata: Record<string, unknown> = {},
 ): Promise<string> => {
   const sessionsDir = path.join(homeDir, '.codex', 'sessions', '2026', '07', '07');
   await mkdir(sessionsDir, { recursive: true });
 
   const lines: string[] = [
-    JSON.stringify({ type: 'session_meta', payload: { id: codexSessionId, cwd: workspacePath } }),
+    JSON.stringify({
+      type: 'session_meta',
+      payload: { id: codexSessionId, cwd: workspacePath, ...sessionMetadata },
+    }),
   ];
   if (firstUserMessage !== undefined) {
     lines.push(JSON.stringify({ type: 'event_msg', payload: { type: 'user_message', message: firstUserMessage } }));
@@ -643,6 +647,77 @@ test('Codex synchronizer leaves indexed sessions untitled when no name is availa
       await synchronizer.synchronize();
 
       assert.equal(sessionsDb.getSessionById('codex-indexed-1')?.custom_name, 'Untitled Codex Session');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex synchronizer keeps subagent rollouts addressable but out of top-level discovery', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-session-sync-subagents-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    await writeCodexTranscript(tempRoot, 'codex-user-1', workspacePath, 'Top-level user prompt');
+    await writeCodexTranscript(
+      tempRoot,
+      'codex-child-1',
+      workspacePath,
+      'Spawned child prompt',
+      {
+        thread_source: 'subagent',
+        parent_thread_id: 'codex-user-1',
+        source: {
+          subagent: {
+            thread_spawn: {
+              parent_thread_id: 'codex-user-1',
+              depth: 1,
+              agent_path: '/root/activitycheck',
+            },
+          },
+        },
+      },
+    );
+    await writeCodexTranscript(
+      tempRoot,
+      'codex-guardian-1',
+      workspacePath,
+      'Guardian prompt',
+      {
+        thread_source: 'subagent',
+        parent_thread_id: 'codex-user-1',
+        source: { subagent: { other: 'guardian' } },
+      },
+    );
+
+    await withIsolatedDatabase(async () => {
+      const synchronizer = new CodexSessionSynchronizer();
+      assert.equal(await synchronizer.synchronize(), 3);
+
+      assert.deepEqual(
+        sessionsDb.getSessionsByProjectPath(workspacePath).map((session) => session.session_id),
+        ['codex-user-1'],
+      );
+      assert.deepEqual(
+        sessionsDb.getAllSessions().map((session) => session.session_id),
+        ['codex-user-1'],
+      );
+
+      const spawnedChild = sessionsDb.getSessionById('codex-child-1');
+      const guardianChild = sessionsDb.getSessionById('codex-guardian-1');
+      assert.equal(spawnedChild?.isTopLevel, 0);
+      assert.equal(spawnedChild?.parentSessionId, 'codex-user-1');
+      assert.equal(guardianChild?.isTopLevel, 0);
+      assert.equal(guardianChild?.parentSessionId, 'codex-user-1');
+
+      const directHistory = await new CodexSessionsProvider().fetchHistory('codex-child-1');
+      assert.equal(
+        directHistory.messages.some((message) => message.content === 'Spawned child prompt'),
+        true,
+      );
     });
   } finally {
     restoreHomeDir();
