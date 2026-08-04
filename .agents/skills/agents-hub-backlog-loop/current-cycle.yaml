@@ -1,0 +1,99 @@
+version: 1
+cycle:
+  id: 2
+  name: "Native Codex and project lifecycle"
+  status: active
+  approved_at: "2026-08-04"
+  approval: >-
+    Approve Cycle 2: #1, #37, and #9; recursively delete workspace
+    directories; remove the Codex SDK implementation after native parity.
+  control_issue:
+    repository: pfedotovsky/agents-fleet-hub-backlog
+    number: 38
+    ledger_marker: "<!-- agents-hub-loop:cycle-2 -->"
+
+schedule:
+  cadence: hourly
+  standalone_task_per_run: true
+  preferred_model: gpt-5.6-terra
+  preferred_reasoning: medium
+  archive_completed_tasks: true
+
+limits:
+  target_credits: 3500
+  hard_estimated_credits: 4200
+  api_equivalent_credits_per_usd: 25
+  max_total_runs: 30
+  max_substantive_runs: 14
+  max_consecutive_no_progress_runs: 3
+  expires_after_days: 7
+  on_limit: pause_and_report
+
+execution:
+  max_active_code_slices: 1
+  max_durable_transitions_per_run: 1
+  replacement_issues_allowed: false
+  release_allowed: false
+  deployment_allowed: false
+  real_host_migration_allowed: false
+  real_user_data_deletion_allowed: false
+
+issues:
+  - number: 1
+    order: 1
+    title: "Agent-CLI bootstrap + auth banner"
+    target_credits: 350
+    hard_estimated_credits: 450
+    done_when:
+      - "The existing installer-readiness PR is integrated after current checks."
+      - "The Hub shows a first-class actionable signed-out or missing-CLI banner."
+      - "Provider-owned install and interactive login remain user-controlled."
+
+  - number: 37
+    order: 2
+    title: "Native Codex app-server adapter"
+    target_credits: 2400
+    hard_estimated_credits: 2600
+    done_when:
+      - "Remaining app-server interaction and execution parity is closed."
+      - "Local live verification passes."
+      - "SSH verification passes on a separately named and authorized host."
+      - "App-server is the only Codex conversation runtime."
+      - "CODEX_APP_SERVER_ENABLED and the SDK routing branch are removed."
+      - "server/openai-codex.js and obsolete SDK tests are deleted."
+      - "@openai/codex-sdk is removed from dependencies, lockfile, and notices."
+      - "Unsupported Codex CLI versions fail clearly instead of using SDK fallback."
+    gates:
+      - "Do not deploy, migrate, or modify an SSH host without separate authorization."
+      - "Keep SDK fallback until parity and local verification are complete."
+      - "After removal, rollback is a Git revert or prior release, not dual runtime code."
+
+  - number: 9
+    order: 3
+    title: "Permanent project and workspace deletion"
+    target_credits: 750
+    hard_estimated_credits: 1000
+    done_when:
+      - "Permanent deletion is available only from Archived Projects."
+      - "The UI previews the canonical absolute path, sessions, size, and Git risk."
+      - "Confirmation requires typing the exact canonical absolute path."
+      - "The server deletes the workspace tree, session JSONL files, session rows, and project row."
+      - "Deletion is rejected while project sessions or file operations are active."
+      - "Filesystem roots, home, server state, runtime paths, ancestors, symlink escapes, and overly broad targets are rejected."
+      - "Symlinks are removed as links and never followed beyond the workspace root."
+      - "The implementation uses filesystem APIs rather than shell rm."
+      - "Destructive verification uses isolated temporary fixtures only."
+    gates:
+      - "Cycle approval covers implementation and fixture tests, not deletion of real user data."
+      - "Any real deletion requires the exact target and a fresh confirmation immediately before execution."
+
+completion:
+  close_cycle_when:
+    - "Issues 1, 37, and 9 are closed as shipped."
+  pause_cycle_when:
+    - "Any hard limit is reached."
+    - "A required user decision or host authorization blocks all remaining issues."
+    - "Three consecutive scheduled runs make no durable progress."
+  never_do:
+    - "Add a Wave 2 or replacement issue."
+    - "Continue hourly no-op runs after completion or pause."
