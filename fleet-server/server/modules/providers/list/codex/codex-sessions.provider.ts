@@ -161,6 +161,229 @@ function extractAppServerWebSearchQuery(toolName: unknown, input: unknown): stri
   }
 }
 
+type StaticString = { value: string; end: number };
+
+function readStaticString(source: string, start: number): StaticString | null {
+  const quote = source[start];
+  if (quote !== '"' && quote !== "'") return null;
+  let value = '';
+  for (let index = start + 1; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === quote) return { value, end: index + 1 };
+    if (character !== '\\') {
+      value += character;
+      continue;
+    }
+    index += 1;
+    if (index >= source.length) return null;
+    const escaped = source[index];
+    const simpleEscapes: Record<string, string> = {
+      b: '\b',
+      f: '\f',
+      n: '\n',
+      r: '\r',
+      t: '\t',
+      v: '\v',
+      '0': '\0',
+      '\\': '\\',
+      '"': '"',
+      "'": "'",
+    };
+    if (escaped in simpleEscapes) {
+      value += simpleEscapes[escaped];
+      continue;
+    }
+    if (escaped === 'u') {
+      const hex = source.slice(index + 1, index + 5);
+      if (!/^[0-9a-fA-F]{4}$/.test(hex)) return null;
+      value += String.fromCharCode(Number.parseInt(hex, 16));
+      index += 4;
+      continue;
+    }
+    if (escaped === 'x') {
+      const hex = source.slice(index + 1, index + 3);
+      if (!/^[0-9a-fA-F]{2}$/.test(hex)) return null;
+      value += String.fromCharCode(Number.parseInt(hex, 16));
+      index += 2;
+      continue;
+    }
+    value += escaped;
+  }
+  return null;
+}
+
+function findStaticPropertyValue(source: string, property: string): number | null {
+  let depth = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === '"' || character === "'") {
+      const parsed = readStaticString(source, index);
+      if (!parsed) return null;
+      index = parsed.end - 1;
+      continue;
+    }
+    if (character === '{') {
+      depth += 1;
+      continue;
+    }
+    if (character === '}') {
+      depth -= 1;
+      continue;
+    }
+    if (depth !== 1 || !/[A-Za-z_$]/.test(character)) continue;
+
+    let end = index + 1;
+    while (end < source.length && /[A-Za-z0-9_$]/.test(source[end])) end += 1;
+    if (source.slice(index, end) !== property) {
+      index = end - 1;
+      continue;
+    }
+    let colon = end;
+    while (/\s/.test(source[colon] ?? '')) colon += 1;
+    if (source[colon] !== ':') {
+      index = end - 1;
+      continue;
+    }
+    let value = colon + 1;
+    while (/\s/.test(source[value] ?? '')) value += 1;
+    return value;
+  }
+  return null;
+}
+
+function readBalancedStaticValue(
+  source: string,
+  start: number,
+  open: '[' | '{',
+  close: ']' | '}',
+): { value: string; end: number } | null {
+  if (source[start] !== open) return null;
+  let depth = 0;
+  for (let index = start; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === '"' || character === "'") {
+      const parsed = readStaticString(source, index);
+      if (!parsed) return null;
+      index = parsed.end - 1;
+      continue;
+    }
+    if (character === open) depth += 1;
+    if (character !== close) continue;
+    depth -= 1;
+    if (depth === 0) return { value: source.slice(start, index + 1), end: index + 1 };
+  }
+  return null;
+}
+
+function extractStaticToolArguments(input: string, tool: string): string | null {
+  const marker = `tools.${tool}`;
+  let markerIndex = -1;
+  for (let index = 0; index < input.length; index += 1) {
+    const character = input[index];
+    if (character === '"' || character === "'") {
+      const parsed = readStaticString(input, index);
+      if (!parsed) return null;
+      index = parsed.end - 1;
+      continue;
+    }
+    if (character === '`') {
+      for (index += 1; index < input.length; index += 1) {
+        if (input[index] === '\\') index += 1;
+        else if (input[index] === '`') break;
+      }
+      continue;
+    }
+    if (
+      input.startsWith(marker, index)
+      && !/[A-Za-z0-9_$]/.test(input[index - 1] ?? '')
+    ) {
+      markerIndex = index;
+      break;
+    }
+  }
+  if (markerIndex < 0) return null;
+  let open = markerIndex + marker.length;
+  while (/\s/.test(input[open] ?? '')) open += 1;
+  if (input[open] !== '(') return null;
+
+  let depth = 1;
+  for (let index = open + 1; index < input.length; index += 1) {
+    const character = input[index];
+    if (character === '"' || character === "'") {
+      const parsed = readStaticString(input, index);
+      if (!parsed) return null;
+      index = parsed.end - 1;
+      continue;
+    }
+    if (character === '(') depth += 1;
+    if (character !== ')') continue;
+    depth -= 1;
+    if (depth === 0) return input.slice(open + 1, index).trim();
+  }
+  return null;
+}
+
+type AppServerPlanWrapper = {
+  explanation?: string;
+  todos: Array<{ content: string; status: 'pending' | 'in_progress' | 'completed' }>;
+};
+
+/**
+ * App-server persists Code Mode plan updates as JavaScript wrappers around a
+ * static `tools.update_plan({...})` call. Parse only string literals and the
+ * verified plan shape; never execute or import the recorded JavaScript.
+ */
+function extractAppServerPlanWrapper(toolName: unknown, input: unknown): AppServerPlanWrapper | null {
+  if (toolName !== 'exec' || typeof input !== 'string') return null;
+  const argumentsText = extractStaticToolArguments(input, 'update_plan');
+  if (!argumentsText || argumentsText[0] !== '{') return null;
+  const planStart = findStaticPropertyValue(argumentsText, 'plan');
+  if (planStart === null) return null;
+  const plan = readBalancedStaticValue(argumentsText, planStart, '[', ']');
+  if (!plan) return null;
+
+  const todos: AppServerPlanWrapper['todos'] = [];
+  for (let index = 1; index < plan.value.length - 1; index += 1) {
+    const character = plan.value[index];
+    if (/\s|,/.test(character)) continue;
+    const entry = readBalancedStaticValue(plan.value, index, '{', '}');
+    if (!entry) return null;
+    const stepStart = findStaticPropertyValue(entry.value, 'step');
+    const statusStart = findStaticPropertyValue(entry.value, 'status');
+    if (stepStart === null || statusStart === null) return null;
+    const step = readStaticString(entry.value, stepStart);
+    const status = readStaticString(entry.value, statusStart);
+    if (!step?.value.trim() || !status) return null;
+    if (
+      status.value !== 'pending'
+      && status.value !== 'in_progress'
+      && status.value !== 'completed'
+    ) return null;
+    todos.push({ content: step.value, status: status.value });
+    index = entry.end - 1;
+  }
+  if (todos.length === 0) return null;
+
+  const explanationStart = findStaticPropertyValue(argumentsText, 'explanation');
+  const explanation = explanationStart === null
+    ? null
+    : readStaticString(argumentsText, explanationStart)?.value.trim() || null;
+  return {
+    ...(explanation ? { explanation } : {}),
+    todos,
+  };
+}
+
+function extractAppServerCommandWrapper(toolName: unknown, input: unknown): string | null {
+  if (toolName !== 'exec' || typeof input !== 'string') return null;
+  const argumentsText = extractStaticToolArguments(input, 'exec_command');
+  if (!argumentsText || argumentsText[0] !== '{') return null;
+  const commandStart = findStaticPropertyValue(argumentsText, 'cmd');
+  if (commandStart === null) return null;
+  const command = readStaticString(argumentsText, commandStart)?.value;
+  return command?.trim() ? command : null;
+}
+
 type AppServerMcpWrapper = {
   server: string;
   tool: string;
@@ -280,6 +503,9 @@ async function getCodexSessionMessages(
     let tokenUsage: AnyRecord | null = null;
     const appServerMcpCallIds = new Set<string>();
     const appServerImageViewCallIds = new Set<string>();
+    const appServerPlanCallIds = new Set<string>();
+    const appServerCodeModeCallIds = new Set<string>();
+    const appServerPlanMessageIndexes = new Map<string, number>();
     for await (const line of readJsonlLines(sessionFilePath)) {
       if (!line.trim()) {
         continue;
@@ -404,8 +630,37 @@ async function getCodexSessionMessages(
           const webSearchQuery = extractAppServerWebSearchQuery(toolName, input);
           const mcpWrapper = extractAppServerMcpWrapper(toolName, input);
           const imageViewPath = extractAppServerImageViewWrapper(toolName, input);
+          const planWrapper = extractAppServerPlanWrapper(toolName, input);
+          const commandWrapper = extractAppServerCommandWrapper(toolName, input);
 
-          if (webSearchQuery) {
+          if (planWrapper) {
+            appServerPlanCallIds.add(entry.payload.call_id);
+            const turnId = typeof entry.payload.internal_chat_message_metadata_passthrough?.turn_id === 'string'
+              ? entry.payload.internal_chat_message_metadata_passthrough.turn_id
+              : null;
+            const planMessage = {
+              type: 'tool_use',
+              timestamp: entry.timestamp,
+              ...(turnId ? { uuid: `codex_app_server_plan_${turnId}` } : {}),
+              toolName: 'TodoWrite',
+              toolInput: planWrapper,
+              toolCallId: entry.payload.call_id,
+            };
+            if (turnId && appServerPlanMessageIndexes.has(turnId)) {
+              messages[appServerPlanMessageIndexes.get(turnId)!] = planMessage;
+            } else {
+              if (turnId) appServerPlanMessageIndexes.set(turnId, messages.length);
+              messages.push(planMessage);
+            }
+          } else if (commandWrapper) {
+            messages.push({
+              type: 'tool_use',
+              timestamp: entry.timestamp,
+              toolName: 'Bash',
+              toolInput: { command: commandWrapper },
+              toolCallId: entry.payload.call_id,
+            });
+          } else if (webSearchQuery) {
             messages.push({
               type: 'tool_use',
               timestamp: entry.timestamp,
@@ -458,6 +713,15 @@ async function getCodexSessionMessages(
               }),
               toolCallId: entry.payload.call_id,
             });
+          } else if (toolName === 'exec') {
+            appServerCodeModeCallIds.add(entry.payload.call_id);
+            messages.push({
+              type: 'tool_use',
+              timestamp: entry.timestamp,
+              toolName: 'CodeMode',
+              toolInput: {},
+              toolCallId: entry.payload.call_id,
+            });
           } else {
             messages.push({
               type: 'tool_use',
@@ -473,6 +737,8 @@ async function getCodexSessionMessages(
           if (
             appServerMcpCallIds.has(entry.payload.call_id)
             || appServerImageViewCallIds.has(entry.payload.call_id)
+            || appServerPlanCallIds.has(entry.payload.call_id)
+            || appServerCodeModeCallIds.has(entry.payload.call_id)
           ) continue;
           messages.push({
             type: 'tool_result',

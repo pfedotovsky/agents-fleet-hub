@@ -288,6 +288,142 @@ test('Codex history restores app-server MCP wrappers as native tool rows', { con
   }
 });
 
+test('Codex history restores the latest app-server plan wrapper as one native checklist', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-plan-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(
+      tempRoot,
+      'codex-plan-1',
+      workspacePath,
+      'Finish the parity plan',
+    );
+    const metadata = { turn_id: 'turn-plan-1' };
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({ type: 'session_meta', payload: { id: 'codex-plan-1', cwd: workspacePath } }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:01.000Z',
+        payload: { type: 'reasoning', summary: [] },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:02.000Z',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'plan-call-1',
+          input: 'const r = await tools.update_plan({explanation:"First pass",plan:[{step:"Live parity",status:"in_progress"},{step:"Reload parity",status:"pending"}]}); text(r)',
+          internal_chat_message_metadata_passthrough: metadata,
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:03.000Z',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'plan-call-1',
+          output: 'opaque plan result',
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:04.000Z',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'plan-call-2',
+          input: "const r = await tools.update_plan({plan:[{status:'completed',step:'Live parity'},{step:'Reload parity',status:'completed'}], explanation:'All done'}); text(r)",
+          internal_chat_message_metadata_passthrough: metadata,
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:05.000Z',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'plan-call-2',
+          output: 'second opaque plan result',
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:06.000Z',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'shell-call-1',
+          input: 'const r = await tools.exec_command({cmd:"pwd"}); text(r)',
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:07.000Z',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'shell-call-1',
+          output: '/workspace/project',
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:08.000Z',
+        payload: {
+          type: 'custom_tool_call',
+          name: 'exec',
+          call_id: 'code-mode-call-1',
+          input: 'const sample = "tools.exec_command({cmd:\'not real\'})"; const hits = ALL_TOOLS.filter((entry) => entry.name.includes("docs")); text(sample, hits)',
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-07-07T10:00:09.000Z',
+        payload: {
+          type: 'custom_tool_call_output',
+          call_id: 'code-mode-call-1',
+          output: 'opaque internal discovery output',
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession('codex-plan-1', 'codex', workspacePath, undefined, undefined, undefined, jsonlPath);
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-plan-1');
+      const checklists = history.messages.filter((message) => message.toolName === 'TodoWrite');
+
+      assert.equal(checklists.length, 1);
+      assert.equal(checklists[0].id, 'codex_app_server_plan_turn-plan-1');
+      assert.deepEqual(checklists[0].toolInput, {
+        explanation: 'All done',
+        todos: [
+          { content: 'Live parity', status: 'completed' },
+          { content: 'Reload parity', status: 'completed' },
+        ],
+      });
+      assert.equal(history.messages.some((message) => message.kind === 'thinking'), false);
+      const bash = history.messages.find((message) => message.toolName === 'Bash');
+      assert.deepEqual(bash?.toolInput, { command: 'pwd' });
+      assert.equal(bash?.toolResult?.content, '/workspace/project');
+      assert.deepEqual(
+        history.messages.find((message) => message.toolName === 'CodeMode')?.toolInput,
+        {},
+      );
+      assert.equal(JSON.stringify(history.messages).includes('opaque plan result'), false);
+      assert.equal(JSON.stringify(history.messages).includes('second opaque plan result'), false);
+      assert.equal(JSON.stringify(history.messages).includes('/workspace/project'), true);
+      assert.equal(JSON.stringify(history.messages).includes('ALL_TOOLS'), false);
+      assert.equal(JSON.stringify(history.messages).includes('opaque internal discovery output'), false);
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
 test('Codex history restores collaboration function calls as Agent rows', { concurrency: false }, async () => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-collab-'));
   const workspacePath = path.join(tempRoot, 'workspace');
