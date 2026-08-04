@@ -19,6 +19,14 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   finite issue allowlist and all credit, run-count, duration, and safety stops
   remain unchanged; the stronger model may therefore exhaust the approved
   budget in fewer runs rather than silently expanding it.
+- **The host installer now reports agent CLI readiness.** After installing
+  fleet-server, `install.sh` distinguishes missing, signed-out, and ready
+  Claude Code/Codex installations without printing provider auth output, then
+  gives the exact official install or login command for each missing step.
+  `--check-agents` runs the same diagnostics without downloading fleet-server,
+  and service installs persist both detected CLI paths so launchd/systemd does
+  not lose them outside the interactive shell. Provider installation and login
+  remain explicit user actions. Tracked in private backlog #1.
 - **Files can be uploaded directly from Explorer.** The Files panel now accepts
   multiple text or binary files through an upload button at the project root or
   drag/drop onto a folder, reports byte progress, supports cancellation, and

@@ -11,6 +11,7 @@
 #                    systemd user unit + linger on Linux), then verify /health
 #   --port <n>       service port (default 3011)
 #   --host <addr>    bind address (default ::; fallback is built into the binary)
+#   --check-agents   only report Claude/Codex installation and login readiness
 #
 # Optional host dependency: ripgrep (`rg`) enables session search.
 set -eu
@@ -18,23 +19,87 @@ set -eu
 REPO="${FLEET_SERVER_REPO:-pfedotovsky/agents-fleet-hub}"
 INSTALL_DIR="${FLEET_SERVER_INSTALL_DIR:-/usr/local/bin}"
 SERVICE=0
+CHECK_AGENTS=0
 SERVER_PORT="${SERVER_PORT:-3011}"
 SERVER_HOST="${FLEET_SERVER_HOST:-}"
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --service) SERVICE=1 ;;
+    --check-agents) CHECK_AGENTS=1 ;;
     --port) SERVER_PORT="$2"; shift ;;
     --port=*) SERVER_PORT="${1#*=}" ;;
     --host) SERVER_HOST="$2"; shift ;;
     --host=*) SERVER_HOST="${1#*=}" ;;
     -h|--help)
-      sed -n '2,17p' "$0" 2>/dev/null || echo "See script header for usage."
+      sed -n '2,18p' "$0" 2>/dev/null || echo "See script header for usage."
       exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
   shift
 done
+
+detect_cli_path() {
+  configured_path="$1"
+  command_name="$2"
+  if [ -n "$configured_path" ]; then
+    case "$configured_path" in
+      /*)
+        if [ -x "$configured_path" ]; then
+          printf '%s' "$configured_path"
+        fi
+        ;;
+      *)
+        command -v "$configured_path" 2>/dev/null || true
+        ;;
+    esac
+    return 0
+  fi
+
+  candidate=$(command -v "$command_name" 2>/dev/null || true)
+  case "$candidate" in
+    /*) printf '%s' "$candidate" ;;
+  esac
+}
+
+detect_claude_cli_path() {
+  detect_cli_path "${CLAUDE_CLI_PATH:-}" claude
+}
+
+detect_codex_cli_path() {
+  detect_cli_path "${CODEX_CLI_PATH:-}" codex
+}
+
+print_agent_readiness() {
+  CLAUDE_CLI_PATH_RESOLVED=$(detect_claude_cli_path)
+  CODEX_CLI_PATH_RESOLVED=$(detect_codex_cli_path)
+
+  echo "Agent CLI readiness:"
+  if [ -z "$CLAUDE_CLI_PATH_RESOLVED" ]; then
+    echo "  Claude Code: missing"
+    echo "    Install: curl -fsSL https://claude.ai/install.sh | bash"
+  elif "$CLAUDE_CLI_PATH_RESOLVED" auth status >/dev/null 2>&1; then
+    echo "  Claude Code: ready (${CLAUDE_CLI_PATH_RESOLVED})"
+  else
+    echo "  Claude Code: installed, sign-in required (${CLAUDE_CLI_PATH_RESOLVED})"
+    echo "    Sign in: claude auth login"
+  fi
+
+  if [ -z "$CODEX_CLI_PATH_RESOLVED" ]; then
+    echo "  Codex: missing"
+    echo "    Install: curl -fsSL https://chatgpt.com/codex/install.sh | sh"
+  elif "$CODEX_CLI_PATH_RESOLVED" login status >/dev/null 2>&1; then
+    echo "  Codex: ready (${CODEX_CLI_PATH_RESOLVED})"
+  else
+    echo "  Codex: installed, sign-in required (${CODEX_CLI_PATH_RESOLVED})"
+    echo "    Sign in: codex login"
+  fi
+}
+
+if [ "$CHECK_AGENTS" -eq 1 ]; then
+  print_agent_readiness
+  exit 0
+fi
 
 os=$(uname -s)
 arch=$(uname -m)
@@ -99,18 +164,6 @@ detect_host() {
   printf '%s' "$SERVER_HOST"
 }
 
-detect_claude_cli_path() {
-  if [ -n "${CLAUDE_CLI_PATH:-}" ]; then
-    printf '%s' "$CLAUDE_CLI_PATH"
-    return 0
-  fi
-
-  candidate=$(command -v claude 2>/dev/null || true)
-  case "$candidate" in
-    /*) printf '%s' "$candidate" ;;
-  esac
-}
-
 xml_escape() {
   printf '%s' "$1" |
     sed \
@@ -164,6 +217,13 @@ install_launchd() {
 "
   fi
 
+  codex_entry=""
+  if [ -n "$CODEX_CLI_PATH_RESOLVED" ]; then
+    codex_entry="    <key>CODEX_CLI_PATH</key>
+    <string>$(xml_escape "$CODEX_CLI_PATH_RESOLVED")</string>
+"
+  fi
+
   cat > "$plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -179,7 +239,7 @@ install_launchd() {
   <dict>
     <key>SERVER_PORT</key>
     <string>${SERVER_PORT}</string>
-${host_entry}${claude_entry}  </dict>
+${host_entry}${claude_entry}${codex_entry}  </dict>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
@@ -223,6 +283,12 @@ install_systemd() {
 "
   fi
 
+  codex_line=""
+  if [ -n "$CODEX_CLI_PATH_RESOLVED" ]; then
+    codex_line="Environment=\"CODEX_CLI_PATH=${CODEX_CLI_PATH_RESOLVED}\"
+"
+  fi
+
   cat > "$unit" <<EOF
 [Unit]
 Description=fleet-server — agent host server for Agents Hub
@@ -233,7 +299,7 @@ ExecStart=${BIN}
 Restart=on-failure
 RestartSec=3
 Environment=SERVER_PORT=${SERVER_PORT}
-${host_line}${claude_line}
+${host_line}${claude_line}${codex_line}
 [Install]
 WantedBy=default.target
 EOF
@@ -248,18 +314,15 @@ EOF
   echo "Logs: journalctl --user -u fleet-server -f"
 }
 
+print_agent_readiness
+echo ""
+
 if [ "$SERVICE" -eq 1 ]; then
   SERVER_HOST_RESOLVED=$(detect_host)
-  CLAUDE_CLI_PATH_RESOLVED=$(detect_claude_cli_path)
   if [ -n "$SERVER_HOST_RESOLVED" ]; then
     echo "Setting up service on port ${SERVER_PORT} (HOST=${SERVER_HOST_RESOLVED})..."
   else
     echo "Setting up service on port ${SERVER_PORT} (HOST default: :: with IPv4 fallback)..."
-  fi
-  if [ -n "$CLAUDE_CLI_PATH_RESOLVED" ]; then
-    echo "Detected Claude CLI: ${CLAUDE_CLI_PATH_RESOLVED}"
-  else
-    echo "Claude CLI not found during install; fleet-server will resolve 'claude' from the service PATH."
   fi
   if [ "$platform" = "darwin" ]; then
     install_launchd

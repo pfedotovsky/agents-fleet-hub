@@ -18,7 +18,8 @@ Section 7 additional terms — see [`LICENSE`](LICENSE), [`NOTICE`](NOTICE),
 Install **and start a persistent service** in one command — `--service`
 generates and loads a launchd agent (macOS) or systemd user unit (Linux),
 uses the server's IPv6-first wildcard bind, records the current shell's
-`claude` path in the service when detected, and verifies `/health`:
+`claude` and `codex` paths in the service when detected, reports whether each
+provider is installed and signed in, and verifies `/health`:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh -s -- --service
@@ -30,7 +31,18 @@ Plain install (no service — run it yourself):
 curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh
 ```
 
-`install.sh` flags: `--service`, `--port <n>` (default 3011), `--host <addr>`.
+`install.sh` flags: `--service`, `--port <n>` (default 3011), `--host <addr>`,
+and `--check-agents` (diagnostics only; no fleet-server download or install).
+
+Provider CLIs remain user-controlled. The installer never installs or signs in
+to Claude Code or Codex; it prints the provider-owned install/login command for
+each missing step ([Claude setup](https://docs.anthropic.com/en/docs/claude-code/getting-started),
+[Codex CLI](https://github.com/openai/codex#installing-and-running-codex-cli)).
+Re-run only the readiness check at any time:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/pfedotovsky/agents-fleet-hub/main/fleet-server/scripts/install.sh | sh -s -- --check-agents
+```
 
 Or via Homebrew (formula in `packaging/fleet-server.rb`, published through
 `pfedotovsky/homebrew-tap`):
