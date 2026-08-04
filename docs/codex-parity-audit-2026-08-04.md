@@ -1,0 +1,78 @@
+# Codex parity audit — 2026-08-04
+
+Issue: private backlog [#7](https://github.com/pfedotovsky/agents-fleet-hub-backlog/issues/7)
+
+This audit drove the current source Hub and fleet-server from `origin/main`
+(`c627f22`) against the local Codex 0.146.0 app-server adapter. The adapter was
+enabled only in an isolated development server and database; the released
+default and SDK fallback were not changed.
+
+## Result
+
+The model catalog, reasoning-effort controls, and context occupancy are current
+and accurate. Most rich Codex tool families retain their native presentation
+after a reload. Two concrete parity gaps remain: Code Mode plan wrappers lose
+their canonical checklist semantics, and child-agent rollouts pollute the
+top-level session list.
+
+## Model and effort truth
+
+The source UI loaded seven models from the live app-server catalog rather than
+from a hard-coded list:
+
+| Model | Reasoning efforts | Inputs |
+|---|---|---|
+| `gpt-5.6-sol` (default) | low, medium, high, xhigh, max, ultra | text, image |
+| `gpt-5.6-terra` | low, medium, high, xhigh, max, ultra | text, image |
+| `gpt-5.6-luna` | low, medium, high, xhigh, max | text, image |
+| `gpt-5.5` | low, medium, high, xhigh | text, image |
+| `gpt-5.4` | low, medium, high, xhigh | text, image |
+| `gpt-5.4-mini` | low, medium, high, xhigh | text, image |
+| `gpt-5.3-codex-spark` | low, medium, high, xhigh | text |
+
+The draft composer selected `GPT-5.6-Sol` and exposed exactly its six supported
+effort levels. A sandboxed development launch initially showed the six-model
+disk cache because that sandbox could not initialize Codex state under
+`~/.codex`; an unsandboxed local app-server probe and normal-permission source
+server both returned all seven models. That setup artifact is not a product
+defect.
+
+## Context-window truth
+
+Fresh and reopened Codex sessions rendered exact latest-turn occupancy, not
+cumulative thread usage. The focused probe showed `19k / 258k` with accessible
+name `Codex latest context occupancy (7%)`; larger reopened sessions showed
+`27k / 258k` and `41k / 258k`. The chip was stable across a full page reload.
+
+## Tool and session rendering
+
+| Surface | Live | After reload | Audit result |
+|---|---:|---:|---|
+| Command execution | Native Bash row | Native Bash row | Pass |
+| File changes | Native diff row | Preserved by reconciliation | Pass |
+| Web search | Native Search row | Native Search row | Pass |
+| MCP calls | Server-labelled native rows | Server-labelled native rows | Pass |
+| Collaboration spawn/wait | Native Agent rows | Native Agent rows | Pass |
+| Image view | Native View image row | Native View image row | Pass |
+| Context compaction | Native passive row | Native passive row | Pass |
+| `update_plan` | Todo list plus raw `Bash` wrapper | Checklist missing; raw `Bash` wrapper remains | Follow-up [#40](https://github.com/pfedotovsky/agents-fleet-hub-backlog/issues/40) |
+| Child-agent discovery | Parent activity is visible | Child also appears as an ordinary session | Follow-up [#41](https://github.com/pfedotovsky/agents-fleet-hub-backlog/issues/41) |
+
+The focused plan probe used native session
+`cb659f4d-ce70-43cb-b700-0d6e2f464e8b`. During the turn, the Hub displayed a
+completed two-item todo list, but also labeled the persisted JavaScript wrapper
+as Bash. After reopening the session, only the wrapper remained. Empty
+`thinking…` placeholders seen around these wrappers are included in #40.
+
+The child-session finding is metadata-verifiable, not title-based. Parent
+`019fc7b5-f68c-7140-8352-b3dbf3fee439` spawned child
+`019fc7b6-1785-7370-b07e-ef1783103d5a`; the child rollout records
+`thread_source: "subagent"`, the parent thread id, and the agent path, but the
+Hub still indexes it as a normal top-level session.
+
+## Next boundary
+
+This slice is an audit only. #40 and #41 contain reproducible acceptance
+criteria and code pointers. SSH-host verification, making the adapter default
+on, and removing the SDK fallback remain separate gated work under backlog
+#37; no remote host was touched by this audit.

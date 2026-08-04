@@ -2,7 +2,7 @@
 
 *Compared: Agents Hub (this repo, `fleet-hub/`) vs. CloudCLI v1.36.1 web UI
 (installed package at `/opt/homebrew/lib/node_modules/@cloudcli-ai/cloudcli/`).
-First compared 2026-07-11; status last updated 2026-08-02.*
+First compared 2026-07-11; status last updated 2026-08-04.*
 
 This file is canonical; `feature-parity.html` is a regenerated human view of
 the same content. **Planned work lives in GitHub issues** (private
@@ -25,7 +25,7 @@ host APIs; others (plugins, Electron) are out of scope for a static hub SPA.
 | **Chat: send / stream / abort** | ✅ | ✅ | Parity over the same WS protocol; hub adds seq-replay resubscribe on reconnect ➕ |
 | **Permission prompts & modes** | ✅ ➕ | ✅ | Hub adds durable "Always allow" per host:project **with write-through to `.claude/settings.local.json`**; per-host mode persistence |
 | **Model + reasoning-effort selection** | ✅ | ✅ | Parity (per-provider catalog, per-host:provider persisted choice) |
-| **Markdown / code highlighting / tool-call rendering** | ✅ | ✅ | Parity for GFM, Prism, diffs, todo checklists, Bash cards |
+| **Markdown / code highlighting / tool-call rendering** | ⚠️ | ✅ | GFM, Prism, diffs, Bash, search, MCP, collaboration, image-view, and compaction rows are covered; persisted Codex `update_plan` wrappers still lose native checklist semantics ([2026-08-04 audit](codex-parity-audit-2026-08-04.md)) |
 | **KaTeX math & Mermaid diagrams in messages** | ❌ | ✅ | CloudCLI bundles KaTeX + Mermaid |
 | **Image attachments in chat** | ✅ | ✅ | Paste / drag-drop / attach button → `POST /api/assets/images`, sent via `options.images`; history renders via authenticated blob fetch |
 | **Voice input (transcription)** | ❌ | ✅ | CloudCLI proxies audio to OpenAI transcription (`/api/voice`) |
@@ -38,7 +38,7 @@ host APIs; others (plugins, Electron) are out of scope for a static hub SPA.
 | **File tree + editor (view/edit/save)** | ✅ | ✅ | Parity (CodeMirror both sides); hub adds Cmd+S, dirty guard |
 | **File create / delete / rename / upload** | ❌ | ⚠️ | Neither is strong here; CloudCLI has image upload + shell as escape hatch |
 | **Integrated terminal / shell** | ✅ | ✅ | Hub: full per-session xterm view over `/shell`, resumable Claude/Codex CLI, persisted default Structured/Terminal choice |
-| **Git panel** | ⚠️ | ✅ | Hub: status, unified diffs, stage/unstage, commit (+AI messages), branches, fetch/pull/push/publish. Missing: commit history, discard, revert |
+| **Git panel** | ⚠️ | ✅ | Hub: status, unified diffs, stage/unstage, commit (+AI messages), commit history, branches, fetch/pull/push/publish. Missing: discard, revert |
 | **MCP server management** | ❌ | ✅ | Per-provider + global scopes, stdio/HTTP transports |
 | **Slash commands** | ✅ | ✅ | `/` composer autocomplete over skills + `.claude/commands` (`POST /api/commands/list`); codex `$`-skills too ➕ |
 | **Skills management** | ❌ | ✅ | List/add/delete per provider (hub only *lists* them in autocomplete) |

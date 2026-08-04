@@ -4,6 +4,19 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-04
+
+### Changed
+- **The Codex parity report now reflects a live current-source audit.** A local
+  app-server run verified the seven-model catalog and per-model effort choices,
+  exact latest-turn context occupancy, and native command, diff, search, MCP,
+  collaboration, image-view, and compaction rendering. The audit also captured
+  two reproducible gaps: persisted `update_plan` Code Mode wrappers lose their
+  checklist semantics after reload (private backlog #40), and spawned child
+  rollouts appear as ordinary top-level sessions (#41). The Git parity row now
+  records shipped commit history and leaves only discard/revert outstanding.
+  See `docs/codex-parity-audit-2026-08-04.md`; tracked by private backlog #7.
+
 ## 2026-08-03
 
 ### Added
