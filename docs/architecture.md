@@ -44,7 +44,7 @@ Browser (Agents Hub SPA)
 | `components/PlanPanel.tsx` | Docked right-hand drawer for a finished plan (ExitPlanMode request): decision buttons in the header, plan markdown below; a chip in the transcript reopens it. |
 | `hooks/useComposerAutocomplete.ts` | `@`-file and `/`-command completion state for the chat composer: trigger detection at the caret, lazy per-target catalogs (file tree / skills+commands), filtering, keyboard navigation. |
 | `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, FileChanges = per-file unified diffs, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
-| `components/FileBrowser.tsx`, `FileTree.tsx`, `CodeEditor.tsx` | Project file tree + lazy-loaded CodeMirror editor (One Dark); Cmd+S saves via `PUT /file`. Also renders `embedded` as a chat side panel (close icon, narrower tree). |
+| `components/FileBrowser.tsx`, `FileTree.tsx`, `CodeEditor.tsx` | Project file tree + lazy-loaded CodeMirror editor (One Dark); Cmd+S saves via `PUT /file`. The Explorer upload button sends multiple files to the project root, while dropping onto a folder targets that folder; conflicts require explicit replacement and upload progress/errors stay inline. Also renders `embedded` as a chat side panel (close icon, narrower tree). |
 | `components/GitPanel.tsx` + `GitHistory.tsx` | Changes/History Git workspace. Changes covers status/stage/commit (AI message generation), branch switch/create, fetch/pull/push/publish, and per-file diff. History lazily loads commits across branches/remotes/tags with bounded expansion and opens a selected commit's patch in the shared `Diff` viewer. Full-screen via the project pane or `embedded` as a chat side panel. |
 | `lib/shellSocket.ts`, `components/TerminalPanel.tsx` | Reconnecting `/shell` PTY client + xterm full session view. Existing sessions resume their provider CLI by id; drafts start a new CLI in the project path. The PTY stays deliberately dark under both app themes. On unmount, queued xterm viewport animation frames drain before renderer disposal; immediate disposal races `Viewport.syncScrollArea()` against a missing renderer. |
 | `components/LoginModal.tsx`, `SettingsPanel.tsx`, `OfflineCard.tsx` | Per-host login and first-time setup (register; password never stored), host/prefs management (incl. Appearance and default Structured/Terminal session view), hibernated-VM card with restart hint. |
@@ -164,6 +164,18 @@ Browser (Agents Hub SPA)
   credentials already available to Git on that host; the browser never asks
   for or sends a repository token, and rejects credential-bearing HTTP(S)
   source URLs before starting the request.
+- Project file upload: `FileBrowser` sends multipart `files` to
+  `POST /api/projects/:projectId/files/upload`, using `XMLHttpRequest` rather
+  than `fetch` so the Explorer can show byte upload progress. The attach button
+  targets the project root; a drop on a folder sends that folder's absolute
+  host path. The client checks the loaded tree for conflicts first and sends
+  `overwrite=false` unless the user explicitly chooses Replace. fleet-server's
+  `[fork-fix #20]` validates the complete batch before writing, preserves bytes,
+  creates nested directories, enforces project-root containment, rejects
+  traversal and symlink escapes, rejects conflicts with 409, enforces the
+  20-file/200 MB limits, and always removes multipart temp files. Stock CloudCLI
+  ignores the extra overwrite field and retains its existing route behavior,
+  so the client-side conflict check remains the compatibility guard there.
 - Project archive/restore: the project pane calls
   `DELETE /api/projects/:projectId` without `force`, which only marks the host
   DB row archived and removes the project from active fleet state after
@@ -311,7 +323,10 @@ fork-vs-workaround considerations.
   fail for them (hence the warning badge + hide toggle).
 - File API: `GET .../files` = bare array tree, absolute paths,
   node_modules/.git pruned, depth 10; relative paths in `PUT .../file`
-  resolve against the project root.
+  resolve against the project root. The inherited multipart
+  `POST .../files/upload` accepts up to 20 files at 200 MB each and preserves
+  binary bytes; fleet-server hardens its validation/overwrite semantics in
+  `[fork-fix #20]`.
 - Deep links into a host's own UI require having signed into that host's page
   once — its frontend keeps its JWT in *its own origin's* localStorage
   (`auth-token`) with no URL-token handoff, so the hub cannot authenticate it.
