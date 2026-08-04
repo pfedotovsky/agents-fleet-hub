@@ -7,7 +7,7 @@ Agents Hub. Purpose: input for the **fork vs. keep-working-around** decision.
 > **Decision (2026-07-12): forked.** The server now lives in
 > [`../fleet-server/`](../fleet-server/README.md) (Bun single binary,
 > AGPL-3.0-or-later). Issues **#1, #2, #4/#5, #6, #13, #14, #15, #17, and
-> #18 and #20 are fixed in the fork** (commits prefixed `[fork-fix #N]`); #7 is moot
+> #18–#21 are fixed in the fork** (commits prefixed `[fork-fix #N]`); #7 is moot
 > there (no bundled SPA); #3 remains solved by Agents Hub itself; #8–#12 are
 > still worked around client-side. This catalog stays as the reference for
 > hosts running stock CloudCLI and for the upstream issue reports.
@@ -271,6 +271,19 @@ sends `overwrite=false` until the user confirms replacement. Contract tests
 cover binary preservation, containment, symlink escapes, nested directories,
 count/size limits, duplicate paths, and conflict behavior.
 
+### 21. Missing Claude CLI is reported as installed
+
+Claude provider readiness wrapped `cross-spawn.sync(claude --version)` in a
+`try/catch`. `cross-spawn` returns launch failures and timeouts on its result
+instead of throwing, so any configured command — including a nonexistent
+absolute path — was treated as installed. The Hub could then only show the
+signed-out recovery path even when Claude Code was absent.
+
+**Fork status (`[fork-fix #21]`):** readiness now requires a successful probe
+with no spawn error and exit status 0. A regression test covers an executable
+that cannot be started, keeping the Hub's missing-CLI and signed-out states
+truthfully distinguishable.
+
 ## Fork decision — considerations, not a verdict
 
 **What a fork buys:**
@@ -327,3 +340,6 @@ count/size limits, duplicate paths, and conflict behavior.
   lifetime Codex thread tokens as an impossible context-window percentage.
 - 2026-08-04 — added and fixed #20 while wiring project file upload into Agents
   Hub; removed path-bearing debug logs and made Hub replacement explicit.
+- 2026-08-05 — added and fixed #21 after live Hub verification showed a
+  nonexistent Claude executable as installed and incorrectly routed recovery
+  to sign-in.

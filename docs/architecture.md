@@ -41,6 +41,7 @@ Browser (Agents Hub SPA)
 | `components/SessionList.tsx` + `SessionRow.tsx` + `SessionRenameForm.tsx` | "All sessions" merged feed rows and the shared inline rename interaction. Save awaits the host mutation; errors keep the editor open, Escape cancels, and stale/offline rows omit the action. `ProjectPane` reuses the row and additionally patches sessions loaded outside the fleet poll's initial page. |
 | `components/ProjectPane.tsx` | One project: editable display name, paged session list, "New session" (opens a draft chat — provider is chosen in the composer, not here), Files/Git buttons, and an inline-confirmed soft Archive action that never deletes files or transcripts. |
 | `components/ChatPane.tsx` | Largest component: history paging over REST + live WS chat, permission prompts (allow / always-allow / deny), model/effort picker (`ModelSelect`, a custom dropdown that lists each model with its description inline), persisted permission mode, persisted unsent draft per session, abort, `chat.subscribe` seq replay on reconnect, composer autocomplete dropdown (`CompletionMenu`), plan-mode toggle (Shift+Tab, persisted per host), header toggles that dock `FileBrowser`/`GitPanel` as a resizable right-hand panel (state in `App.tsx`, persisted in `chatPanel`) and switch the primary session surface to Terminal. Holds `sessionId`/`provider` as state so a **draft** (empty id) can defer session creation to the first send: the composer shows a Claude/Codex toggle, then `createSession` runs and the message is flushed once the new session's socket re-subscribes. A top-level draft may also start without host/project fields: it opens no socket and disables message controls until its composer binds an online project, creates/registers a host path, or clones a repository through the authenticated SSE progress route; the normal first-send path then takes over. A provider-labelled context-window chip loads persisted usage through `GET /api/projects/:projectId/sessions/:sessionId/token-usage` on open; a later live `token_budget` frame supersedes it. The REST request is best-effort so stock/older hosts still load the transcript. |
+| `components/ProviderReadinessBanner.tsx` | First-message recovery for Claude/Codex hosts. Renders the structured missing-CLI vs signed-out state, the exact provider-owned install/login command, copy feedback, and an explicit retry without installing a provider or collecting credentials in the Hub. |
 | `components/PlanPanel.tsx` | Docked right-hand drawer for a finished plan (ExitPlanMode request): decision buttons in the header, plan markdown below; a chip in the transcript reopens it. |
 | `hooks/useComposerAutocomplete.ts` | `@`-file and `/`-command completion state for the chat composer: trigger detection at the caret, lazy per-target catalogs (file tree / skills+commands), filtering, keyboard navigation. |
 | `components/Messages.tsx`, `Markdown.tsx`, `ToolCall.tsx`, `Diff.tsx` | Transcript rendering: GFM markdown w/ syntax highlighting; per-tool renderers (Edit/Write = LCS diff, FileChanges = per-file unified diffs, Bash = terminal line, TodoWrite = checklist, Read/Grep/Glob = one-liners). |
@@ -226,8 +227,11 @@ Browser (Agents Hub SPA)
   `$`-prefixed. Existing chats populate the header usage chip from the REST
   token-usage endpoint on open, and a turn-end
   `status {text:'token_budget'}` frame replaces that snapshot with the latest
-  live occupancy. Empty codex chats preflight
-  `GET /api/providers/codex/auth/status` into a banner.
+  live occupancy. Empty Claude/Codex chats preflight
+  `GET /api/providers/:provider/auth/status`. A reported missing CLI or
+  signed-out state blocks the composer and renders the provider-owned recovery
+  command with copy/retry actions; a failed or unsupported preflight fails open
+  so stock/older hosts can still send and surface their normal runtime error.
 - Model catalog: `GET /api/providers/:provider/models` →
   `{OPTIONS:[{value,label,description?,effort?}], DEFAULT}`; the chosen
   model+effort is stored per `hostId:provider` (legacy bare-hostId entries

@@ -1,3 +1,4 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
 import { readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -26,12 +27,10 @@ export class ClaudeProviderAuth implements IProviderAuth {
    */
   private checkInstalled(): boolean {
     const cliPath = resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH);
-    try {
-      spawn.sync(cliPath, ['--version'], { stdio: 'ignore', timeout: 5000 });
-      return true;
-    } catch {
-      return false;
-    }
+    // [fork-fix #21] cross-spawn reports ENOENT and timeout through the
+    // returned result instead of throwing, so inspect both error and status.
+    const result = spawn.sync(cliPath, ['--version'], { stdio: 'ignore', timeout: 5000 });
+    return result.error === undefined && result.status === 0;
   }
 
   /**

@@ -75,6 +75,10 @@ import { ModelSelect } from './ModelSelect'
 import { PlanPanel } from './PlanPanel'
 import { seedImageCache } from './AuthedImage'
 import { cardVariants } from '../lib/motion'
+import {
+  ProviderReadinessBanner,
+  type ProviderReadiness,
+} from './ProviderReadinessBanner'
 
 const PAGE_SIZE = 100
 
@@ -504,6 +508,13 @@ export function ChatPane({
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [fatalError, setFatalError] = useState<string | null>(null)
   const [banner, setBanner] = useState<string | null>(null)
+  const [providerReadiness, setProviderReadiness] = useState<
+    (ProviderReadiness & { targetKey: string }) | null
+  >(null)
+  const [providerReadinessRetry, setProviderReadinessRetry] = useState(0)
+  const readinessTargetKey = `${target.hostId}:${provider}`
+  const activeProviderReadiness =
+    providerReadiness?.targetKey === readinessTargetKey ? providerReadiness : null
   const [processing, setProcessing] = useState(false)
   const [socketState, setSocketState] = useState<SocketState>('connecting')
   const [permissions, setPermissions] = useState<PermissionRequest[]>([])
@@ -1082,36 +1093,56 @@ export function ChatPane({
     setPendingFirst(null)
   }, [pendingFirst, sessionId, socketState, appendMessage, provider, scrollToBottom])
 
-  // Codex preflight on a fresh chat: without it, a missing codex install or
+  // Provider preflight on a fresh chat: without it, a missing CLI or provider
   // login on the host would only surface as an error after the first send.
+  // Failed/unsupported checks stay non-blocking for stock and older hosts.
   useEffect(() => {
     if (
       !target.hostId ||
       !target.baseUrl ||
-      !isCodex ||
+      (provider !== 'claude' && provider !== 'codex') ||
       loading ||
       messagesRef.current.length > 0
-    )
+    ) {
+      setProviderReadiness(null)
       return
+    }
     const token = getToken(target.hostId)
-    if (!token) return
+    if (!token) {
+      setProviderReadiness(null)
+      return
+    }
     let cancelled = false
+    const targetKey = `${target.hostId}:${provider}`
+    setProviderReadiness({ status: 'checking', targetKey })
     void getProviderAuthStatus(target.baseUrl, token, provider, (t) => saveToken(target.hostId, t))
       .then((status) => {
         if (cancelled) return
         if (status.installed === false) {
-          setBanner('The Codex CLI is not installed on this host.')
+          setProviderReadiness({
+            status: 'blocked',
+            reason: 'missing-cli',
+            detail: status.error,
+            targetKey,
+          })
         } else if (status.authenticated === false) {
-          setBanner('Codex is not signed in on this host — run `codex login` there first.')
+          setProviderReadiness({
+            status: 'blocked',
+            reason: 'signed-out',
+            detail: status.error,
+            targetKey,
+          })
+        } else {
+          setProviderReadiness(null)
         }
       })
       .catch(() => {
-        /* preflight is best-effort; a send would surface the real error */
+        if (!cancelled) setProviderReadiness(null)
       })
     return () => {
       cancelled = true
     }
-  }, [isCodex, loading, provider, target.baseUrl, target.hostId])
+  }, [loading, provider, providerReadinessRetry, target.baseUrl, target.hostId])
 
   // Model catalog for this session's provider (Cursor has none).
   useEffect(() => {
@@ -1267,7 +1298,7 @@ export function ChatPane({
   function send() {
     const text = input.trim()
     const socket = socketRef.current
-    if (!text || processing || !socket) return
+    if (!text || processing || !socket || activeProviderReadiness) return
     // Any manual send supersedes a pending plan-ready card (the user is either
     // refining the plan — still in plan mode — or moving on).
     setCodexPlanReady(false)
@@ -1550,7 +1581,7 @@ export function ChatPane({
 
   const color = hostColor(target.hostColorIdx)
   const visible = useMemo(() => messages.filter((m) => RENDERED_KINDS.has(m.kind)), [messages])
-  const canChat = provider !== 'cursor' || !fatalError
+  const canChat = (provider !== 'cursor' || !fatalError) && !activeProviderReadiness
   const needsDraftTarget = isDraft && draftTargets !== undefined && !target.projectPath
   const draftTargetsByHost = useMemo(() => {
     const groups = new Map<string, FleetSession[]>()
@@ -1896,6 +1927,16 @@ export function ChatPane({
               onPick={autocomplete.pick}
             />
           )}
+          {activeProviderReadiness && (provider === 'claude' || provider === 'codex') && (
+            <ProviderReadinessBanner
+              key={`${readinessTargetKey}:${activeProviderReadiness.status}`}
+              provider={provider}
+              hostName={target.hostName}
+              readiness={activeProviderReadiness}
+              onRetry={() => setProviderReadinessRetry((value) => value + 1)}
+              onCopyError={() => setBanner('Could not copy the command — clipboard access was blocked.')}
+            />
+          )}
           {banner && (
             <div className="mb-2 flex items-center gap-2 text-xs text-amber-400">
               <TriangleAlert size={12} /> {banner}
@@ -2191,9 +2232,13 @@ export function ChatPane({
               placeholder={
                 needsDraftTarget
                   ? 'Choose a folder above to start…'
-                  : socketState === 'open'
-                  ? `Message ${PROVIDER_META[provider]?.label ?? provider} in ${target.projectName}…`
-                  : 'Connecting to host…'
+                  : activeProviderReadiness?.status === 'checking'
+                    ? `Checking ${PROVIDER_META[provider]?.label ?? provider} on this host…`
+                    : activeProviderReadiness?.status === 'blocked'
+                      ? 'Resolve provider readiness above to start…'
+                      : socketState === 'open'
+                        ? `Message ${PROVIDER_META[provider]?.label ?? provider} in ${target.projectName}…`
+                        : 'Connecting to host…'
               }
               disabled={!canChat || socketState !== 'open' || needsDraftTarget}
               className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-[15px] text-fg outline-none placeholder:text-fg-subtle disabled:opacity-50"
@@ -2211,7 +2256,7 @@ export function ChatPane({
               <button
                 type="button"
                 onClick={send}
-                disabled={!input.trim() || socketState !== 'open' || needsDraftTarget}
+                disabled={!canChat || !input.trim() || socketState !== 'open' || needsDraftTarget}
                 title="Send (Enter)"
                 className="shrink-0 rounded-lg bg-accent p-2 text-on-accent transition-colors hover:bg-accent-strong disabled:opacity-40"
               >
