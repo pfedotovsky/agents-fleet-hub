@@ -483,6 +483,10 @@ export default function App() {
           onOpenSession={openChat}
           onOpenFiles={() => setView({ kind: 'files', hostId: view.hostId, projectId: view.projectId })}
           onOpenGit={() => setView({ kind: 'git', hostId: view.hostId, projectId: view.projectId })}
+          onArchiveProject={async () => {
+            await fleet.archiveProject(view.hostId, view.projectId)
+            setView({ kind: 'feed' })
+          }}
           onArchiveSession={(sessionId) => archiveSession(view.hostId, sessionId)}
           onRenameSession={(sessionId, summary) =>
             renameSession(view.hostId, sessionId, summary)
@@ -537,6 +541,7 @@ export default function App() {
         onArchiveSession={archiveSession}
         onRenameSession={renameSession}
         onRestoreSession={fleet.restoreSession}
+        onRestoreProject={fleet.restoreProject}
         onDeleteSessionForever={fleet.deleteSessionForever}
         onSignIn={setLoginHostId}
         onOpenSettings={() => setSettingsOpen(true)}

@@ -19,9 +19,9 @@ import {
   Trash2,
   UserPlus,
 } from 'lucide-react'
-import type { ArchivedSession, HostRuntime, Project, SessionSummary } from '../types'
+import type { ArchivedProject, ArchivedSession, HostRuntime, Project, SessionSummary } from '../types'
 import type { View } from '../App'
-import { getArchivedSessions } from '../lib/api'
+import { getArchivedProjects, getArchivedSessions } from '../lib/api'
 import { hostColor, relativeTime, sessionLive } from '../lib/format'
 import {
   SIDEBAR_MAX_WIDTH,
@@ -53,6 +53,7 @@ interface Props {
   onArchiveSession: (hostId: string, sessionId: string) => void
   onRenameSession: (hostId: string, sessionId: string, summary: string) => Promise<void>
   onRestoreSession: (hostId: string, sessionId: string) => Promise<void>
+  onRestoreProject: (hostId: string, projectId: string) => Promise<void>
   onDeleteSessionForever: (hostId: string, sessionId: string) => Promise<void>
   onSignIn: (hostId: string) => void
   onOpenSettings: () => void
@@ -401,7 +402,7 @@ function ArchivedSection({
       >
         <Chevron size={12} className="shrink-0" />
         <Archive size={12} className="shrink-0" />
-        Archived
+        Archived chats
         {open && items !== null && (
           <span className="tnum ml-auto font-mono text-[12px]">{items.length}</span>
         )}
@@ -476,6 +477,122 @@ function ArchivedSection({
   )
 }
 
+/** Lazy, reversible project archive; permanent deletion is intentionally absent. */
+function ArchivedProjectsSection({
+  runtime,
+  onRestore,
+}: {
+  runtime: HostRuntime
+  onRestore: (projectId: string) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [items, setItems] = useState<ArchivedProject[] | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const hostId = runtime.config.id
+
+  const load = async () => {
+    const token = getToken(hostId)
+    if (!token) return
+    setLoading(true)
+    setError(null)
+    try {
+      setItems(
+        await getArchivedProjects(runtime.config.baseUrl, token, (refreshed) =>
+          saveToken(hostId, refreshed),
+        ),
+      )
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load archived projects')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggle = () => {
+    const next = !open
+    setOpen(next)
+    if (next) void load()
+  }
+
+  const restore = async (projectId: string) => {
+    setBusyId(projectId)
+    setError(null)
+    try {
+      await onRestore(projectId)
+      setItems((prev) => prev?.filter((item) => item.projectId !== projectId) ?? prev)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to restore project')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const Chevron = open ? ChevronDown : ChevronRight
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className="flex w-full items-center gap-1.5 rounded-md py-1 pl-2 pr-2 text-[13px] text-fg-subtle hover:bg-surface hover:text-fg-muted"
+      >
+        <Chevron size={12} className="shrink-0" />
+        <Archive size={12} className="shrink-0" />
+        Archived projects
+        {open && items !== null && (
+          <span className="tnum ml-auto font-mono text-[12px]">{items.length}</span>
+        )}
+      </button>
+      {open && (
+        <div className="mb-1">
+          {loading && (
+            <p className="flex items-center gap-2 py-1 pl-6 text-[13px] text-fg-subtle">
+              <LoaderCircle size={12} className="animate-spin" /> loading…
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="py-1 pl-6 pr-2 text-[13px] text-rose-400">
+              {error}
+            </p>
+          )}
+          {!loading && items?.length === 0 && (
+            <p className="py-1 pl-6 text-[13px] text-fg-subtle">nothing archived</p>
+          )}
+          {items?.map((item) => (
+            <div
+              key={item.projectId}
+              className="group/arch-project flex min-w-0 items-center gap-2 rounded-md py-1 pl-6 pr-1 text-[13px] text-fg-faint hover:bg-surface"
+            >
+              <Folder size={12} className="shrink-0 text-fg-subtle" />
+              <div className="min-w-0 flex-1" title={item.fullPath}>
+                <div className="truncate">{item.displayName}</div>
+                <div className="truncate font-mono text-[11px] text-fg-subtle">
+                  {item.sessionMeta.total} sessions · {item.fullPath}
+                </div>
+              </div>
+              {busyId === item.projectId ? (
+                <LoaderCircle size={11} className="shrink-0 animate-spin text-fg-muted" />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void restore(item.projectId)}
+                  title={`Restore ${item.displayName}`}
+                  aria-label={`Restore ${item.displayName}`}
+                  className="shrink-0 rounded p-1 text-fg-faint opacity-0 transition-opacity hover:bg-elevated-strong hover:text-fg group-hover/arch-project:opacity-100 focus:opacity-100"
+                >
+                  <ArchiveRestore size={12} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function HostSection({
   runtime,
   hostIndex,
@@ -489,6 +606,7 @@ function HostSection({
   onArchiveSession,
   onRenameSession,
   onRestoreSession,
+  onRestoreProject,
   onDeleteSessionForever,
   onSignIn,
 }: {
@@ -504,6 +622,7 @@ function HostSection({
   onArchiveSession: (hostId: string, sessionId: string) => void
   onRenameSession: (hostId: string, sessionId: string, summary: string) => Promise<void>
   onRestoreSession: (hostId: string, sessionId: string) => Promise<void>
+  onRestoreProject: (hostId: string, projectId: string) => Promise<void>
   onDeleteSessionForever: (hostId: string, sessionId: string) => Promise<void>
   onSignIn: (hostId: string) => void
 }) {
@@ -609,11 +728,17 @@ function HostSection({
         <p className="py-1 pl-2 text-sm text-fg-subtle">no projects</p>
       )}
       {runtime.status === 'online' && (
-        <ArchivedSection
-          runtime={runtime}
-          onRestore={(sessionId) => onRestoreSession(hostId, sessionId)}
-          onDeleteForever={(sessionId) => onDeleteSessionForever(hostId, sessionId)}
-        />
+        <>
+          <ArchivedProjectsSection
+            runtime={runtime}
+            onRestore={(projectId) => onRestoreProject(hostId, projectId)}
+          />
+          <ArchivedSection
+            runtime={runtime}
+            onRestore={(sessionId) => onRestoreSession(hostId, sessionId)}
+            onDeleteForever={(sessionId) => onDeleteSessionForever(hostId, sessionId)}
+          />
+        </>
       )}
     </div>
   )
@@ -632,6 +757,7 @@ export function Sidebar({
   onArchiveSession,
   onRenameSession,
   onRestoreSession,
+  onRestoreProject,
   onDeleteSessionForever,
   onSignIn,
   onOpenSettings,
@@ -752,6 +878,7 @@ export function Sidebar({
             onArchiveSession={onArchiveSession}
             onRenameSession={onRenameSession}
             onRestoreSession={onRestoreSession}
+            onRestoreProject={onRestoreProject}
             onDeleteSessionForever={onDeleteSessionForever}
             onSignIn={onSignIn}
           />

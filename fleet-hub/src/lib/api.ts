@@ -1,4 +1,5 @@
 import type {
+  ArchivedProject,
   ArchivedSession,
   FileNode,
   GitBranches,
@@ -216,6 +217,50 @@ export async function createProject(
     timeoutMs: 10000,
   })) as { success: boolean; project: Project }
   return body.project
+}
+
+/** Soft-archives a project in the host DB; files and session transcripts stay on disk. */
+export async function archiveProject(
+  baseUrl: string,
+  token: string,
+  projectId: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<void> {
+  await fetchJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}`, {
+    method: 'DELETE',
+    token,
+    onTokenRefresh,
+    timeoutMs: 10000,
+  })
+}
+
+/** Restores an archived project back into the host's active project list. */
+export async function restoreProject(
+  baseUrl: string,
+  token: string,
+  projectId: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<void> {
+  await fetchJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}/restore`, {
+    method: 'POST',
+    token,
+    onTokenRefresh,
+    timeoutMs: 10000,
+  })
+}
+
+/** All soft-archived projects on a host, including preserved session summaries. */
+export async function getArchivedProjects(
+  baseUrl: string,
+  token: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<ArchivedProject[]> {
+  const body = (await fetchJson(baseUrl, '/api/projects/archived', {
+    token,
+    onTokenRefresh,
+    timeoutMs: 10000,
+  })) as { success: boolean; data: { projects: ArchivedProject[] } }
+  return body.data.projects ?? []
 }
 
 /** App-facing ids of sessions whose agent run is currently processing (status-only, cheap). */

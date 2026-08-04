@@ -70,9 +70,13 @@ own root URL is only a status page; it does not expose an account-setup UI.
   arbitrary absolute path through the selected host. Hovering a project row
   still reveals a **+** that opens a draft already bound to that project.
   In either path, the provider (Claude / Codex) is chosen in the composer and
-  the session is created on the first send.
+  the session is created on the first send. Each online host also has a lazy
+  **Archived projects** list with one-click restore; project archiving never
+  removes files or transcripts.
 - **Project view**: the project's sessions (paged), "New session" (opens a
-  draft chat; provider is picked in the composer), plus **Files** and **Git**.
+  draft chat; provider is picked in the composer), plus **Files**, **Git**, and
+  an inline-confirmed **Archive** action. Archiving hides the project and its
+  sessions from active navigation but leaves all host data restorable.
 - **Chat**: full transcript (history over REST, paged) + live agent chat over
   the host's `/ws` WebSocket — send messages, watch streaming replies and tool
   calls, approve/deny permission requests inline — with an **Always allow**
@@ -150,6 +154,10 @@ own root URL is only a status page; it does not expose an account-setup UI.
   `POST /api/projects/create-project {path}` on the chosen host: an existing
   directory is registered, while a missing directory is created only inside
   that server's configured workspace root (the host user's home by default).
+- Project archive uses `DELETE /api/projects/:id` without `force`; archived
+  projects are fetched lazily from `GET /api/projects/archived` and restored
+  through `POST /api/projects/:id/restore`. The hub does not expose permanent
+  project deletion.
 - Transcripts: `GET /api/providers/sessions/:id/messages` (normalized across
   providers; `offset=0` is the newest page). New sessions:
   `POST /api/providers/sessions {provider, projectPath}`, then the first

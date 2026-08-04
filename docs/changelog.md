@@ -7,6 +7,15 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-04
 
 ### Changed
+- **Projects can now be archived and restored without deleting host data.**
+  Each online project pane exposes an inline-confirmed Archive action. The
+  project and its sessions leave active navigation only after the host accepts
+  the soft archive, while files, database rows, and transcripts stay intact.
+  Each online host lazily lists archived projects in the sidebar with their
+  path and preserved session count, and restores them back into the normal
+  poll-driven project list. The hub never sends `force=true` in this flow, so
+  permanent project deletion remains intentionally unavailable. Tracked in
+  private backlog #9.
 - **New sessions can start from an arbitrary host folder.** The global New
   session composer now offers an inline “Other folder…” path form per online
   host. It calls the host's existing create-project route, which registers an
