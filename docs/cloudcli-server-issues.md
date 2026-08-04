@@ -7,7 +7,7 @@ Agents Hub. Purpose: input for the **fork vs. keep-working-around** decision.
 > **Decision (2026-07-12): forked.** The server now lives in
 > [`../fleet-server/`](../fleet-server/README.md) (Bun single binary,
 > AGPL-3.0-or-later). Issues **#1, #2, #4/#5, #6, #13, #14, #15, #17, and
-> #18 are fixed in the fork** (commits prefixed `[fork-fix #N]`); #7 is moot
+> #18 and #20 are fixed in the fork** (commits prefixed `[fork-fix #N]`); #7 is moot
 > there (no bundled SPA); #3 remains solved by Agents Hub itself; #8–#12 are
 > still worked around client-side. This catalog stays as the reference for
 > hosts running stock CloudCLI and for the upstream issue reports.
@@ -38,6 +38,7 @@ workaround · ⚪ annoyance / cosmetic.
 | 15 | Turn completing with zero output surfaces nothing in the UI | 🟡 | No — client can't distinguish "empty turn" from "still streaming" | [#1012](https://github.com/siteboon/claudecodeui/issues/1012) (ours, open) |
 | 17 | Claude SDK init can be followed by an unbounded API-connect hang | 🟡 | No — the run stays registered forever | Not reported |
 | 18 | Older PATH Codex CLI crashes on a newer desktop app's shared model cache | 🔴 | No — provider exits before output | Not reported |
+| 20 | File upload can overwrite implicitly, leak temp files, and report partial success | 🟡 | Partial — preflight the visible tree, but races and malformed batches remain | Not reported |
 
 ## 🔴 Blockers — cannot be fixed from the client
 
@@ -254,6 +255,22 @@ values such as `28,466k / 258k`.
 `model_context_window`. A regression test keeps cumulative usage from leaking
 back into the UI.
 
+### 20. File upload can overwrite implicitly, leak temp files, and report partial success
+
+The inherited multipart project upload route always overwrote destination
+files, returned success after silently skipping an invalid per-file path, and
+left temporary files behind on several validation exits. Debug logging also
+included project, destination, original, and temporary host paths.
+
+**Fork status (`[fork-fix #20]`):** upload planning now validates the complete
+batch before writing, rejects duplicate/traversing paths, accepts an explicit
+`overwrite=false` guard with 409 conflicts, preserves binary bytes, creates
+nested directories, and cleans every multipart temp file in `finally`. The
+legacy default remains overwrite-on for stock API compatibility; Agents Hub
+sends `overwrite=false` until the user confirms replacement. Contract tests
+cover binary preservation, containment, symlink escapes, nested directories,
+count/size limits, duplicate paths, and conflict behavior.
+
 ## Fork decision — considerations, not a verdict
 
 **What a fork buys:**
@@ -308,3 +325,5 @@ back into the UI.
   least maintaining a patch set, if not forking.
 - 2026-08-02 — added and fixed #19 after live Agents Hub verification exposed
   lifetime Codex thread tokens as an impossible context-window percentage.
+- 2026-08-04 — added and fixed #20 while wiring project file upload into Agents
+  Hub; removed path-bearing debug logs and made Hub replacement explicit.

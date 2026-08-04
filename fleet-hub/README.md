@@ -139,7 +139,11 @@ own root URL is only a status page; it does not expose an account-setup UI.
   The terminal stays dark in either app theme so ANSI output remains readable.
 - **File browser/editor**: per-project tree (`GET /files`, node_modules/.git
   pruned server-side) with a lazy-loaded CodeMirror editor (One Dark, language
-  by extension); Cmd+S / Save button writes via `PUT /file`.
+  by extension); Cmd+S / Save button writes via `PUT /file`. The Explorer
+  upload button sends multiple binary or text files to the project root, and
+  dropping files onto a folder uploads there. Byte progress, cancellation,
+  recoverable errors, and explicit replacement confirmation stay inline; each
+  request is limited to 20 files of up to 200 MB by the host.
 - **Git workspace**: the Changes tab covers status, staging, commits, branches,
   remotes, and per-file diffs. The History tab lists recent commits across
   branches/remotes/tags with refs, author, time, short hash, and file stats;

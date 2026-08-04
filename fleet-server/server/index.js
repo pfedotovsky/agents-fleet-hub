@@ -51,6 +51,11 @@ import commandsRoutes from './routes/commands.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import { assetsRoutes } from './modules/assets/index.js';
+import {
+    MAX_PROJECT_UPLOAD_BYTES,
+    MAX_PROJECT_UPLOAD_FILES,
+    persistProjectUploads,
+} from './modules/files/project-file-upload.service.js';
 import { mountHub, HUB_BASE_PATH } from './hub-assets.js';
 import { initializeDatabase, projectsDb, sessionsDb } from './modules/database/index.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
@@ -62,9 +67,9 @@ const RUNNING_VERSION = VERSION;
 // otherwise a loopback-shadowing instance (see services/loopback-guard.js) is
 // indistinguishable from this one.
 const INSTANCE_ID = randomUUID();
-const MAX_FILE_UPLOAD_SIZE_MB = 200;
-const MAX_FILE_UPLOAD_SIZE_BYTES = MAX_FILE_UPLOAD_SIZE_MB * 1024 * 1024;
-const MAX_FILE_UPLOAD_COUNT = 20;
+const MAX_FILE_UPLOAD_SIZE_MB = MAX_PROJECT_UPLOAD_BYTES / (1024 * 1024);
+const MAX_FILE_UPLOAD_SIZE_BYTES = MAX_PROJECT_UPLOAD_BYTES;
+const MAX_FILE_UPLOAD_COUNT = MAX_PROJECT_UPLOAD_FILES;
 
 console.log('SERVER_PORT from env:', process.env.SERVER_PORT);
 
@@ -768,9 +773,10 @@ app.delete('/api/projects/:projectId/files', authenticateToken, async (req, res)
 });
 
 // POST /api/projects/:projectId/files/upload - Upload files
-// Dynamic import of multer for file uploads
+// [fork-fix #20] Keep the upstream multipart contract, but validate the whole
+// batch before writing, make overwrite intent explicit, and always clean temp
+// files. This prevents silent partial success and path-bearing debug logs.
 const uploadFilesHandler = async (req, res) => {
-    // Dynamic import of multer
     const multer = (await import('multer')).default;
 
     const uploadMiddleware = multer({
@@ -779,10 +785,7 @@ const uploadFilesHandler = async (req, res) => {
                 cb(null, os.tmpdir());
             },
             filename: (req, file, cb) => {
-                // Use a unique temp name, but preserve original name in file.originalname
-                // Note: file.originalname may contain path separators for folder uploads
                 const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-                // For temp file, just use a safe unique name without the path
                 cb(null, `upload-${uniqueSuffix}`);
             }
         }),
@@ -792,10 +795,9 @@ const uploadFilesHandler = async (req, res) => {
         }
     });
 
-    // Use multer middleware
     uploadMiddleware.array('files', MAX_FILE_UPLOAD_COUNT)(req, res, async (err) => {
         if (err) {
-            console.error('Multer error:', err);
+            console.error('File upload parser error:', err.code || err.message);
             if (err.code === 'LIMIT_FILE_SIZE') {
                 return res.status(400).json({ error: `File too large. Maximum size is ${MAX_FILE_UPLOAD_SIZE_MB}MB.` });
             }
@@ -805,132 +807,96 @@ const uploadFilesHandler = async (req, res) => {
             return res.status(500).json({ error: err.message });
         }
 
+        const temporaryFiles = Array.isArray(req.files) ? req.files : [];
         try {
             const { projectId } = req.params;
             const { targetPath, relativePaths, requestedFileCount: requestedFileCountRaw } = req.body;
 
-            // Parse relative paths if provided (for folder uploads)
-            let filePaths = [];
-            if (relativePaths) {
+            let filePaths;
+            if (relativePaths !== undefined) {
                 try {
                     filePaths = JSON.parse(relativePaths);
-                } catch (e) {
-                    console.log('[DEBUG] Failed to parse relativePaths:', relativePaths);
-                }
-            }
-
-            console.log('[DEBUG] File upload request:', {
-                projectId,
-                targetPath: JSON.stringify(targetPath),
-                targetPathType: typeof targetPath,
-                filesCount: req.files?.length,
-                relativePaths: filePaths
-            });
-
-            if (!req.files || req.files.length === 0) {
-                return res.status(400).json({ error: 'No files provided' });
-            }
-
-            const parsedRequestedFileCount = Number.parseInt(requestedFileCountRaw, 10);
-            const requestedFileCount = Number.isFinite(parsedRequestedFileCount) && parsedRequestedFileCount > 0
-                ? parsedRequestedFileCount
-                : req.files.length;
-
-            // Resolve the project directory through the DB using the new projectId.
-            const projectRoot = await projectsDb.getProjectPathById(projectId);
-            if (!projectRoot) {
-                return res.status(404).json({ error: 'Project not found' });
-            }
-
-            console.log('[DEBUG] Project root:', projectRoot);
-
-            // Validate and resolve target path
-            // If targetPath is empty or '.', use project root directly
-            const targetDir = targetPath || '';
-            let resolvedTargetDir;
-
-            console.log('[DEBUG] Target dir:', JSON.stringify(targetDir));
-
-            if (!targetDir || targetDir === '.' || targetDir === './') {
-                // Empty path means upload to project root
-                resolvedTargetDir = path.resolve(projectRoot);
-                console.log('[DEBUG] Using project root as target:', resolvedTargetDir);
-            } else {
-                const validation = validatePathInProject(projectRoot, targetDir);
-                if (!validation.valid) {
-                    console.log('[DEBUG] Path validation failed:', validation.error);
-                    return res.status(403).json({ error: validation.error });
-                }
-                resolvedTargetDir = validation.resolved;
-                console.log('[DEBUG] Resolved target dir:', resolvedTargetDir);
-            }
-
-            // Ensure target directory exists
-            try {
-                await fsPromises.access(resolvedTargetDir);
-            } catch {
-                await fsPromises.mkdir(resolvedTargetDir, { recursive: true });
-            }
-
-            // Move uploaded files from temp to target directory
-            const uploadedFiles = [];
-            console.log('[DEBUG] Processing files:', req.files.map(f => ({ originalname: f.originalname, path: f.path })));
-            for (let i = 0; i < req.files.length; i++) {
-                const file = req.files[i];
-                // Use relative path if provided (for folder uploads), otherwise use originalname
-                const fileName = (filePaths && filePaths[i]) ? filePaths[i] : file.originalname;
-                console.log('[DEBUG] Processing file:', fileName, '(originalname:', file.originalname + ')');
-                const destPath = path.join(resolvedTargetDir, fileName);
-
-                // Validate destination path
-                const destValidation = validatePathInProject(projectRoot, destPath);
-                if (!destValidation.valid) {
-                    console.log('[DEBUG] Destination validation failed for:', destPath);
-                    // Clean up temp file
-                    await fsPromises.unlink(file.path).catch(() => {});
-                    continue;
-                }
-
-                // Ensure parent directory exists (for nested files from folder upload)
-                const parentDir = path.dirname(destPath);
-                try {
-                    await fsPromises.access(parentDir);
                 } catch {
-                    await fsPromises.mkdir(parentDir, { recursive: true });
+                    throw new AppError('relativePaths must be valid JSON', {
+                        code: 'INVALID_UPLOAD_PATHS',
+                        statusCode: 400,
+                    });
                 }
+            }
 
-                // Move file (copy + unlink to handle cross-device scenarios)
-                await fsPromises.copyFile(file.path, destPath);
-                await fsPromises.unlink(file.path);
-
-                uploadedFiles.push({
-                    name: fileName,
-                    path: destPath,
-                    size: file.size,
-                    mimeType: file.mimetype
+            if (temporaryFiles.length === 0) {
+                throw new AppError('No files provided', {
+                    code: 'NO_UPLOAD_FILES',
+                    statusCode: 400,
                 });
             }
 
+            let requestedFileCount = temporaryFiles.length;
+            if (requestedFileCountRaw !== undefined) {
+                const parsedRequestedFileCount = Number(requestedFileCountRaw);
+                if (!Number.isInteger(parsedRequestedFileCount) || parsedRequestedFileCount <= 0) {
+                    throw new AppError('requestedFileCount must be a positive integer', {
+                        code: 'INVALID_UPLOAD_FILE_COUNT',
+                        statusCode: 400,
+                    });
+                }
+                requestedFileCount = parsedRequestedFileCount;
+            }
+            if (requestedFileCount !== temporaryFiles.length) {
+                throw new AppError('Upload did not contain every requested file', {
+                    code: 'INCOMPLETE_UPLOAD_BATCH',
+                    statusCode: 400,
+                });
+            }
+
+            const projectRoot = await projectsDb.getProjectPathById(projectId);
+            if (!projectRoot) {
+                throw new AppError('Project not found', {
+                    code: 'PROJECT_NOT_FOUND',
+                    statusCode: 404,
+                });
+            }
+
+            const overwrite = req.body.overwrite !== 'false';
+            const uploaded = await persistProjectUploads({
+                projectRoot,
+                targetPath,
+                relativePaths: filePaths,
+                files: temporaryFiles,
+                overwrite,
+            });
+
             res.json({
                 success: true,
-                files: uploadedFiles,
-                uploadedCount: uploadedFiles.length,
+                files: uploaded.files,
+                uploadedCount: uploaded.files.length,
                 requestedFileCount,
-                targetPath: resolvedTargetDir,
-                message: `Uploaded ${uploadedFiles.length} ${uploadedFiles.length === 1 ? 'file' : 'files'} successfully`
+                targetPath: uploaded.targetPath,
+                message: `Uploaded ${uploaded.files.length} ${uploaded.files.length === 1 ? 'file' : 'files'} successfully`
             });
         } catch (error) {
-            console.error('Error uploading files:', error);
-            // Clean up any remaining temp files
-            if (req.files) {
-                for (const file of req.files) {
-                    await fsPromises.unlink(file.path).catch(() => {});
-                }
-            }
-            if (error.code === 'EACCES') {
+            console.error(
+                'File upload failed:',
+                error instanceof AppError ? error.code : error?.code || 'UNKNOWN_ERROR',
+            );
+            if (error instanceof AppError) {
+                res.status(error.statusCode).json({
+                    error: {
+                        code: error.code,
+                        message: error.message,
+                        details: error.details,
+                    },
+                });
+            } else if (error.code === 'EACCES') {
                 res.status(403).json({ error: 'Permission denied' });
+            } else if (error.code === 'EEXIST') {
+                res.status(409).json({ error: 'One or more files already exist' });
             } else {
                 res.status(500).json({ error: error.message });
+            }
+        } finally {
+            for (const file of temporaryFiles) {
+                await fsPromises.unlink(file.path).catch(() => {});
             }
         }
     });

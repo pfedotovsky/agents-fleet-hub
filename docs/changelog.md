@@ -7,6 +7,16 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-04
 
 ### Changed
+- **Files can be uploaded directly from Explorer.** The Files panel now accepts
+  multiple text or binary files through an upload button at the project root or
+  drag/drop onto a folder, reports byte progress, supports cancellation, and
+  refreshes the tree on success. Existing names require an explicit Replace
+  confirmation; errors stay inline and recoverable. fleet-server hardens the
+  inherited multipart route so `overwrite=false` is atomic at the file-copy
+  boundary, invalid batches fail instead of silently succeeding partially,
+  nested directories are created safely, temp files are always cleaned, and
+  host paths are no longer written to debug logs (`[fork-fix #20]`). Tracked in
+  private backlog #8.
 - **New sessions can clone a repository with live host progress.** The global
   session draft's Add folder flow now switches between registering a host path
   and cloning an HTTPS, SSH, or host-local Git source into a chosen absolute

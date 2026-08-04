@@ -625,6 +625,103 @@ export async function getFileTree(
   })) as FileNode[]
 }
 
+export interface ProjectFileUploadResult {
+  files: { name: string; path: string; size: number; mimeType: string }[]
+  uploadedCount: number
+  requestedFileCount: number
+  targetPath: string
+}
+
+/** Uploads binary-safe files into a project folder through the host multipart route. */
+export function uploadProjectFiles(
+  baseUrl: string,
+  token: string,
+  projectId: string,
+  options: {
+    files: File[]
+    targetPath: string
+    overwrite: boolean
+    onProgress: (percent: number) => void
+    onTokenRefresh: (token: string) => void
+    signal?: AbortSignal
+  },
+): Promise<ProjectFileUploadResult> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData()
+    for (const file of options.files) form.append('files', file)
+    form.append('targetPath', options.targetPath)
+    form.append('requestedFileCount', String(options.files.length))
+    form.append('overwrite', String(options.overwrite))
+
+    const xhr = new XMLHttpRequest()
+    let settled = false
+    const cleanup = () => options.signal?.removeEventListener('abort', abort)
+    const finish = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      cleanup()
+      fn()
+    }
+    const abort = () => xhr.abort()
+
+    xhr.open(
+      'POST',
+      `${baseUrl}/api/projects/${encodeURIComponent(projectId)}/files/upload`,
+    )
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    xhr.timeout = 5 * 60 * 1000
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        options.onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)))
+      }
+    }
+    xhr.onload = () => {
+      finish(() => {
+        const refreshed = xhr.getResponseHeader('X-Refreshed-Token')
+        if (refreshed) options.onTokenRefresh(refreshed)
+        let body: unknown = {}
+        try {
+          body = JSON.parse(xhr.responseText)
+        } catch {
+          // The status code below still provides a useful fallback error.
+        }
+        const message = apiErrorMessage(body)
+        if (xhr.status === 401 || xhr.status === 403) {
+          reject(new AuthError(message))
+          return
+        }
+        if (xhr.status < 200 || xhr.status >= 300) {
+          reject(new Error(message ?? `Upload failed (${xhr.status})`))
+          return
+        }
+        const result = body as Partial<ProjectFileUploadResult>
+        if (
+          !Array.isArray(result.files) ||
+          result.uploadedCount !== options.files.length ||
+          result.requestedFileCount !== options.files.length ||
+          typeof result.targetPath !== 'string'
+        ) {
+          reject(new Error('Host reported an incomplete file upload'))
+          return
+        }
+        options.onProgress(100)
+        resolve(result as ProjectFileUploadResult)
+      })
+    }
+    xhr.onerror = () => finish(() => reject(new HostUnreachableError(baseUrl)))
+    xhr.ontimeout = () => finish(() => reject(new Error('File upload timed out')))
+    xhr.onabort = () =>
+      finish(() => reject(new DOMException('File upload cancelled', 'AbortError')))
+
+    if (options.signal?.aborted) {
+      finish(() => reject(new DOMException('File upload cancelled', 'AbortError')))
+      return
+    }
+    options.signal?.addEventListener('abort', abort, { once: true })
+    xhr.send(form)
+  })
+}
+
 /**
  * Custom slash commands from the host's `.claude/commands/` (project + user).
  * The response also lists CloudCLI's built-ins (/help, /models, …) — those are

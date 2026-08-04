@@ -61,7 +61,7 @@
       <tr><td>Project star/favorite</td><td class="s full">✅</td><td class="s full">✅</td><td>Parity</td></tr>
       <tr><td>Project create / rename / delete / archive / git-clone</td><td class="s part">⚠️</td><td class="s full">✅</td><td>Hub can create/register arbitrary host folders, clone with live progress/cancel, rename without moving the path, and soft-archive/restore. Permanent project delete remains intentionally unavailable</td></tr>
       <tr><td>File tree + editor (view/edit/save)</td><td class="s full">✅</td><td class="s full">✅</td><td>CodeMirror both sides; hub adds Cmd+S, dirty guard</td></tr>
-      <tr><td>File create / delete / rename / upload</td><td class="s miss">❌</td><td class="s part">⚠️</td><td>Neither is strong; CloudCLI has image upload + shell escape hatch</td></tr>
+      <tr><td>File create / delete / rename / upload</td><td class="s part">⚠️</td><td class="s part">⚠️</td><td>Hub supports binary-safe multi-file upload to root or a dropped-on folder with progress/cancel/conflict confirmation; create/delete/rename UI remains</td></tr>
       <tr><td>Integrated terminal / shell</td><td class="s full">✅</td><td class="s full">✅</td><td>Hub: full per-session xterm view over <code>/shell</code>, resumable Claude/Codex CLI, persisted default Structured/Terminal choice</td></tr>
       <tr><td>Git panel</td><td class="s part">⚠️</td><td class="s full">✅</td><td>Hub: status, unified diffs, stage/unstage, commit (+AI messages), commit history, branches, fetch/pull/push/publish. Missing: discard, revert</td></tr>
       <tr><td>MCP server management</td><td class="s miss">❌</td><td class="s full">✅</td><td>Per-provider + global, stdio/HTTP transports</td></tr>

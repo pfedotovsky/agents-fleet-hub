@@ -36,7 +36,7 @@ host APIs; others (plugins, Electron) are out of scope for a static hub SPA.
 | **Project star/favorite** | ✅ | ✅ | Parity |
 | **Project create / rename / delete / archive / git-clone** | ⚠️ | ✅ | Hub can create/register arbitrary host folders, clone with live progress/cancel, rename without moving the path, and soft-archive/restore. Permanent project delete remains intentionally unavailable |
 | **File tree + editor (view/edit/save)** | ✅ | ✅ | Parity (CodeMirror both sides); hub adds Cmd+S, dirty guard |
-| **File create / delete / rename / upload** | ❌ | ⚠️ | Neither is strong here; CloudCLI has image upload + shell as escape hatch |
+| **File create / delete / rename / upload** | ⚠️ | ⚠️ | Hub supports binary-safe multi-file upload to root or a dropped-on folder with progress/cancel/conflict confirmation; create/delete/rename UI remains |
 | **Integrated terminal / shell** | ✅ | ✅ | Hub: full per-session xterm view over `/shell`, resumable Claude/Codex CLI, persisted default Structured/Terminal choice |
 | **Git panel** | ⚠️ | ✅ | Hub: status, unified diffs, stage/unstage, commit (+AI messages), commit history, branches, fetch/pull/push/publish. Missing: discard, revert |
 | **MCP server management** | ❌ | ✅ | Per-provider + global scopes, stdio/HTTP transports |
