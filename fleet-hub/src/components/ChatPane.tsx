@@ -458,6 +458,14 @@ interface Props {
   draftHosts?: { id: string; name: string }[]
   /** Creates or registers a host folder and returns its draft target. */
   onCreateDraftProject?: (hostId: string, projectPath: string) => Promise<FleetSession>
+  /** Clones a repository on a host and returns its registered draft target. */
+  onCloneDraftProject?: (
+    hostId: string,
+    workspacePath: string,
+    repositoryUrl: string,
+    onProgress: (message: string) => void,
+    signal: AbortSignal,
+  ) => Promise<FleetSession>
   /** Binds an unbound draft to its selected host project without remounting it. */
   onDraftTargetChange?: (target: FleetSession) => void
 }
@@ -475,6 +483,7 @@ export function ChatPane({
   draftTargets,
   draftHosts,
   onCreateDraftProject,
+  onCloneDraftProject,
   onDraftTargetChange,
 }: Props) {
   // A draft chat opens with an empty id and no provider chosen yet; the real
@@ -500,8 +509,12 @@ export function ChatPane({
   const [permissions, setPermissions] = useState<PermissionRequest[]>([])
   const [input, setInput] = useState(() => loadDraft(target.hostId, sessionId))
   const [customFolderOpen, setCustomFolderOpen] = useState(false)
+  const [customFolderMode, setCustomFolderMode] = useState<'folder' | 'clone'>('folder')
   const [customFolderHostId, setCustomFolderHostId] = useState(() => draftHosts?.[0]?.id ?? '')
   const [customFolderPath, setCustomFolderPath] = useState('')
+  const [cloneRepositoryUrl, setCloneRepositoryUrl] = useState('')
+  const [cloneProgress, setCloneProgress] = useState<string | null>(null)
+  const cloneAbortRef = useRef<AbortController | null>(null)
   const [customFolderBusy, setCustomFolderBusy] = useState(false)
   const [customFolderError, setCustomFolderError] = useState<string | null>(null)
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(() => {
@@ -1569,32 +1582,65 @@ export function ChatPane({
   async function submitCustomFolder(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const projectPath = customFolderPath.trim()
-    if (!customFolderHostId || !projectPath || !onCreateDraftProject) return
-    const comparablePath = projectPath.replace(/[\\/]+$/, '')
-    const existing = draftTargets?.find(
-      (option) =>
-        option.hostId === customFolderHostId &&
-        option.projectPath.replace(/[\\/]+$/, '') === comparablePath,
-    )
-    if (existing) {
-      bindDraftTarget(existing)
-      setCustomFolderOpen(false)
-      setCustomFolderError(null)
-      return
+    const repositoryUrl = cloneRepositoryUrl.trim()
+    if (!customFolderHostId || !projectPath) return
+    if (customFolderMode === 'folder' && !onCreateDraftProject) return
+    if (customFolderMode === 'clone' && (!repositoryUrl || !onCloneDraftProject)) return
+
+    if (customFolderMode === 'folder') {
+      const comparablePath = projectPath.replace(/[\\/]+$/, '')
+      const existing = draftTargets?.find(
+        (option) =>
+          option.hostId === customFolderHostId &&
+          option.projectPath.replace(/[\\/]+$/, '') === comparablePath,
+      )
+      if (existing) {
+        bindDraftTarget(existing)
+        setCustomFolderOpen(false)
+        setCustomFolderError(null)
+        return
+      }
     }
+
     setCustomFolderBusy(true)
     setCustomFolderError(null)
+    setCloneProgress(customFolderMode === 'clone' ? 'Connecting to host…' : null)
+    const controller = customFolderMode === 'clone' ? new AbortController() : null
+    cloneAbortRef.current = controller
     try {
-      const next = await onCreateDraftProject(customFolderHostId, projectPath)
+      const next =
+        customFolderMode === 'clone'
+          ? await onCloneDraftProject!(
+              customFolderHostId,
+              projectPath,
+              repositoryUrl,
+              setCloneProgress,
+              controller!.signal,
+            )
+          : await onCreateDraftProject!(customFolderHostId, projectPath)
       bindDraftTarget(next)
       setCustomFolderPath('')
+      setCloneRepositoryUrl('')
+      setCloneProgress(null)
       setCustomFolderOpen(false)
     } catch (error) {
-      setCustomFolderError(error instanceof Error ? error.message : 'Could not use this folder')
+      setCustomFolderError(
+        error instanceof DOMException && error.name === 'AbortError'
+          ? 'Repository clone cancelled'
+          : error instanceof Error
+            ? error.message
+            : customFolderMode === 'clone'
+              ? 'Could not clone this repository'
+              : 'Could not use this folder',
+      )
+      setCloneProgress(null)
     } finally {
+      cloneAbortRef.current = null
       setCustomFolderBusy(false)
     }
   }
+
+  useEffect(() => () => cloneAbortRef.current?.abort(), [])
 
   const planRequest = permissions.find(isPlanRequest)
   const planRequestId = planRequest?.requestId
@@ -1905,7 +1951,7 @@ export function ChatPane({
                     aria-expanded={customFolderOpen}
                     className="shrink-0 rounded-md border border-line px-2 py-1 text-[11px] font-medium text-fg-muted transition-colors hover:border-line-strong hover:text-fg disabled:opacity-40"
                   >
-                    Other folder…
+                    Add folder…
                   </button>
                 </div>
                 {customFolderOpen && (
@@ -1913,6 +1959,39 @@ export function ChatPane({
                     onSubmit={(event) => void submitCustomFolder(event)}
                     className="border-t border-line px-2.5 py-2"
                   >
+                    <div className="mb-2 inline-flex rounded-md border border-line bg-surface p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomFolderMode('folder')
+                          setCustomFolderError(null)
+                          setCloneProgress(null)
+                        }}
+                        disabled={customFolderBusy}
+                        className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                          customFolderMode === 'folder'
+                            ? 'bg-elevated text-fg'
+                            : 'text-fg-muted hover:text-fg'
+                        } disabled:opacity-50`}
+                      >
+                        Use folder
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomFolderMode('clone')
+                          setCustomFolderError(null)
+                        }}
+                        disabled={customFolderBusy || !onCloneDraftProject}
+                        className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${
+                          customFolderMode === 'clone'
+                            ? 'bg-elevated text-fg'
+                            : 'text-fg-muted hover:text-fg'
+                        } disabled:opacity-50`}
+                      >
+                        Clone repository
+                      </button>
+                    </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <select
                         value={customFolderHostId}
@@ -1931,27 +2010,73 @@ export function ChatPane({
                         type="text"
                         value={customFolderPath}
                         onChange={(event) => setCustomFolderPath(event.target.value)}
-                        aria-label="Folder path"
-                        placeholder="/Users/you/projects/new-project"
+                        aria-label={
+                          customFolderMode === 'clone' ? 'Clone destination folder' : 'Folder path'
+                        }
+                        placeholder={
+                          customFolderMode === 'clone'
+                            ? '/Users/you/projects'
+                            : '/Users/you/projects/new-project'
+                        }
                         autoComplete="off"
                         disabled={customFolderBusy}
                         className="min-w-52 flex-1 rounded-md border border-line bg-surface px-2 py-1.5 font-mono text-xs text-fg outline-none placeholder:text-fg-subtle focus:border-accent/60 disabled:opacity-50"
                       />
+                    </div>
+                    {customFolderMode === 'clone' && (
+                      <input
+                        type="text"
+                        inputMode="url"
+                        value={cloneRepositoryUrl}
+                        onChange={(event) => setCloneRepositoryUrl(event.target.value)}
+                        aria-label="Repository URL"
+                        placeholder="https://github.com/owner/repository.git"
+                        autoComplete="url"
+                        disabled={customFolderBusy}
+                        className="mt-2 w-full rounded-md border border-line bg-surface px-2 py-1.5 font-mono text-xs text-fg outline-none placeholder:text-fg-subtle focus:border-accent/60 disabled:opacity-50"
+                      />
+                    )}
+                    <div className="mt-2 flex items-center gap-2">
                       <button
                         type="submit"
-                        disabled={!customFolderHostId || !customFolderPath.trim() || customFolderBusy}
+                        disabled={
+                          !customFolderHostId ||
+                          !customFolderPath.trim() ||
+                          (customFolderMode === 'clone' && !cloneRepositoryUrl.trim()) ||
+                          customFolderBusy
+                        }
                         className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-accent px-2.5 py-1.5 text-xs font-medium text-on-accent transition-colors hover:bg-accent-strong disabled:opacity-40"
                       >
                         {customFolderBusy && <LoaderCircle size={12} className="animate-spin" />}
-                        Use folder
+                        {customFolderMode === 'clone' ? 'Clone repository' : 'Use folder'}
                       </button>
+                      {customFolderMode === 'clone' && customFolderBusy && (
+                        <button
+                          type="button"
+                          onClick={() => cloneAbortRef.current?.abort()}
+                          className="rounded-md px-2 py-1.5 text-xs font-medium text-fg-muted transition-colors hover:bg-elevated hover:text-fg"
+                        >
+                          Cancel
+                        </button>
+                      )}
                     </div>
                     <p className="mt-1.5 text-[11px] text-fg-subtle">
-                      Enter an absolute path on the selected host. Missing folders are created under
-                      that host&apos;s workspace root.
+                      {customFolderMode === 'clone'
+                        ? 'The repository folder is created inside this absolute destination path. HTTPS and SSH URLs use credentials already available on the host.'
+                        : 'Enter an absolute path on the selected host. Missing folders are created under that host’s workspace root.'}
                     </p>
+                    {cloneProgress && (
+                      <p
+                        role="status"
+                        aria-live="polite"
+                        className="mt-1 flex min-w-0 items-start gap-1.5 text-[11px] text-fg-muted"
+                      >
+                        <LoaderCircle size={11} className="mt-0.5 shrink-0 animate-spin" />
+                        <span className="min-w-0 break-words font-mono">{cloneProgress}</span>
+                      </p>
+                    )}
                     {customFolderError && (
-                      <p role="alert" className="mt-1 text-[11px] text-rose-400">
+                      <p role="alert" className="mt-1 text-[11px] text-danger">
                         {customFolderError}
                       </p>
                     )}

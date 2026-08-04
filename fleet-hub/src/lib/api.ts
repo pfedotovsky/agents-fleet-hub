@@ -219,6 +219,121 @@ export async function createProject(
   return body.project
 }
 
+export interface CloneProjectOptions {
+  workspacePath: string
+  repositoryUrl: string
+  onProgress: (message: string) => void
+  onTokenRefresh: (token: string) => void
+  signal?: AbortSignal
+}
+
+/** Clones a repository on one host and resolves with the registered project. */
+export async function cloneProject(
+  baseUrl: string,
+  token: string,
+  options: CloneProjectOptions,
+): Promise<Project> {
+  let parsedRepositoryUrl: URL | null = null
+  try {
+    parsedRepositoryUrl = new URL(options.repositoryUrl)
+  } catch {
+    // SSH shorthands and host-local paths are valid Git sources but not URL instances.
+  }
+  if (
+    parsedRepositoryUrl &&
+    (parsedRepositoryUrl.protocol === 'http:' || parsedRepositoryUrl.protocol === 'https:') &&
+    (parsedRepositoryUrl.username || parsedRepositoryUrl.password)
+  ) {
+    throw new Error('Use repository credentials configured on the host, not in the URL')
+  }
+
+  const query = new URLSearchParams({
+    path: options.workspacePath,
+    githubUrl: options.repositoryUrl,
+  })
+  let res: Response
+  try {
+    res = await fetch(`${baseUrl}/api/projects/clone-progress?${query}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: options.signal,
+    })
+  } catch {
+    if (options.signal?.aborted) {
+      throw new DOMException('Repository clone cancelled', 'AbortError')
+    }
+    throw new HostUnreachableError(baseUrl)
+  }
+
+  const refreshed = res.headers.get('X-Refreshed-Token')
+  if (refreshed) options.onTokenRefresh(refreshed)
+
+  if (res.status === 401 || res.status === 403) {
+    const message = await res
+      .json()
+      .then(apiErrorMessage)
+      .catch(() => undefined)
+    throw new AuthError(message)
+  }
+  if (!res.ok) {
+    const message = await res
+      .json()
+      .then(apiErrorMessage)
+      .catch(() => undefined)
+    throw new Error(message ?? `${res.status} ${res.statusText}`)
+  }
+  if (!res.body) throw new Error('Clone progress stream was unavailable')
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let completedProject: Project | null = null
+
+  const consumeEvent = (block: string) => {
+    const data = block
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith('data:'))
+      .map((line) => line.slice(5).trimStart())
+      .join('\n')
+    if (!data) return
+
+    let event: { type?: unknown; message?: unknown; project?: unknown }
+    try {
+      event = JSON.parse(data) as typeof event
+    } catch {
+      throw new Error('Host sent invalid clone progress data')
+    }
+
+    if (event.type === 'progress' && typeof event.message === 'string') {
+      options.onProgress(event.message)
+      return
+    }
+    if (event.type === 'error') {
+      throw new Error(
+        typeof event.message === 'string' ? event.message : 'Repository clone failed',
+      )
+    }
+    if (event.type === 'complete' && event.project && typeof event.project === 'object') {
+      completedProject = event.project as Project
+    }
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+    buffer += decoder.decode(value, { stream: !done })
+    let boundary = /\r?\n\r?\n/.exec(buffer)
+    while (boundary?.index !== undefined) {
+      const block = buffer.slice(0, boundary.index)
+      buffer = buffer.slice(boundary.index + boundary[0].length)
+      consumeEvent(block)
+      boundary = /\r?\n\r?\n/.exec(buffer)
+    }
+    if (done) break
+  }
+  if (buffer.trim()) consumeEvent(buffer)
+  if (!completedProject) throw new Error('Clone progress stream ended before completion')
+  return completedProject
+}
+
 /** Soft-archives a project in the host DB; files and session transcripts stay on disk. */
 export async function archiveProject(
   baseUrl: string,
