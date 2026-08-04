@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createProject } from '@/modules/projects/services/project-management.service.js';
+import {
+  createProject,
+  updateProjectDisplayName,
+} from '@/modules/projects/services/project-management.service.js';
 import { AppError } from '@/shared/utils.js';
 
 const projectRow = {
@@ -114,4 +117,22 @@ test('createProject returns archived reuse outcome when archived row is reused',
 
   assert.equal(result.outcome, 'reactivated_archived');
   assert.equal(result.project.isArchived, true);
+});
+
+test('updateProjectDisplayName returns the persisted custom name and supports resetting to basename', () => {
+  let persistedName: string | null = null;
+  const dependencies = {
+    updateCustomName: (_projectId: string, customName: string | null) => {
+      persistedName = customName;
+    },
+    getProjectById: () => projectRow,
+  };
+
+  const renamed = updateProjectDisplayName('project-1', '  Control room  ', dependencies);
+  assert.deepEqual(renamed, { displayName: 'Control room', customName: 'Control room' });
+  assert.equal(persistedName, 'Control room');
+
+  const reset = updateProjectDisplayName('project-1', '   ', dependencies);
+  assert.deepEqual(reset, { displayName: 'my-project', customName: 'my-project' });
+  assert.equal(persistedName, 'my-project');
 });

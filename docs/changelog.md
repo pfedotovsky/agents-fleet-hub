@@ -7,6 +7,15 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-04
 
 ### Changed
+- **Projects can now be renamed in place without moving their host folder.**
+  Online project rows and project headers expose the same save/cancel editor;
+  Enter saves, Escape cancels, failures preserve the typed value, and leaving
+  the name blank resets it to the host's stable folder-name default. A
+  successful rename updates the sidebar, project view, merged feed, and an
+  already-open chat immediately, then persists across polls and reloads. The
+  source server now returns the authoritative resolved name and persists its
+  basename on reset so a later session-derived display-name pass cannot undo
+  the choice. Tracked in private backlog #9.
 - **Projects can now be archived and restored without deleting host data.**
   Each online project pane exposes an inline-confirmed Archive action. The
   project and its sessions leave active navigation only after the host accepts
@@ -24,7 +33,7 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   the next poll, and leaves actual session creation deferred until first send.
   Existing project paths are reused client-side; validation failures stay in
   the composer with the server's structured message and details instead of
-  degrading to `[object Object]`. Clone, rename, archive, restore, and project
+  degrading to `[object Object]`. Clone, archive, restore, and project
   deletion remain separate project-management slices. Tracked in private
   backlog #9.
 - **Codex child-agent rollouts no longer pollute ordinary session discovery.**

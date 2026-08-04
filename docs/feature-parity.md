@@ -31,10 +31,10 @@ host APIs; others (plugins, Electron) are out of scope for a static hub SPA.
 | **Voice input (transcription)** | ❌ | ✅ | CloudCLI proxies audio to OpenAI transcription (`/api/voice`) |
 | **Full-text conversation search** | ✅ ➕ | ✅ | ⌘K overlay fans the SSE `GET /search/sessions` out to every online host and merges streamed results — cross-host search CloudCLI can't do |
 | **Session create** | ✅ | ✅ | Parity (one-click new session from sidebar ➕) |
-| **Session delete/archive, restore, rename** | ⚠️ | ✅ | Archive (hover action), per-host Archived list with restore + permanent delete. Rename not implemented (host has `PUT /sessions/:id`) |
+| **Session delete/archive, restore, rename** | ✅ | ✅ | Archive (hover action), per-host Archived list with restore + permanent delete, and inline rename across feed/sidebar/project/chat |
 | **Running-sessions signal** | ✅ | ✅ | Polls `GET /sessions/running` per host (verified live); 2-min heuristic kept only as fallback for older hosts |
 | **Project star/favorite** | ✅ | ✅ | Parity |
-| **Project create / rename / delete / archive / git-clone** | ⚠️ | ✅ | Hub can create/register arbitrary host folders and soft-archive/restore projects. Rename, permanent delete, and clone-progress UI remain |
+| **Project create / rename / delete / archive / git-clone** | ⚠️ | ✅ | Hub can create/register arbitrary host folders, rename them without moving the path, and soft-archive/restore them. Permanent delete and clone-progress UI remain |
 | **File tree + editor (view/edit/save)** | ✅ | ✅ | Parity (CodeMirror both sides); hub adds Cmd+S, dirty guard |
 | **File create / delete / rename / upload** | ❌ | ⚠️ | Neither is strong here; CloudCLI has image upload + shell as escape hatch |
 | **Integrated terminal / shell** | ✅ | ✅ | Hub: full per-session xterm view over `/shell`, resumable Claude/Codex CLI, persisted default Structured/Terminal choice |

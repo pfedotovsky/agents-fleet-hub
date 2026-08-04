@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { Archive, ChevronDown, FolderTree, GitBranch, LoaderCircle, Plus, X } from 'lucide-react'
+import { Archive, ChevronDown, FolderTree, GitBranch, LoaderCircle, Pencil, Plus, X } from 'lucide-react'
 import type { FleetSession, HostRuntime, Project, Provider, SessionSummary } from '../types'
 import { getProjectSessions } from '../lib/api'
 import { getToken, loadLastProvider, saveToken } from '../lib/storage'
 import { hostColor } from '../lib/format'
 import { SessionRow } from './SessionRow'
+import { ProjectRenameForm } from './ProjectRenameForm'
 
 interface Props {
   runtime: HostRuntime
@@ -14,6 +15,7 @@ interface Props {
   onOpenFiles: () => void
   onOpenGit: () => void
   onArchiveProject: () => Promise<void>
+  onRenameProject: (displayName: string) => Promise<void>
   onArchiveSession: (sessionId: string) => void
   onRenameSession: (sessionId: string, summary: string) => Promise<void>
 }
@@ -26,6 +28,7 @@ export function ProjectPane({
   onOpenFiles,
   onOpenGit,
   onArchiveProject,
+  onRenameProject,
   onArchiveSession,
   onRenameSession,
 }: Props) {
@@ -35,6 +38,7 @@ export function ProjectPane({
   const [error, setError] = useState<string | null>(null)
   const [confirmArchive, setConfirmArchive] = useState(false)
   const [archiving, setArchiving] = useState(false)
+  const [renaming, setRenaming] = useState(false)
 
   const color = hostColor(hostColorIdx)
 
@@ -145,7 +149,31 @@ export function ProjectPane({
               <span>·</span>
               <span className="tnum font-mono">{project.sessionMeta.total} sessions</span>
             </div>
-            <h2 className="font-display truncate text-base font-semibold text-fg">{project.displayName}</h2>
+            {renaming ? (
+              <ProjectRenameForm
+                displayName={project.displayName}
+                onRename={onRenameProject}
+                onCancel={() => setRenaming(false)}
+                className="mt-0.5 max-w-md"
+              />
+            ) : (
+              <div className="group/title flex min-w-0 items-center gap-1.5">
+                <h2 className="font-display truncate text-base font-semibold text-fg">
+                  {project.displayName}
+                </h2>
+                {runtime.status === 'online' && (
+                  <button
+                    type="button"
+                    onClick={() => setRenaming(true)}
+                    title="Rename project"
+                    aria-label={`Rename ${project.displayName}`}
+                    className="shrink-0 rounded p-1 text-fg-subtle opacity-0 transition-opacity hover:bg-elevated hover:text-fg group-hover/title:opacity-100 focus:opacity-100"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                )}
+              </div>
+            )}
             <p className="truncate font-mono text-xs text-fg-subtle">{project.fullPath}</p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">

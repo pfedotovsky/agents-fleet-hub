@@ -63,9 +63,11 @@ own root URL is only a status page; it does not expose an account-setup UI.
   toggles persist on the host (`toggle-star` API); "recently opened in the
   hub" is tracked in localStorage. "All sessions" is a merged recent-activity
   feed across hosts. Each chat in the tree is tagged with its provider icon
-  (Claude / Codex / …). Online session rows can be renamed in place from their
-  hover actions; the new title is reflected in the feed, project view, sidebar,
-  and an already-open chat. The feed's **New session** action opens a draft whose
+  (Claude / Codex / …). Online project and session rows can be renamed in place
+  from their hover actions; project rename is also available beside the project
+  header. Names update the feed, project view, sidebar, and an already-open chat
+  immediately; blank project names reset to the host default without moving the
+  folder. The feed's **New session** action opens a draft whose
   composer chooses any project folder from an online host, or creates/opens an
   arbitrary absolute path through the selected host. Hovering a project row
   still reveals a **+** that opens a draft already bound to that project.
@@ -158,6 +160,9 @@ own root URL is only a status page; it does not expose an account-setup UI.
   projects are fetched lazily from `GET /api/projects/archived` and restored
   through `POST /api/projects/:id/restore`. The hub does not expose permanent
   project deletion.
+- Project rename uses `PUT /api/projects/:id/rename {displayName}`. It changes
+  only the persisted display name; the host folder path is never renamed or
+  moved. Blank input resets to the host's stable default name.
 - Transcripts: `GET /api/providers/sessions/:id/messages` (normalized across
   providers; `offset=0` is the newest page). New sessions:
   `POST /api/providers/sessions {provider, projectPath}`, then the first

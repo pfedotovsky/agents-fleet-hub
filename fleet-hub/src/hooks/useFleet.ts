@@ -14,6 +14,7 @@ import {
   getRunningSessions,
   login,
   renameSession as apiRenameSession,
+  renameProject as apiRenameProject,
   register,
   restoreProject as apiRestoreProject,
   restoreSession as apiRestoreSession,
@@ -340,6 +341,56 @@ export function useFleet() {
     [pollHost],
   )
 
+  /** Renames one project after host confirmation and patches every loaded session label. */
+  const renameProject = useCallback(
+    async (hostId: string, projectId: string, displayName: string): Promise<string> => {
+      const config = hostsRef.current.find((host) => host.id === hostId)
+      const token = storage.getToken(hostId)
+      if (!config || !token) throw new Error('Not signed in to this host')
+      const renamed = await apiRenameProject(
+        config.baseUrl,
+        token,
+        projectId,
+        displayName,
+        (refreshed) => storage.saveToken(hostId, refreshed),
+      )
+
+      // Stock CloudCLI returns only {success:true}. Non-empty names are still
+      // authoritative; a blank reset is reconciled from that host immediately.
+      const nextDisplayName = renamed?.displayName ?? displayName.trim()
+      if (!nextDisplayName) {
+        const projects = await getProjects(config.baseUrl, token, (refreshed) =>
+          storage.saveToken(hostId, refreshed),
+        )
+        setRuntimes((prev) => {
+          const existing = prev[hostId]
+          return existing
+            ? { ...prev, [hostId]: { ...existing, status: 'online', projects } }
+            : prev
+        })
+        return projects.find((project) => project.projectId === projectId)?.displayName ?? displayName
+      }
+
+      setRuntimes((prev) => {
+        const existing = prev[hostId]
+        if (!existing) return prev
+        return {
+          ...prev,
+          [hostId]: {
+            ...existing,
+            projects: existing.projects.map((project) =>
+              project.projectId === projectId
+                ? { ...project, displayName: nextDisplayName }
+                : project,
+            ),
+          },
+        }
+      })
+      return nextDisplayName
+    },
+    [],
+  )
+
   /** Renames a session on its host, then updates every currently loaded copy. */
   const renameSession = useCallback(
     async (hostId: string, sessionId: string, summary: string): Promise<void> => {
@@ -499,6 +550,7 @@ export function useFleet() {
     createProject,
     archiveProject,
     restoreProject,
+    renameProject,
     toggleStar,
     renameSession,
     markProjectOpened,
