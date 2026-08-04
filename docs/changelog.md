@@ -6,7 +6,19 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-08-04
 
+### Added
+- **The autonomous backlog worker now runs a finite, reviewable Cycle 2.** Its
+  source-controlled manifest allowlists private backlog issues #1, #37, and #9,
+  fixes their acceptance and destructive-safety boundaries, caps estimated
+  credits and run counts, requires a fresh standalone task per hourly run, and
+  forbids replacement work. The loop now pauses on completion, budget, repeated
+  no-progress checks, or a decision gate instead of growing an open-ended task.
+
 ### Changed
+- **Cycle 2 scheduled runs now use Sol with high reasoning by default.** The
+  finite issue allowlist and all credit, run-count, duration, and safety stops
+  remain unchanged; the stronger model may therefore exhaust the approved
+  budget in fewer runs rather than silently expanding it.
 - **The host installer now reports agent CLI readiness.** After installing
   fleet-server, `install.sh` distinguishes missing, signed-out, and ready
   Claude Code/Codex installations without printing provider auth output, then
