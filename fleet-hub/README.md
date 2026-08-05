@@ -170,8 +170,12 @@ own root URL is only a status page; it does not expose an account-setup UI.
   credentials stay on the host; the form does not collect a token.
 - Project archive uses `DELETE /api/projects/:id` without `force`; archived
   projects are fetched lazily from `GET /api/projects/archived` and restored
-  through `POST /api/projects/:id/restore`. The hub does not expose permanent
-  project deletion.
+  through `POST /api/projects/:id/restore`. Only the Archived projects section
+  exposes permanent deletion: it previews the server's canonical path,
+  sessions, files/size, active-operation block, and Git risk, requires typing
+  the exact path, and then sends `DELETE /api/projects/:id?force=true` with that
+  confirmation. The host rejects protected, broad, symlinked, escaped, or busy
+  targets and keeps an archived retry checkpoint if filesystem cleanup fails.
 - Project rename uses `PUT /api/projects/:id/rename {displayName}`. It changes
   only the persisted display name; the host folder path is never renamed or
   moved. Blank input resets to the host's stable default name.

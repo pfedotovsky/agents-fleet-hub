@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import {
   Archive,
   ArchiveRestore,
+  AlertTriangle,
   ChevronDown,
   ChevronRight,
   Folder,
@@ -19,9 +20,21 @@ import {
   Trash2,
   UserPlus,
 } from 'lucide-react'
-import type { ArchivedProject, ArchivedSession, HostRuntime, Project, SessionSummary } from '../types'
+import type {
+  ArchivedProject,
+  ArchivedSession,
+  HostRuntime,
+  Project,
+  ProjectDeletionPreview,
+  SessionSummary,
+} from '../types'
 import type { View } from '../App'
-import { getArchivedProjects, getArchivedSessions } from '../lib/api'
+import {
+  deleteProjectPermanently,
+  getArchivedProjects,
+  getArchivedSessions,
+  getProjectDeletionPreview,
+} from '../lib/api'
 import { hostColor, relativeTime, sessionLive } from '../lib/format'
 import {
   SIDEBAR_MAX_WIDTH,
@@ -39,6 +52,18 @@ import { SessionRenameForm } from './SessionRenameForm'
 const COLLAPSED_COUNT = 7
 /** How many chats to show under an expanded project before deferring to the project pane. */
 const SESSIONS_PER_PROJECT = 6
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const units = ['KB', 'MB', 'GB', 'TB']
+  let value = bytes / 1024
+  let unit = units[0]
+  for (let index = 1; index < units.length && value >= 1024; index += 1) {
+    value /= 1024
+    unit = units[index]
+  }
+  return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)} ${unit}`
+}
 
 interface Props {
   hosts: HostRuntime[]
@@ -507,7 +532,7 @@ function ArchivedSection({
   )
 }
 
-/** Lazy, reversible project archive; permanent deletion is intentionally absent. */
+/** Lazy archived projects with reversible restore and guarded permanent deletion. */
 function ArchivedProjectsSection({
   runtime,
   onRestore,
@@ -520,6 +545,11 @@ function ArchivedProjectsSection({
   const [error, setError] = useState<string | null>(null)
   const [items, setItems] = useState<ArchivedProject[] | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
+  const [preview, setPreview] = useState<ProjectDeletionPreview | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [confirmationPath, setConfirmationPath] = useState('')
+  const previewRequestId = useRef(0)
   const hostId = runtime.config.id
 
   const load = async () => {
@@ -559,6 +589,72 @@ function ArchivedProjectsSection({
     }
   }
 
+  const closeConfirmation = () => {
+    previewRequestId.current += 1
+    setConfirmId(null)
+    setPreview(null)
+    setPreviewLoading(false)
+    setConfirmationPath('')
+  }
+
+  const prepareDelete = async (projectId: string) => {
+    const token = getToken(hostId)
+    if (!token) return
+    const requestId = ++previewRequestId.current
+    setConfirmId(projectId)
+    setPreview(null)
+    setConfirmationPath('')
+    setPreviewLoading(true)
+    setError(null)
+    try {
+      const nextPreview = await getProjectDeletionPreview(
+        runtime.config.baseUrl,
+        token,
+        projectId,
+        (refreshed) => saveToken(hostId, refreshed),
+      )
+      if (previewRequestId.current === requestId) setPreview(nextPreview)
+    } catch (err) {
+      if (previewRequestId.current === requestId) {
+        setError(err instanceof Error ? err.message : 'Failed to inspect project')
+      }
+    } finally {
+      if (previewRequestId.current === requestId) setPreviewLoading(false)
+    }
+  }
+
+  const deleteForever = async (projectId: string) => {
+    const token = getToken(hostId)
+    if (!token || !preview || confirmationPath !== preview.canonicalPath) return
+    setBusyId(projectId)
+    setError(null)
+    try {
+      await deleteProjectPermanently(
+        runtime.config.baseUrl,
+        token,
+        projectId,
+        confirmationPath,
+        (refreshed) => saveToken(hostId, refreshed),
+      )
+      setItems((prev) => prev?.filter((item) => item.projectId !== projectId) ?? prev)
+      closeConfirmation()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete project')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const gitSummary = (value: ProjectDeletionPreview): string => {
+    if (!value.git.repository) return 'Git status unavailable or not a repository'
+    const risks = [
+      value.git.dirty ? 'modified files' : null,
+      value.git.untracked ? 'untracked files' : null,
+      value.git.unpushed ? 'unpushed commits' : null,
+    ].filter(Boolean)
+    return risks.length > 0 ? `Git risk: ${risks.join(', ')}` : 'Git: clean, with no detected unpushed work'
+  }
+
   const Chevron = open ? ChevronDown : ChevronRight
   return (
     <div>
@@ -590,33 +686,128 @@ function ArchivedProjectsSection({
           {!loading && items?.length === 0 && (
             <p className="py-1 pl-6 text-[13px] text-fg-subtle">nothing archived</p>
           )}
-          {items?.map((item) => (
-            <div
-              key={item.projectId}
-              className="group/arch-project flex min-w-0 items-center gap-2 rounded-md py-1 pl-6 pr-1 text-[13px] text-fg-faint hover:bg-surface"
-            >
-              <Folder size={12} className="shrink-0 text-fg-subtle" />
-              <div className="min-w-0 flex-1" title={item.fullPath}>
-                <div className="truncate">{item.displayName}</div>
-                <div className="truncate font-mono text-[11px] text-fg-subtle">
-                  {item.sessionMeta.total} sessions · {item.fullPath}
+          {items?.map((item) => {
+            const confirming = confirmId === item.projectId
+            const blocked = (preview?.activeOperations.length ?? 0) > 0
+            const canDelete =
+              confirming &&
+              preview !== null &&
+              !blocked &&
+              confirmationPath === preview.canonicalPath &&
+              busyId !== item.projectId
+            return (
+              <div key={item.projectId} className="mb-0.5">
+                <div className="group/arch-project flex min-w-0 items-center gap-2 rounded-md py-1 pl-6 pr-1 text-[13px] text-fg-faint hover:bg-surface">
+                  <Folder size={12} className="shrink-0 text-fg-subtle" />
+                  <div className="min-w-0 flex-1" title={item.fullPath}>
+                    <div className="truncate">{item.displayName}</div>
+                    <div className="truncate font-mono text-[11px] text-fg-subtle">
+                      {item.sessionMeta.total} sessions · {item.fullPath}
+                    </div>
+                  </div>
+                  {busyId === item.projectId ? (
+                    <LoaderCircle size={11} className="shrink-0 animate-spin text-fg-muted" />
+                  ) : (
+                    <span className={`flex shrink-0 items-center gap-0.5 ${confirming ? '' : 'opacity-0 transition-opacity group-hover/arch-project:opacity-100 focus-within:opacity-100'}`}>
+                      <button
+                        type="button"
+                        onClick={() => void restore(item.projectId)}
+                        title={`Restore ${item.displayName}`}
+                        aria-label={`Restore ${item.displayName}`}
+                        className="rounded p-1 text-fg-faint hover:bg-elevated-strong hover:text-fg"
+                      >
+                        <ArchiveRestore size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => (confirming ? closeConfirmation() : void prepareDelete(item.projectId))}
+                        title={confirming ? 'Cancel permanent deletion' : `Delete ${item.displayName} permanently`}
+                        aria-label={confirming ? 'Cancel permanent deletion' : `Delete ${item.displayName} permanently`}
+                        className="rounded p-1 text-fg-subtle hover:bg-elevated-strong hover:text-danger"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </span>
+                  )}
                 </div>
+
+                {confirming && (
+                  <div className="ml-6 mr-1 rounded-md border border-danger/30 bg-danger/5 p-3 text-[12px] text-fg-muted">
+                    <div className="flex items-start gap-2 text-danger">
+                      <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                      <div>
+                        <p className="font-medium text-fg">Delete workspace forever?</p>
+                        <p className="mt-0.5 leading-4">
+                          Deletes .git, tracked, untracked, ignored, and unpushed files. This cannot be undone.
+                        </p>
+                      </div>
+                    </div>
+
+                    {previewLoading && (
+                      <div aria-label="Inspecting deletion impact" className="mt-3 space-y-2">
+                        <div className="h-3 w-full animate-pulse rounded bg-elevated" />
+                        <div className="h-3 w-3/4 animate-pulse rounded bg-elevated" />
+                        <div className="h-8 w-full animate-pulse rounded bg-elevated" />
+                      </div>
+                    )}
+
+                    {preview && (
+                      <div className="mt-3 space-y-2">
+                        <code className="block break-all rounded bg-canvas px-2 py-1.5 font-mono text-[11px] leading-4 text-fg-secondary">
+                          {preview.canonicalPath}
+                        </code>
+                        <p className="tnum font-mono text-[11px] text-fg-secondary">
+                          {preview.sessionCount} sessions · {preview.fileCount} files · {formatBytes(preview.sizeBytes)}
+                        </p>
+                        <p className={preview.git.dirty || preview.git.untracked || preview.git.unpushed ? 'text-warning' : 'text-fg-muted'}>
+                          {gitSummary(preview)}
+                        </p>
+                        {!preview.workspaceExists && (
+                          <p className="text-warning">
+                            Workspace is already missing. Retry will remove remaining transcripts and database rows.
+                          </p>
+                        )}
+                        {blocked && (
+                          <p role="alert" className="text-danger">
+                            Blocked while active: {preview.activeOperations.join(', ')}
+                          </p>
+                        )}
+                        <label className="block text-fg-secondary">
+                          Type the exact path to confirm
+                          <input
+                            type="text"
+                            value={confirmationPath}
+                            onChange={(event) => setConfirmationPath(event.target.value)}
+                            autoComplete="off"
+                            spellCheck={false}
+                            className="mt-1 w-full rounded-md border border-line-strong bg-canvas px-2 py-1.5 font-mono text-[11px] text-fg outline-none placeholder:text-fg-faint focus:border-danger"
+                            placeholder={preview.canonicalPath}
+                          />
+                        </label>
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={closeConfirmation}
+                            className="rounded-md px-2 py-1.5 text-fg-muted hover:bg-elevated hover:text-fg"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!canDelete}
+                            onClick={() => void deleteForever(item.projectId)}
+                            className="rounded-md bg-danger px-2 py-1.5 font-medium text-canvas hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-35"
+                          >
+                            Delete forever
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              {busyId === item.projectId ? (
-                <LoaderCircle size={11} className="shrink-0 animate-spin text-fg-muted" />
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => void restore(item.projectId)}
-                  title={`Restore ${item.displayName}`}
-                  aria-label={`Restore ${item.displayName}`}
-                  className="shrink-0 rounded p-1 text-fg-faint opacity-0 transition-opacity hover:bg-elevated-strong hover:text-fg group-hover/arch-project:opacity-100 focus:opacity-100"
-                >
-                  <ArchiveRestore size={12} />
-                </button>
-              )}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

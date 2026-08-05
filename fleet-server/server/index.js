@@ -49,6 +49,7 @@ import gitRoutes from './routes/git.js';
 import authRoutes from './routes/auth.js';
 import commandsRoutes from './routes/commands.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
+import { projectActivityRegistry } from './modules/projects/services/project-activity.service.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import { assetsRoutes } from './modules/assets/index.js';
 import {
@@ -70,6 +71,38 @@ const INSTANCE_ID = randomUUID();
 const MAX_FILE_UPLOAD_SIZE_MB = MAX_PROJECT_UPLOAD_BYTES / (1024 * 1024);
 const MAX_FILE_UPLOAD_SIZE_BYTES = MAX_PROJECT_UPLOAD_BYTES;
 const MAX_FILE_UPLOAD_COUNT = MAX_PROJECT_UPLOAD_FILES;
+
+function trackProjectFileOperation(req, res, next) {
+    const projectPath = projectsDb.getProjectPathById(req.params.projectId);
+    if (!projectPath) {
+        next();
+        return;
+    }
+
+    let release;
+    try {
+        release = projectActivityRegistry.begin('file', projectPath);
+    } catch (error) {
+        if (error instanceof AppError) {
+            res.status(error.statusCode).json({
+                error: { code: error.code, message: error.message, details: error.details },
+            });
+            return;
+        }
+        next(error);
+        return;
+    }
+
+    let finished = false;
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        release();
+    };
+    res.once('finish', finish);
+    res.once('close', finish);
+    next();
+}
 
 console.log('SERVER_PORT from env:', process.env.SERVER_PORT);
 
@@ -323,7 +356,7 @@ app.post('/api/create-folder', authenticateToken, async (req, res) => {
 });
 
 // Read file content endpoint
-app.get('/api/projects/:projectId/file', authenticateToken, async (req, res) => {
+app.get('/api/projects/:projectId/file', authenticateToken, trackProjectFileOperation, async (req, res) => {
     try {
         const { projectId } = req.params;
         const { filePath } = req.query;
@@ -365,7 +398,7 @@ app.get('/api/projects/:projectId/file', authenticateToken, async (req, res) => 
 });
 
 // Serve raw file bytes for previews and downloads.
-app.get('/api/projects/:projectId/files/content', authenticateToken, async (req, res) => {
+app.get('/api/projects/:projectId/files/content', authenticateToken, trackProjectFileOperation, async (req, res) => {
     try {
         const { projectId } = req.params;
         const { path: filePath } = req.query;
@@ -423,7 +456,7 @@ app.get('/api/projects/:projectId/files/content', authenticateToken, async (req,
 });
 
 // Save file content endpoint
-app.put('/api/projects/:projectId/file', authenticateToken, async (req, res) => {
+app.put('/api/projects/:projectId/file', authenticateToken, trackProjectFileOperation, async (req, res) => {
     try {
         const { projectId } = req.params;
         const { filePath, content } = req.body;
@@ -479,7 +512,7 @@ app.put('/api/projects/:projectId/file', authenticateToken, async (req, res) => 
     }
 });
 
-app.get('/api/projects/:projectId/files', authenticateToken, async (req, res) => {
+app.get('/api/projects/:projectId/files', authenticateToken, trackProjectFileOperation, async (req, res) => {
     try {
 
         // Using fsPromises from import
@@ -554,7 +587,7 @@ function validateFilename(name) {
 }
 
 // POST /api/projects/:projectId/files/create - Create new file or directory
-app.post('/api/projects/:projectId/files/create', authenticateToken, async (req, res) => {
+app.post('/api/projects/:projectId/files/create', authenticateToken, trackProjectFileOperation, async (req, res) => {
     try {
         const { projectId } = req.params;
         const { path: parentPath, type, name } = req.body;
@@ -631,7 +664,7 @@ app.post('/api/projects/:projectId/files/create', authenticateToken, async (req,
 });
 
 // PUT /api/projects/:projectId/files/rename - Rename file or directory
-app.put('/api/projects/:projectId/files/rename', authenticateToken, async (req, res) => {
+app.put('/api/projects/:projectId/files/rename', authenticateToken, trackProjectFileOperation, async (req, res) => {
     try {
         const { projectId } = req.params;
         const { oldPath, newName } = req.body;
@@ -708,7 +741,7 @@ app.put('/api/projects/:projectId/files/rename', authenticateToken, async (req, 
 });
 
 // DELETE /api/projects/:projectId/files - Delete file or directory
-app.delete('/api/projects/:projectId/files', authenticateToken, async (req, res) => {
+app.delete('/api/projects/:projectId/files', authenticateToken, trackProjectFileOperation, async (req, res) => {
     try {
         const { projectId } = req.params;
         const { path: targetPath, type } = req.body;
@@ -902,7 +935,7 @@ const uploadFilesHandler = async (req, res) => {
     });
 };
 
-app.post('/api/projects/:projectId/files/upload', authenticateToken, uploadFilesHandler);
+app.post('/api/projects/:projectId/files/upload', authenticateToken, trackProjectFileOperation, uploadFilesHandler);
 
 // Chat image uploads moved to POST /api/assets/images (server/modules/assets),
 // which stores them in the global ~/.cloudcli/assets folder.

@@ -10,6 +10,7 @@ import type {
   ModelCatalog,
   ModelOption,
   Project,
+  ProjectDeletionPreview,
   Provider,
   SessionSummary,
   SlashCommand,
@@ -398,6 +399,38 @@ export async function getArchivedProjects(
     timeoutMs: 10000,
   })) as { success: boolean; data: { projects: ArchivedProject[] } }
   return body.data.projects ?? []
+}
+
+/** Safety and impact preview required before permanently deleting an archived project. */
+export async function getProjectDeletionPreview(
+  baseUrl: string,
+  token: string,
+  projectId: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<ProjectDeletionPreview> {
+  const body = (await fetchJson(
+    baseUrl,
+    `/api/projects/${encodeURIComponent(projectId)}/deletion-preview`,
+    { token, onTokenRefresh, timeoutMs: 30000 },
+  )) as { success: boolean; data: { preview: ProjectDeletionPreview } }
+  return body.data.preview
+}
+
+/** Permanently removes an archived project after exact canonical-path confirmation. */
+export async function deleteProjectPermanently(
+  baseUrl: string,
+  token: string,
+  projectId: string,
+  confirmationPath: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<void> {
+  await fetchJson(baseUrl, `/api/projects/${encodeURIComponent(projectId)}?force=true`, {
+    method: 'DELETE',
+    token,
+    body: { confirmationPath },
+    onTokenRefresh,
+    timeoutMs: 120000,
+  })
 }
 
 /** App-facing ids of sessions whose agent run is currently processing (status-only, cheap). */
