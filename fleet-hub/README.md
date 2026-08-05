@@ -89,7 +89,11 @@ own root URL is only a status page; it does not expose an account-setup UI.
   permission mode (ask / accept edits / bypass; persisted per host) and a
   **model + effort**
   (from `GET /api/providers/:provider/models`; sent as `options.model/effort`
-  in `chat.send`). Existing Claude and Codex sessions show their latest
+  in `chat.send`). Before the first message, the Hub checks the selected
+  Claude/Codex CLI on that host. Missing installations and signed-out CLIs get
+  distinct inline recovery banners with the exact provider-owned command,
+  copy feedback, and a retry action; installation and interactive login stay
+  outside the Hub. Existing Claude and Codex sessions show their latest
   persisted context-window occupancy in the header as soon as they open; a
   completed live turn refreshes it. Codex child-agent rollouts stay out of the
   sidebar, project pages, All sessions, archives, and global search; parent

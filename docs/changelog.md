@@ -4,6 +4,19 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-05
+
+### Changed
+- **Fresh chats now explain and unblock missing provider setup before the first
+  send.** Agents Hub preflights the selected Claude or Codex CLI, distinguishes
+  a missing installation from an interactive sign-in requirement, shows the
+  exact provider-owned command with copy and retry actions, and disables the
+  composer only while the host reports a blocking readiness state. Failed or
+  unsupported preflights remain non-blocking for older hosts. fleet-server also
+  fixes Claude readiness falsely treating a failed executable probe as
+  installed (`[fork-fix #21]`). Provider installation and credentials remain
+  outside the Hub. Tracked in private backlog #1.
+
 ## 2026-08-04
 
 ### Added
