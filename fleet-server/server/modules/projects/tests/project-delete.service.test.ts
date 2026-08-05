@@ -12,7 +12,9 @@ import { projectActivityRegistry } from '@/modules/projects/services/project-act
 import {
   deleteOrArchiveProject,
   getProjectDeletionPreview,
+  restoreArchivedProject,
 } from '@/modules/projects/services/project-delete.service.js';
+import { createProject } from '@/modules/projects/services/project-management.service.js';
 import { AppError } from '@/shared/utils.js';
 
 type Fixture = {
@@ -209,5 +211,58 @@ test('permanent deletion rejects workspace roots, symlink roots, and project anc
     );
 
     assert.equal(await pathExists(path.join(root, 'fleet-state', 'auth.db')), true);
+  });
+});
+
+test('permanent deletion rejects projects nested inside fleet-server state', async () => {
+  await withDeletionFixture(async ({ root }) => {
+    const fleetStateProjectPath = path.join(root, 'fleet-state', 'nested-project');
+    await mkdir(fleetStateProjectPath, { recursive: true });
+    process.env.WORKSPACES_ROOT = root;
+
+    const created = projectsDb.createProjectPath(fleetStateProjectPath, 'Fleet state child');
+    const projectId = created.project?.project_id as string;
+    projectsDb.updateProjectIsArchivedById(projectId, true);
+
+    await assert.rejects(
+      getProjectDeletionPreview(projectId),
+      expectAppError('PROTECTED_PROJECT_PATH'),
+    );
+  });
+});
+
+test('deletion lease blocks project restore and registration races', async () => {
+  await withDeletionFixture(async ({ workspaceRoot }) => {
+    const projectPath = path.join(workspaceRoot, 'lifecycle-race');
+    await mkdir(projectPath, { recursive: true });
+    const created = projectsDb.createProjectPath(projectPath, 'Lifecycle race');
+    const projectId = created.project?.project_id as string;
+    projectsDb.updateProjectIsArchivedById(projectId, true);
+
+    const releaseDeletion = projectActivityRegistry.begin('deletion', projectPath);
+    try {
+      assert.throws(
+        () => restoreArchivedProject(projectId),
+        expectAppError('PROJECT_BUSY'),
+      );
+      await assert.rejects(
+        createProject(
+          { projectPath },
+          {
+            validatePath: async () => ({ valid: true, resolvedPath: projectPath }),
+            ensureWorkspaceDirectory: async () => undefined,
+            persistProjectPath: () => {
+              throw new Error('registration must not start while deletion holds the lease');
+            },
+            getProjectByPath: () => null,
+          },
+        ),
+        expectAppError('PROJECT_BUSY'),
+      );
+    } finally {
+      releaseDeletion();
+    }
+
+    assert.equal(projectsDb.getProjectById(projectId)?.isArchived, 1);
   });
 });

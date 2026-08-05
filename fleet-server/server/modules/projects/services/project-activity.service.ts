@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import { AppError, normalizeProjectPath } from '@/shared/utils.js';
 
-export type ProjectActivityKind = 'chat' | 'terminal' | 'clone' | 'file' | 'deletion';
+export type ProjectActivityKind = 'chat' | 'terminal' | 'clone' | 'file' | 'lifecycle' | 'deletion';
 
 type ProjectActivity = {
   id: number;

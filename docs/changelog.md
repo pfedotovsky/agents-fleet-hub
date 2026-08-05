@@ -15,8 +15,9 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   following symlinks, then provider JSONL transcripts, then session/project
   rows in one transaction; filesystem failures preserve an archived retry
   checkpoint. Filesystem roots, home/server/runtime state, broad or symlinked
-  targets, transcript escapes, and projects with active chats, terminals,
-  clones, or file operations are rejected. Destructive verification used only
+  targets, transcript escapes, paths anywhere inside fleet-server state, and
+  projects with active chats, terminals, clones, file operations, registration,
+  or restore work are rejected. Destructive verification used only
   isolated temporary workspaces; contract tests used pre-created empty fixture
   databases and confirmed that an external symlink target survives. Tracked in
   private backlog #9.

@@ -65,6 +65,12 @@ async function protectedRuntimePaths(): Promise<string[]> {
   return Promise.all(paths.map(async (candidate) => (await realpathIfExists(candidate)) ?? candidate));
 }
 
+async function protectedStateRoots(): Promise<string[]> {
+  const fleetServerHome = process.env.FLEET_SERVER_HOME || path.join(os.homedir(), '.fleet-server');
+  const candidate = normalizeProjectPath(path.resolve(fleetServerHome));
+  return [(await realpathIfExists(candidate)) ?? candidate];
+}
+
 async function resolveSafeProjectTarget(projectId: string): Promise<{
   row: NonNullable<ReturnType<typeof projectsDb.getProjectById>>;
   canonicalPath: string;
@@ -102,6 +108,15 @@ async function resolveSafeProjectTarget(projectId: string): Promise<{
   for (const protectedPath of await protectedRuntimePaths()) {
     if (isAncestorOf(storedPath, protectedPath)) {
       throw new AppError('Project path contains protected user or fleet-server state', {
+        code: 'PROTECTED_PROJECT_PATH',
+        statusCode: 409,
+      });
+    }
+  }
+
+  for (const protectedRoot of await protectedStateRoots()) {
+    if (isPathInside(protectedRoot, storedPath)) {
+      throw new AppError('Project path is inside protected fleet-server state', {
         code: 'PROTECTED_PROJECT_PATH',
         statusCode: 409,
       });
@@ -381,5 +396,10 @@ export function restoreArchivedProject(projectId: string): void {
     });
   }
 
-  projectsDb.updateProjectIsArchivedById(projectId, false);
+  const releaseProjectActivity = projectActivityRegistry.begin('lifecycle', row.project_path);
+  try {
+    projectsDb.updateProjectIsArchivedById(projectId, false);
+  } finally {
+    releaseProjectActivity();
+  }
 }

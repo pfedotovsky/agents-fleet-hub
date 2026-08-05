@@ -190,14 +190,16 @@ Browser (Agents Hub SPA)
   canonical path exactly; the same path is sent in `confirmationPath` and is
   checked again by the server.
 - Permanent project deletion holds an exclusive project-tree activity lease.
-  Chat runs, persistent PTYs, clones, uploads, and other project file routes
-  register ordinary leases, so deletion is rejected while any overlap is
-  active and new operations cannot start after the final check. The server
+  Chat runs, persistent PTYs, clones, uploads, project registration/restore,
+  and other project file routes register ordinary leases, so deletion is
+  rejected while any overlap is active and new operations cannot start after
+  the final check. The server
   rejects non-archived rows, filesystem/workspace roots, the user's home,
-  fleet-server state/database/runtime paths and their ancestors, targets that
-  contain another registered project, non-canonical or symlink roots, and
-  transcript paths outside known provider storage. Recursive filesystem APIs
-  remove the workspace first (directory symlinks are unlinked, never followed),
+  fleet-server state (including descendants), database/runtime paths and their
+  ancestors, targets that contain another registered project, non-canonical or
+  symlink roots, and transcript paths outside known provider storage. Recursive
+  filesystem APIs remove the workspace first (directory symlinks are unlinked,
+  never followed),
   then distinct JSONL transcripts, then session and project rows in one SQLite
   transaction. A filesystem failure leaves the archived DB rows intact; a
   retry can finish cleanup even when the workspace was already removed.
