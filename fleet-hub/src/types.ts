@@ -33,6 +33,22 @@ export interface ArchivedProject extends Project {
   isArchived: true
 }
 
+/** Server-authoritative impact and safety preview for one archived project. */
+export interface ProjectDeletionPreview {
+  canonicalPath: string
+  workspaceExists: boolean
+  sessionCount: number
+  fileCount: number
+  sizeBytes: number
+  activeOperations: string[]
+  git: {
+    repository: boolean
+    dirty: boolean | null
+    untracked: boolean | null
+    unpushed: boolean | null
+  }
+}
+
 export interface HostRuntime {
   config: HostConfig
   status: HostStatus

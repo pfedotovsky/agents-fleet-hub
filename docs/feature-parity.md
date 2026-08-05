@@ -34,7 +34,7 @@ host APIs; others (plugins, Electron) are out of scope for a static hub SPA.
 | **Session delete/archive, restore, rename** | ✅ | ✅ | Archive (hover action), per-host Archived list with restore + permanent delete, and inline rename across feed/sidebar/project/chat |
 | **Running-sessions signal** | ✅ | ✅ | Polls `GET /sessions/running` per host (verified live); 2-min heuristic kept only as fallback for older hosts |
 | **Project star/favorite** | ✅ | ✅ | Parity |
-| **Project create / rename / delete / archive / git-clone** | ⚠️ | ✅ | Hub can create/register arbitrary host folders, clone with live progress/cancel, rename without moving the path, and soft-archive/restore. Permanent project delete remains intentionally unavailable |
+| **Project create / rename / delete / archive / git-clone** | ✅ ➕ | ✅ | Hub adds guarded permanent deletion from Archived Projects: canonical-path + session/file/size/Git preview, exact-path confirmation, active-operation locks, protected-path rejection, and retry-safe workspace/transcript/DB cleanup |
 | **File tree + editor (view/edit/save)** | ✅ | ✅ | Parity (CodeMirror both sides); hub adds Cmd+S, dirty guard |
 | **File create / delete / rename / upload** | ⚠️ | ⚠️ | Hub supports binary-safe multi-file upload to root or a dropped-on folder with progress/cancel/conflict confirmation; create/delete/rename UI remains |
 | **Integrated terminal / shell** | ✅ | ✅ | Hub: full per-session xterm view over `/shell`, resumable Claude/Codex CLI, persisted default Structured/Terminal choice |

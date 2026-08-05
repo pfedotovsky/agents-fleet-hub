@@ -1,3 +1,5 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
+
 import express from 'express';
 
 import { createProject, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
@@ -5,7 +7,11 @@ import { startCloneProject } from '@/modules/projects/services/project-clone.ser
 import { getProjectTaskMaster } from '@/modules/projects/services/projects-has-taskmaster.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
-import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
+import {
+  deleteOrArchiveProject,
+  getProjectDeletionPreview,
+  restoreArchivedProject,
+} from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
 
 const router = express.Router();
@@ -87,6 +93,15 @@ router.get(
   asyncHandler(async (_req, res) => {
     const projects = await getArchivedProjectsWithSessions();
     res.json(createApiSuccessResponse({ projects }));
+  }),
+);
+
+router.get(
+  '/:projectId/deletion-preview',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    const preview = await getProjectDeletionPreview(projectId);
+    res.json(createApiSuccessResponse({ preview }));
   }),
 );
 
@@ -258,14 +273,19 @@ router.post(
 
 /**
  * - `force` not set / false: archive project in DB only (`isArchived` = 1; hidden from active list).
- * - `force=true`: remove DB row, delete session rows for that path, remove all `*.jsonl` under the Claude project dir.
+ * - `force=true`: only for an archived row and only with an exact canonical
+ *   path in `confirmationPath`; removes workspace, transcripts, and DB rows.
  */
 router.delete(
   '/:projectId',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const force = req.query.force === 'true';
-    await deleteOrArchiveProject(projectId, force);
+    const confirmationPath =
+      typeof (req.body as { confirmationPath?: unknown })?.confirmationPath === 'string'
+        ? (req.body as { confirmationPath: string }).confirmationPath
+        : undefined;
+    await deleteOrArchiveProject(projectId, force, confirmationPath);
     res.json({ success: true });
   }),
 );

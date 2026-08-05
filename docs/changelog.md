@@ -7,6 +7,19 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-05
 
 ### Changed
+- **Archived projects can now be permanently removed with a complete impact
+  preview and fail-closed server safeguards.** The archived-project sidebar
+  shows the canonical host path, session/file/size impact, Git working-tree and
+  unpushed-work risk, and requires typing that exact path before enabling the
+  irreversible action. fleet-server deletes the workspace tree without
+  following symlinks, then provider JSONL transcripts, then session/project
+  rows in one transaction; filesystem failures preserve an archived retry
+  checkpoint. Filesystem roots, home/server/runtime state, broad or symlinked
+  targets, transcript escapes, and projects with active chats, terminals,
+  clones, or file operations are rejected. Destructive verification used only
+  isolated temporary workspaces; contract tests used pre-created empty fixture
+  databases and confirmed that an external symlink target survives. Tracked in
+  private backlog #9.
 - **Fresh chats now explain and unblock missing provider setup before the first
   send.** Agents Hub preflights the selected Claude or Codex CLI, distinguishes
   a missing installation from an interactive sign-in requirement, shows the

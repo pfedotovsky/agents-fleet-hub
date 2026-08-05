@@ -1,3 +1,5 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
+
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -5,6 +7,7 @@ import path from 'node:path';
 import pty, { type IPty } from '@/shared/pty-loader.js';
 import { WebSocket, type RawData } from 'ws';
 
+import { projectActivityRegistry } from '@/modules/projects/services/project-activity.service.js';
 import { parseIncomingJsonObject } from '@/shared/utils.js';
 
 type ShellIncomingMessage = {
@@ -28,6 +31,7 @@ type PtySessionEntry = {
   timeoutId: NodeJS.Timeout | null;
   projectPath: string;
   sessionId: string | null;
+  releaseProjectActivity: () => void;
 };
 
 const ptySessionsMap = new Map<string, PtySessionEntry>();
@@ -230,6 +234,7 @@ export function handleShellConnection(
 
   let shellProcess: IPty | null = null;
   let ptySessionKey: string | null = null;
+  let pendingProjectActivity: (() => void) | null = null;
   let urlDetectionBuffer = '';
   const announcedAuthUrls = new Set<string>();
 
@@ -273,6 +278,7 @@ export function handleShellConnection(
             if (oldSession.timeoutId) {
               clearTimeout(oldSession.timeoutId);
             }
+            oldSession.releaseProjectActivity();
             oldSession.pty.kill();
             ptySessionsMap.delete(ptySessionKey);
           }
@@ -334,6 +340,8 @@ export function handleShellConnection(
         const termRows = readNumber(data.rows, 24);
         const prioritizedPath = prioritizeUserNpmGlobalBin(process.env);
 
+        pendingProjectActivity = projectActivityRegistry.begin('terminal', resolvedProjectPath);
+
         shellProcess = pty.spawn(shell, shellArgs, {
           name: 'xterm-256color',
           cols: termCols,
@@ -353,9 +361,11 @@ export function handleShellConnection(
           ws,
           buffer: [],
           timeoutId: null,
-          projectPath,
+          projectPath: resolvedProjectPath,
           sessionId,
+          releaseProjectActivity: pendingProjectActivity,
         });
+        pendingProjectActivity = null;
 
         shellProcess.onData((chunk) => {
           if (!ptySessionKey) {
@@ -458,6 +468,7 @@ export function handleShellConnection(
             clearTimeout(session.timeoutId);
           }
 
+          session?.releaseProjectActivity();
           ptySessionsMap.delete(ptySessionKey);
           shellProcess = null;
         });
@@ -499,6 +510,8 @@ export function handleShellConnection(
         }
       }
     } catch (error) {
+      pendingProjectActivity?.();
+      pendingProjectActivity = null;
       const message = error instanceof Error ? error.message : String(error);
       console.error('[ERROR] Shell WebSocket error:', message);
       if (ws.readyState === WebSocket.OPEN) {
@@ -528,6 +541,7 @@ export function handleShellConnection(
         return;
       }
 
+      session.releaseProjectActivity();
       session.pty.kill();
       ptySessionsMap.delete(ptySessionKey as string);
     }, PTY_SESSION_TIMEOUT);

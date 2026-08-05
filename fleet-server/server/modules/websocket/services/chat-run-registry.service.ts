@@ -1,7 +1,10 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
+
 import path from 'node:path';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { generateDisplayName } from '@/modules/projects/index.js';
+import { projectActivityRegistry } from '@/modules/projects/services/project-activity.service.js';
 import { ChatSessionWriter } from '@/modules/websocket/services/chat-session-writer.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import type {
@@ -36,6 +39,7 @@ type ChatRun = {
   writer: ChatSessionWriter;
   startedAt: number;
   completedAt: number | null;
+  releaseProjectActivity: (() => void) | null;
 };
 
 /**
@@ -149,6 +153,8 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
     outbound.actualSessionId = run.appSessionId;
     run.status = 'completed';
     run.completedAt = Date.now();
+    run.releaseProjectActivity?.();
+    run.releaseProjectActivity = null;
     evictRunLater(run.appSessionId);
   }
 
@@ -221,6 +227,11 @@ export const chatRunRegistry = {
       return null;
     }
 
+    const projectPath = sessionsDb.getSessionById(input.appSessionId)?.project_path;
+    const releaseProjectActivity = projectPath
+      ? projectActivityRegistry.begin('chat', projectPath)
+      : null;
+
     const run: ChatRun = {
       appSessionId: input.appSessionId,
       provider: input.provider,
@@ -231,18 +242,24 @@ export const chatRunRegistry = {
       writer: null as unknown as ChatSessionWriter,
       startedAt: Date.now(),
       completedAt: null,
+      releaseProjectActivity,
     };
 
-    run.writer = new ChatSessionWriter({
-      connection: input.connection,
-      userId: input.userId,
-      provider: input.provider,
-      providerSessionId: input.providerSessionId,
-      onProviderSessionId: (providerSessionId) => {
-        recordProviderSessionId(run, providerSessionId);
-      },
-      decorateOutboundEvent: (message) => decorateAndRecordEvent(run, message),
-    });
+    try {
+      run.writer = new ChatSessionWriter({
+        connection: input.connection,
+        userId: input.userId,
+        provider: input.provider,
+        providerSessionId: input.providerSessionId,
+        onProviderSessionId: (providerSessionId) => {
+          recordProviderSessionId(run, providerSessionId);
+        },
+        decorateOutboundEvent: (message) => decorateAndRecordEvent(run, message),
+      });
+    } catch (error) {
+      releaseProjectActivity?.();
+      throw error;
+    }
 
     runs.set(input.appSessionId, run);
     return run;
@@ -338,6 +355,9 @@ export const chatRunRegistry = {
    * Test-only escape hatch: clears every tracked run.
    */
   clearAll(): void {
+    for (const run of runs.values()) {
+      run.releaseProjectActivity?.();
+    }
     runs.clear();
   },
 };
