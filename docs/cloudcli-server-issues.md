@@ -117,6 +117,11 @@ is spawned per turn).
 No client-side workaround: the model/CLI compatibility gate lives upstream at
 OpenAI, and the hub never learns the turn failed (see #15).
 
+**Current fork status (2026-08-05):** the SDK adapter and vendored CLI are
+removed. fleet-server starts the newest compatible host CLI through app-server
+and fails explicitly before spawn when its version does not match the verified
+protocol baseline.
+
 ### 15. Turns that complete with zero output surface nothing in the UI
 
 [siteboon/claudecodeui#1012](https://github.com/siteboon/claudecodeui/issues/1012)
@@ -151,10 +156,11 @@ CLI treats as required. fleet-server therefore spawned successfully but the
 provider exited before assistant output with a cache-deserialization error.
 Deleting the cache is temporary because the desktop app recreates it.
 
-**Fork status (`[fork-fix #18]`):** `@openai/codex-sdk` is pinned at 0.146.0.
-An explicit executable `CODEX_CLI_PATH` wins; otherwise the server compares the
-PATH CLI with bundled macOS ChatGPT/Codex application CLIs and uses the newest
-numeric version, keeping the provider compatible with the shared cache writer.
+**Fork status (`[fork-fix #18]`, updated 2026-08-05):** an explicit executable
+`CODEX_CLI_PATH` wins; otherwise the server compares the PATH CLI with bundled
+macOS ChatGPT/Codex application CLIs and uses the newest numeric version. The
+SDK dependency is gone; app-server rejects versions outside the checked-in
+protocol baseline instead of falling back to a vendored binary.
 
 ## 🟡 Design limitations — worked around in Agents Hub, at a cost
 

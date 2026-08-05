@@ -17,7 +17,7 @@ import { readProviderSessionActiveModelChange } from '@/shared/utils.js';
 
 export const PROVIDER_MODELS_CACHE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
 /**
- * Per-provider TTL overrides. Claude and feature-flagged Codex app-server both
+ * Per-provider TTL overrides. Claude and Codex app-server both
  * probe a local provider process, so cache them briefly: this avoids a spawn on
  * every request without leaving newly released models stale for days.
  * `?bypassCache=true` still forces a refresh.
@@ -28,7 +28,9 @@ const PROVIDER_MODELS_CACHE_TTL_OVERRIDES_MS: Partial<Record<LLMProvider, number
 };
 const resolveCacheTtlMs = (provider: LLMProvider): number =>
   PROVIDER_MODELS_CACHE_TTL_OVERRIDES_MS[provider] ?? PROVIDER_MODELS_CACHE_TTL_MS;
-const PROVIDER_MODELS_CACHE_VERSION = 3;
+// v4 invalidates Codex catalogs reconstructed from the removed SDK-era disk
+// cache so the native cutover cannot mask a missing or incompatible app-server.
+const PROVIDER_MODELS_CACHE_VERSION = 4;
 const UNCACHED_PROVIDERS = new Set<LLMProvider>();
 
 type ProviderModelsServiceDependencies = {

@@ -35,9 +35,9 @@ import {
     resolvePendingPermission,
 } from './shared/pending-permissions.js';
 import {
-    queryCodex,
-    abortCodexSession,
-} from './modules/providers/list/codex/codex-runtime-router.js';
+    queryCodexAppServer as queryCodex,
+    abortCodexAppServerSession as abortCodexSession,
+} from './modules/providers/list/codex/codex-app-server-runtime.js';
 import {
     stripAnsiSequences,
     normalizeDetectedUrl,

@@ -23,9 +23,9 @@ ships it and the hub simply doesn't consume it:
 - Auth is the same as `/ws`: `verifyClient` runs on the upgrade, so
   `/shell?token=…` uses the ordinary host JWT.
 - Before this prototype the hub had **no** consumer of `/shell` — no xterm.js,
-  no `node-pty`. It drives the CLIs through their structured SDKs instead
-  (`@anthropic-ai/claude-agent-sdk` `query()`, `@openai/codex-sdk`
-  `runStreamed`), rendering normalized JSON (diffs, per-tool cards,
+  no `node-pty`. Its structured surface drives Claude through
+  `@anthropic-ai/claude-agent-sdk` and Codex through app-server, rendering
+  normalized JSON (diffs, per-tool cards,
   `canUseTool` permission prompts, token budget). See `docs/architecture.md`.
 
 `docs/feature-parity.md` already lists "Integrated terminal / shell" as the one

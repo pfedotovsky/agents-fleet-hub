@@ -195,21 +195,20 @@ Browser (Agents Hub SPA)
   empty titles and values over 500 characters. The hub waits for success, then
   patches polled sessions, project-pagination extras, and the active chat target
   in memory; a later poll or reload reads the same persisted title.
-- **Codex sessions** run server-side through a feature-flagged runtime router.
-  The default/flag-off path uses `@openai/codex-sdk`; with
-  `CODEX_APP_SERVER_ENABLED=1`, the same gateway contract uses the local Codex
-  0.146.x app-server adapter. Both resolve a host CLI because the compiled
-  server does not ship the SDK's npm-vendored binary. `CODEX_CLI_PATH` is the
+- **Codex sessions** run server-side through the local Codex 0.146.x-0.147.x
+  app-server adapter, the only structured Codex conversation runtime.
+  `CODEX_CLI_PATH` is the
   explicit override; otherwise
   fleet-server compares PATH with bundled macOS ChatGPT/Codex application CLIs
   and selects the newest numeric version. This prevents an older PATH CLI from
   parsing a newer shared `~/.codex/models_cache.json` written by the desktop
-  app. The SDK path has no interactive approvals; app-server maps its command,
+  app. A missing or protocol-incompatible CLI fails before app-server spawn
+  with an explicit error; there is no SDK or embedded-CLI fallback. App-server
+  maps its command,
   file-change, managed-network, and supported question requests onto the
   provider-neutral permission protocol. `permissionMode` is remapped to a
   sandbox — default→workspace-write+ask-untrusted, acceptEdits→never-ask,
-  bypass→danger-full-access, and the plan toggle→`read-only` with a
-  planning preamble prepended to the prompt on the SDK path). The mode select
+  bypass→danger-full-access, and the plan toggle→`read-only`. The mode select
   is relabeled, and app-server turns display their effective returned policy
   and sandbox next to it so managed overrides are explicit.
   App-server `turn/plan/updated` notifications render as one live `TodoWrite`
@@ -243,6 +242,9 @@ Browser (Agents Hub SPA)
   change; the result is cached ~1h and there is no static fallback (a probe
   failure surfaces as an API error). `fleethub.v1.lastProvider` (per host)
   seeds the project pane's provider picker and the sidebar quick-create "+".
+  Codex follows the same dynamic contract through app-server `model/list`,
+  also cached ~1h; a missing or incompatible CLI surfaces an error instead of
+  returning reconstructed disk-cache models.
 - Composer autocomplete (`useComposerAutocomplete`): typing `@` (after
   whitespace/start) completes project files from `GET /api/projects/:id/files`
   flattened to project-relative paths; typing `/` (claude) or `$` (codex
@@ -354,10 +356,9 @@ fork-vs-workaround considerations.
 ChatGPT/Codex desktop app's Recent tasks/task search, even on the same machine
 and in the same project folder.
 
-**Root cause — different Codex client surface.** Agents Hub talks to
-fleet-server, and fleet-server drives Codex through `@openai/codex-sdk`
-(`openai-codex.js`: `Codex.startThread()` / `resumeThread()`). The resulting
-provider-native thread writes normal Codex rollout JSONL under
+**Historical root cause — different Codex client surface.** Before the native
+cutover, Agents Hub drove Codex through `@openai/codex-sdk`. The resulting
+provider-native threads wrote normal Codex rollout JSONL under
 `~/.codex/sessions/**`, which fleet-server indexes directly with
 `codex-session-synchronizer.provider.ts`. The desktop app, however, is a rich
 client backed by Codex app-server task/thread APIs and its own local task list;
@@ -388,34 +389,35 @@ picker truth and `thread/tokenUsage/updated` carries an exact
 `modelContextWindow`.
 
 There is still no stable `thread/import` or `thread/register` method for
-converting an already-created SDK rollout into a native desktop task. Migration
-therefore means a feature-flagged app-server adapter for new turns/threads, with
-the current SDK adapter retained as rollback until local and SSH-host live
-verification passes. Detailed evidence and the staged recommendation are in
-`docs/codex-app-server-spike-2026-08-02.md`.
+converting an already-created SDK rollout into a native desktop task. Existing
+SDK-era rollouts remain readable and resumable by provider id, while all new
+and resumed Agents Hub turns use app-server. The staged migration evidence is
+in `docs/codex-app-server-spike-2026-08-02.md`; SSH-host verification remains a
+separate authorization gate.
 
 **Adapter status (2026-08-03).** The first implementation slice lives under
 `fleet-server/server/modules/providers/list/codex/`: `codex-app-server-client.ts`
 supervises one local `codex app-server --listen stdio://` child and implements
 the JSONL lifecycle, while `app-server-protocol/` contains only the generated
-0.146 types currently consumed by the adapter. Initialization identifies the
+0.147 types currently consumed by the adapter. A regenerated 0.147 schema diff
+confirmed that the consumed wire shapes remain compatible with 0.146.
+Initialization identifies the
 client as `agents_hub` / `Agents Hub`, opts into no experimental capabilities,
 correlates responses by id, bounds pending requests, and rejects in-flight work
 on timeout, transport failure, stop, or process exit. Provider stderr is drained
 but never logged because it may contain user or authentication data.
 
-`codex-app-server-config.ts` is the disabled-by-default construction boundary
-for `CODEX_APP_SERVER_ENABLED`. `CodexProviderModels` now uses it when the
-existing provider-model endpoint refreshes its Codex catalog: with the flag on,
-it pages through picker-visible `model/list` rows and maps the provider's order,
+`CodexProviderModels` constructs the app-server client directly when the
+existing provider-model endpoint refreshes its Codex catalog. It pages through
+picker-visible `model/list` rows and maps the provider's order,
 explicit default, display metadata, reasoning efforts, personality capability,
 and input modalities onto the CloudCLI-compatible model response. Codex and
 Claude process-backed catalogs use a one-hour backend cache. A failed spawn,
-incompatible protocol, invalid response, or empty catalog falls back to the
-existing `~/.codex/models_cache.json` reader; the flag-off path is unchanged.
+incompatible protocol, invalid response, or empty catalog fails clearly; the
+old reconstructed `~/.codex/models_cache.json` fallback is gone.
 
-The client accepts Codex CLI 0.146.x only,
-matching its generated protocol baseline, and fails before spawn for other
+The client accepts the verified Codex CLI 0.146.x-0.147.x range,
+with a generated 0.147 protocol baseline, and fails before spawn for other
 minor versions. This deliberately fail-closed gate must be updated along with
 regenerated consumed types after compatibility verification. App-server remains
 strictly behind the authenticated fleet-server REST/WebSocket boundary.
@@ -543,13 +545,12 @@ An active abort signal sends `turn/interrupt`;
 runtime cleanup suppresses a duplicate terminal frame after the gateway has
 acknowledged the stop.
 
-`codex-runtime-router.ts` selects this runtime for every send when
-`CODEX_APP_SERVER_ENABLED=1`; otherwise it calls the unchanged SDK adapter.
-Abort checks app-server first and then the SDK. There is deliberately no
-same-send fallback after an app-server failure because the provider may already
-have started the turn, and replaying the prompt through the SDK could duplicate
-work. Turning the flag off is the rollback for later sends. App-server stays
-strictly behind fleet-server rather than being exposed to the browser.
+`server/index.js` registers this runtime directly for every Codex send and
+abort. There is no alternate SDK router or same-send fallback: replaying a
+possibly-started prompt through a second runtime could duplicate work, and
+protocol-incompatible CLIs must fail explicitly. Rollback is a Git revert or a
+prior fleet-server release. App-server stays strictly behind fleet-server
+rather than being exposed to the browser.
 
 An ephemeral read-only live turn confirmed the runner captures the effective
 managed fallback (`never` requested, `untrusted` returned), its warning,
@@ -636,6 +637,13 @@ one compact `Context compacted · Earlier messages were summarized` row beside
 `COMPACTION_HISTORY_OK`. A sentinel stored only inside `replacement_history`
 was absent from the DOM. The synthetic session, host entry, and source-server
 data were removed after verification.
+
+The native cutover was reverified on Codex 0.147.0 with no feature flag or SDK
+dependency present. An ephemeral read-only turn returned the exact expected
+assistant text, effective managed settings, and `17,784 / 258,400` latest-turn
+usage. The current source Hub, pointed at an isolated source fleet-server,
+loaded all seven app-server models and the Codex permission modes without a
+send, browser error, or warning. No SSH host was touched.
 
 ## Claude Code `--resume` visibility of Agent Hub sessions
 

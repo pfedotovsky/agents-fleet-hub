@@ -85,7 +85,8 @@ access by session id. Guardian/internal rollouts are covered by the same
 
 ## Next boundary
 
-#40 and #41 are now fixed in current source. SSH-host verification, making the
-adapter default on, and removing
-the SDK fallback remain separate gated work under backlog #37; no remote host
-was touched by this audit or fix.
+#40 and #41 are now fixed in current source. The Cycle 2 cutover makes
+app-server the only Codex runtime and removes the SDK implementation and
+dependency after local verification. SSH-host verification remains a separate
+gate under backlog #37 and requires a named, explicitly authorized host; no
+remote host was touched by this audit or cutover.

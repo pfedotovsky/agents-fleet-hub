@@ -1,5 +1,5 @@
 /**
- * Minimal stable app-server protocol surface checked in from Codex CLI 0.146.0.
+ * Minimal stable app-server protocol surface checked in from Codex CLI 0.147.0.
  * Add generated types only when a vertical slice consumes them; do not vendor
  * the full rapidly-changing schema into fleet-server.
  */
@@ -23,4 +23,4 @@ export type { ThreadTokenUsageUpdatedNotification } from './ThreadTokenUsageUpda
 export type { TokenUsageBreakdown } from './TokenUsageBreakdown.js';
 export type { WarningNotification } from './WarningNotification.js';
 
-export const CODEX_APP_SERVER_PROTOCOL_BASELINE = '0.146';
+export const CODEX_APP_SERVER_PROTOCOL_BASELINE = '0.147';

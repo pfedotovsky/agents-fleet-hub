@@ -6,15 +6,13 @@ import { sessionsDb } from '@/modules/database/index.js';
 import { toImageAttachments } from '@/shared/image-attachments.js';
 import type { IProviderSessions } from '@/shared/interfaces.js';
 import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
-import { createNormalizedMessage, generateMessageId, readJsonlLines, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
+import { createNormalizedMessage, readJsonlLines, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 
 const PROVIDER = 'codex';
 
-// Sentinel that ends CODEX_PLAN_PREAMBLE in openai-codex.js. In plan mode the
-// server prepends that block to the prompt it sends Codex, so the turn persists
-// to the rollout with the preamble baked in. Strip it back off on read so the
-// transcript shows what the user actually typed — and so the hub's optimistic
-// bubble (plain text) matches the canonical turn for de-duplication.
+// Read-only compatibility for sessions created by the removed SDK adapter,
+// which persisted its plan instruction inside the user prompt. New app-server
+// turns never add this preamble.
 const CODEX_PLAN_PREAMBLE_SENTINEL = '--- USER REQUEST BELOW ---';
 
 function stripCodexPlanPreamble(text: string): string {
@@ -783,9 +781,6 @@ async function getCodexSessionMessages(
 export class CodexSessionsProvider implements IProviderSessions {
   /**
    * Normalizes a persisted Codex JSONL entry.
-   *
-   * Live Codex SDK events are transformed before they reach normalizeMessage(),
-   * while history entries already use a compact message/tool shape from projects.js.
    */
   private normalizeHistoryEntry(raw: AnyRecord, sessionId: string | null): NormalizedMessage[] {
     const ts = raw.timestamp || new Date().toISOString();
@@ -886,150 +881,13 @@ export class CodexSessionsProvider implements IProviderSessions {
     return [];
   }
 
-  /**
-   * Normalizes either a Codex history entry or a transformed live SDK event.
-   */
+  /** Normalizes the compact history shape produced by the rollout reader. */
   normalizeMessage(rawMessage: unknown, sessionId: string | null): NormalizedMessage[] {
     const raw = readObjectRecord(rawMessage);
     if (!raw) {
       return [];
     }
-
-    if (raw.message?.role) {
-      return this.normalizeHistoryEntry(raw, sessionId);
-    }
-
-    const ts = raw.timestamp || new Date().toISOString();
-    const baseId = raw.uuid || generateMessageId('codex');
-
-    if (raw.type === 'item') {
-      switch (raw.itemType) {
-        case 'agent_message':
-          return [createNormalizedMessage({
-            id: baseId,
-            sessionId,
-            timestamp: ts,
-            provider: PROVIDER,
-            kind: 'text',
-            role: 'assistant',
-            content: raw.message?.content || '',
-          })];
-        case 'reasoning':
-          return [createNormalizedMessage({
-            id: baseId,
-            sessionId,
-            timestamp: ts,
-            provider: PROVIDER,
-            kind: 'thinking',
-            content: raw.message?.content || '',
-          })];
-        case 'command_execution':
-          return [createNormalizedMessage({
-            id: baseId,
-            sessionId,
-            timestamp: ts,
-            provider: PROVIDER,
-            kind: 'tool_use',
-            toolName: 'Bash',
-            toolInput: { command: raw.command },
-            toolId: baseId,
-            output: raw.output,
-            exitCode: raw.exitCode,
-            status: raw.status,
-          })];
-        case 'file_change':
-          return [createNormalizedMessage({
-            id: baseId,
-            sessionId,
-            timestamp: ts,
-            provider: PROVIDER,
-            kind: 'tool_use',
-            toolName: 'FileChanges',
-            toolInput: raw.changes,
-            toolId: baseId,
-            status: raw.status,
-          })];
-        case 'mcp_tool_call':
-          return [createNormalizedMessage({
-            id: baseId,
-            sessionId,
-            timestamp: ts,
-            provider: PROVIDER,
-            kind: 'tool_use',
-            toolName: raw.tool || 'MCP',
-            toolInput: raw.arguments,
-            toolId: baseId,
-            server: raw.server,
-            result: raw.result,
-            error: raw.error,
-            status: raw.status,
-          })];
-        case 'web_search':
-          return [createNormalizedMessage({
-            id: baseId,
-            sessionId,
-            timestamp: ts,
-            provider: PROVIDER,
-            kind: 'tool_use',
-            toolName: 'WebSearch',
-            toolInput: { query: raw.query },
-            toolId: baseId,
-          })];
-        case 'todo_list':
-          return [createNormalizedMessage({
-            id: baseId,
-            sessionId,
-            timestamp: ts,
-            provider: PROVIDER,
-            kind: 'tool_use',
-            toolName: 'TodoList',
-            toolInput: { items: raw.items },
-            toolId: baseId,
-          })];
-        case 'error':
-          return [createNormalizedMessage({
-            id: baseId,
-            sessionId,
-            timestamp: ts,
-            provider: PROVIDER,
-            kind: 'error',
-            content: raw.message?.content || 'Unknown error',
-          })];
-        default:
-          return [createNormalizedMessage({
-            id: baseId,
-            sessionId,
-            timestamp: ts,
-            provider: PROVIDER,
-            kind: 'tool_use',
-            toolName: raw.itemType || 'Unknown',
-            toolInput: raw.item || raw,
-            toolId: baseId,
-          })];
-      }
-    }
-
-    if (raw.type === 'turn_complete') {
-      return [createNormalizedMessage({
-        id: baseId,
-        sessionId,
-        timestamp: ts,
-        provider: PROVIDER,
-        kind: 'complete',
-      })];
-    }
-    if (raw.type === 'turn_failed') {
-      return [createNormalizedMessage({
-        id: baseId,
-        sessionId,
-        timestamp: ts,
-        provider: PROVIDER,
-        kind: 'error',
-        content: raw.error?.message || 'Turn failed',
-      })];
-    }
-
-    return [];
+    return this.normalizeHistoryEntry(raw, sessionId);
   }
 
   /**

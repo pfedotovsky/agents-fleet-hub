@@ -7,6 +7,21 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-05
 
 ### Changed
+- **Codex now has one native app-server runtime.** fleet-server routes every
+  Codex model lookup and conversation through the compatible host Codex
+  0.146.x-0.147.x app-server, exposes its supported permission requests, and fails
+  clearly when the installed CLI does not match the checked-in protocol
+  baseline. The `CODEX_APP_SERVER_ENABLED` switch, SDK router, legacy live SDK
+  normalizer, `server/openai-codex.js`, `@openai/codex-sdk`, and its bundled
+  CLI/notices are removed; the provider-model cache version is bumped so an
+  SDK-era catalog cannot mask an incompatible app-server. The consumed
+  protocol subset was regenerated from 0.147.0 and diffed against 0.146 before
+  the compatibility gate was widened. Existing rollout history remains readable,
+  including plan-mode sessions created before the cutover. Local verification
+  is complete: an ephemeral read-only 0.147 turn returned exact usage and the
+  source Hub loaded all seven dynamic models plus Codex permission modes with
+  no browser errors. SSH-host verification still requires a separately named
+  and authorized host. Tracked in private backlog #37.
 - **Fresh chats now explain and unblock missing provider setup before the first
   send.** Agents Hub preflights the selected Claude or Codex CLI, distinguishes
   a missing installation from an interactive sign-in requirement, shows the

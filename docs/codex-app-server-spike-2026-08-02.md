@@ -371,5 +371,26 @@ after verification.
 - Compatibility currently fails closed before spawn when the host CLI's
   major/minor differs from the generated 0.146 baseline. A future CLI upgrade
   therefore requires regenerating the consumed subset and running compatibility
-  verification; automatic fallback selection belongs to the later provider
-  wiring slice.
+  verification.
+
+## Cutover status — 2026-08-05
+
+The staged local parity and source-UI checks are complete. Cycle 2 removes the
+feature flag, SDK router and implementation, `@openai/codex-sdk`, its bundled
+CLI, and reconstructed model-cache fallback. App-server is now the sole Codex
+model and conversation runtime; incompatible host CLI versions fail explicitly,
+and rollback is a Git revert or prior fleet-server release rather than a second
+runtime. SSH-host verification still requires a separately named and authorized
+host, so no remote host was modified during this cutover.
+
+The default resolver selected an updated desktop Codex 0.147.0 during the
+cutover check. Regenerating the full experimental schema showed no structural
+change in the subset Agents Hub consumes, so the checked-in subset now records
+the 0.147 baseline and the fail-closed gate accepts the verified 0.146.x-0.147.x
+range. Other minor versions still fail before spawn.
+
+The final local probe used the default resolver, completed an ephemeral
+read-only 0.147 turn with `agents-hub-app-server-turn-ok`, and reported exact
+`17,784 / 258,400` latest-turn usage. The source Hub then loaded seven dynamic
+models and Codex permission modes from an isolated source fleet-server with no
+feature flag, UI send, console error, or warning.

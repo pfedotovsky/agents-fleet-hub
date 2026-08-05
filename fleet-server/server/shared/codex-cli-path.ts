@@ -1,13 +1,7 @@
-// [fork-fix #14/#18] Resolve the newest HOST codex binary for @openai/codex-sdk.
-// Upstream called `new Codex()` with no codexPathOverride, so the SDK always
-// spawned the binary vendored inside the npm package. That binary lags the
-// host install and OpenAI gates models on CLI version — a config.toml
-// requesting a newer model got HTTP 400 and, in --experimental-json mode, a
-// clean task_complete with no output (siteboon/claudecodeui#1011). A second
-// failure mode appears when the desktop app writes a newer shared model cache
-// than an older PATH-installed CLI can parse. Under a compiled single-file
-// build the SDK's vendored binary is not shipped, so host resolution is
-// required, not an optimization.
+// [fork-fix #14/#18] Resolve the newest HOST Codex CLI. App-server is spawned
+// from this path, so the selected binary must match the user's login and shared
+// Codex state. Comparing PATH with desktop-bundled CLIs also prevents an older
+// binary from reading a newer shared model-cache schema.
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -97,7 +91,7 @@ function appBundledCandidates(): string[] {
 
 /**
  * Returns the newest installed host Codex CLI path, or null when none is
- * installed (the SDK then falls back to its vendored binary — dev runs only).
+ * installed. There is no embedded runtime fallback.
  *
  * `CODEX_CLI_PATH` remains an explicit override and always wins. Otherwise we
  * compare PATH with the macOS desktop app's bundled CLI. Both share CODEX_HOME,
