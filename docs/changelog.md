@@ -4,6 +4,19 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-06
+
+### Changed
+- **A blocker can pause a scheduled backlog cycle only after its decision is
+  visibly actionable.** The loop now persists the canonical decision packet and
+  cycle ledger first, uses the standard interactive question when available,
+  always emits the decision id, lettered choices, recommendation, exact reply
+  syntax, and an inbox summary, and keeps that task visible. It changes the
+  automation to `paused` only after durable packet and visible-delivery evidence
+  both exist; an unconfirmed delivery keeps the schedule active and retries the
+  notification without changing code. Completion and hard budget/run limits
+  still pause with a visible status report. Tracked in private backlog #39.
+
 ## 2026-08-05
 
 ### Changed

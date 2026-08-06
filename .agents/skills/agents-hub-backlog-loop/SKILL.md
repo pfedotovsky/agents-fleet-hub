@@ -21,6 +21,8 @@ The manifest is an allowlist and a stop contract, not a suggestion:
   repository or GitHub inspection;
 - stop without implementation when the cycle is not `active`, has expired, or
   has reached any hard run, estimated-credit, or consecutive-no-progress cap;
+- treat a blocker-driven pause as a decision transition: persist and visibly
+  deliver the decision before changing the automation or ledger to `paused`;
 - increment the durable ledger once per scheduled invocation and record the
   issue, transition, estimate, and cumulative estimate;
 - use a fresh standalone Codex task for every invocation; never continue a
@@ -164,6 +166,25 @@ notification must repeat the decision id, compact choices, and exact reply
 syntax. If a heartbeat wrapper exposes only a short `message` field, put the
 reply syntax inside that field; do not rely on prose outside the wrapper.
 
+When that decision blocks every remaining item in a finite cycle, enforce this
+decision-before-pause invariant:
+
+1. Persist the decision packet on the canonical issue and cycle ledger.
+2. Use the standard interactive question when callable, while retaining the
+   mandatory text fallback.
+3. Emit a visible final notification with the id, question, choices,
+   recommendation, exact reply syntax, and an inbox item summarizing the needed
+   answer. Keep the standalone task visible.
+4. Set the ledger and automation to `paused` only after both the durable packet
+   and visible delivery artifacts exist.
+
+If delivery cannot be confirmed, keep the automation active, record
+`decision delivery failed`, and retry delivery on the next run without changing
+code. Do not duplicate an unchanged decision that was already delivered
+successfully. Completion, expiry, and hard run/credit/no-progress caps may pause
+without a choice, but must still leave a visible status report. Never report a
+blocker-driven pause as complete before the delivery invariant is satisfied.
+
 An unresolved decision blocks only its dependent slice. On later heartbeats,
 do not notify again when the packet is unchanged. Continue one unrelated
 eligible slice when no other code-changing slice is active, or wait quietly if
@@ -245,6 +266,7 @@ Remove `agent:active` when the slice completes or blocks. Report:
 
 For scheduled runs, stop after one completed implementation slice, one merged
 PR, one durable checkpoint, or one decision packet. Update the finite-cycle
-ledger before returning. If no eligible work exists, record one no-progress
-run; after the manifest's consecutive cap, pause the cycle instead of repeatedly
-paying for identical checks.
+ledger before returning. If no eligible work exists because user input blocks
+the remaining allowlist, apply the decision-before-pause invariant. Otherwise
+record one no-progress run; after the manifest's consecutive cap, pause with a
+visible status report instead of repeatedly paying for identical checks.
