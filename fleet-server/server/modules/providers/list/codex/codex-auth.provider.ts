@@ -50,7 +50,7 @@ export class CodexProviderAuth implements IProviderAuth {
   }
 
   /**
-   * Returns Codex SDK availability and credential status.
+   * Returns Codex CLI availability and credential status.
    */
   async getStatus(): Promise<ProviderAuthStatus> {
     const installed = this.checkInstalled();

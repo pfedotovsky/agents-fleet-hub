@@ -95,8 +95,7 @@ prefer to install them by hand.
 | `DATABASE_PATH` | `$FLEET_SERVER_HOME/auth.db` | SQLite database location |
 | `CLAUDE_CLI_PATH` | `claude` on PATH | Claude Code binary used for chats |
 | `CLAUDE_STARTUP_TIMEOUT_MS` | `45000` | Maximum wait for Claude's first substantive response before surfacing a connection/configuration error |
-| `CODEX_CLI_PATH` | newest installed CLI | Explicit Codex binary override; otherwise compares PATH with bundled macOS desktop-app CLIs |
-| `CODEX_APP_SERVER_ENABLED` | unset | Experimental: use compatible Codex app-server 0.146.x for model discovery and Codex session turns; flag-off keeps the SDK path, while model lookup failures still fall back to the existing cache |
+| `CODEX_CLI_PATH` | newest installed CLI | Explicit Codex binary override; otherwise compares PATH with bundled macOS desktop-app CLIs. Codex app-server accepts the verified 0.146.x-0.147.x range and fails clearly on other versions |
 | `RG_PATH` | `rg` on PATH | ripgrep binary for session search |
 | `CONTEXT_WINDOW` | `160000` | Context window size reported to clients |
 
@@ -134,7 +133,7 @@ commits are prefixed `[fork-fix #N]`):
 | 4/5 | Permission mode and "always allow" grants persist per session server-side (`session_settings` table) |
 | 6 | `PUT /file` creates missing parent directories |
 | 13 | Codex keychain logins detected via `codex login status` fallback |
-| 14 | Codex chats spawn the HOST's codex binary (`codexPathOverride`), never an outdated vendored one |
+| 14/18 | Codex app-server selects the newest HOST CLI (explicit override, PATH, or macOS app bundle); no vendored SDK CLI remains |
 | 15 | Turns completing with zero output emit a synthetic error instead of dying silently |
 
 ## Development

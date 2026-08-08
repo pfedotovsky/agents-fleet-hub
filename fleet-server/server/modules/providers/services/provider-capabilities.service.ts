@@ -28,7 +28,7 @@ type ProviderCapabilities = {
 /**
  * The capability matrix mirrors what each runtime actually implements today:
  * - permission modes match the option sets accepted by each CLI/SDK.
- * - only the Claude SDK integration surfaces interactive permission requests.
+ * - Claude and Codex app-server surface interactive permission requests.
  * - Cursor has no token usage endpoint support (its store.db has no usage rows).
  */
 const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
@@ -54,14 +54,13 @@ const PROVIDER_CAPABILITIES: Record<LLMProvider, ProviderCapabilities> = {
   },
   codex: {
     provider: 'codex',
-    // 'plan' maps to Codex's read-only sandbox (see mapPermissionModeToCodexOptions
-    // in openai-codex.js). Still no interactive approvals, hence
-    // supportsPermissionRequests stays false.
+    // 'plan' maps to Codex's read-only sandbox; app-server bridges supported
+    // command, file, network, and option requests into the shared UI contract.
     permissionModes: ['default', 'acceptEdits', 'bypassPermissions', 'plan'],
     defaultPermissionMode: 'default',
     supportsImages: true,
     supportsAbort: true,
-    supportsPermissionRequests: false,
+    supportsPermissionRequests: true,
     supportsTokenUsage: true,
     supportsEffort: true,
   },

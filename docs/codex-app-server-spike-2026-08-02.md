@@ -366,10 +366,34 @@ after verification.
 
 - The desktop-visible `vscode` source produced for a custom client is verified
   but not clearly promised by the public source-kind documentation.
-- This spike verified same-machine desktop visibility. SSH-host visibility is
-  still required before rollout to remote fleet hosts.
+- This spike verified same-machine desktop visibility. Cycle 2 later accepted
+  this local-only evidence for the SSH verification gate through recorded
+  decision `D-37-ssh-host-authorization` choice C; no remote-host access or
+  rollout was authorized.
 - Compatibility currently fails closed before spawn when the host CLI's
   major/minor differs from the generated 0.146 baseline. A future CLI upgrade
   therefore requires regenerating the consumed subset and running compatibility
-  verification; automatic fallback selection belongs to the later provider
-  wiring slice.
+  verification.
+
+## Cutover status — 2026-08-05
+
+The staged local parity and source-UI checks are complete. Cycle 2 removes the
+feature flag, SDK router and implementation, `@openai/codex-sdk`, its bundled
+CLI, and reconstructed model-cache fallback. App-server is now the sole Codex
+model and conversation runtime; incompatible host CLI versions fail explicitly,
+and rollback is a Git revert or prior fleet-server release rather than a second
+runtime. Cycle 2 decision `D-37-ssh-host-authorization` choice C accepts the
+existing local-only evidence for that verification gate; no remote host was
+accessed or modified during this cutover.
+
+The default resolver selected an updated desktop Codex 0.147.0 during the
+cutover check. Regenerating the full experimental schema showed no structural
+change in the subset Agents Hub consumes, so the checked-in subset now records
+the 0.147 baseline and the fail-closed gate accepts the verified 0.146.x-0.147.x
+range. Other minor versions still fail before spawn.
+
+The final local probe used the default resolver, completed an ephemeral
+read-only 0.147 turn with `agents-hub-app-server-turn-ok`, and reported exact
+`17,784 / 258,400` latest-turn usage. The source Hub then loaded seven dynamic
+models and Codex permission modes from an isolated source fleet-server with no
+feature flag, UI send, console error, or warning.

@@ -69,9 +69,6 @@ describe('Codex app-server model catalog', () => {
 
     const provider = new CodexProviderModels({
       createAppServerClient: () => client,
-      readModelsCache: async () => {
-        throw new Error('cache fallback should not be read');
-      },
     });
     const models = await provider.getSupportedModels();
 
@@ -121,60 +118,24 @@ describe('Codex app-server model catalog', () => {
     expect(stopped).toBeTrue();
   });
 
-  test('keeps the existing cache path when app-server is disabled', async () => {
-    const provider = new CodexProviderModels({
-      createAppServerClient: () => null,
-      readModelsCache: async () => JSON.stringify({
-        models: [{
-          slug: 'cached-codex',
-          display_name: 'Cached Codex',
-          visibility: 'list',
-          priority: 1,
-        }],
-      }),
-    });
-
-    expect((await provider.getSupportedModels()).DEFAULT).toBe('cached-codex');
-  });
-
-  test('falls back to the existing Codex cache when app-server fails', async () => {
+  test('fails clearly instead of returning reconstructed cache data', async () => {
     let stopped = false;
-    const diagnostics: string[] = [];
     const provider = new CodexProviderModels({
       createAppServerClient: () => ({
         start: async () => {
-          throw new Error('unavailable');
+          throw new Error('Codex CLI 0.148.0 is incompatible with generated protocol baseline 0.147');
         },
         request: async <Result>() => undefined as Result,
         stop: () => {
           stopped = true;
         },
       }),
-      readModelsCache: async () => JSON.stringify({
-        models: [{
-          slug: 'cached-codex',
-          display_name: 'Cached Codex',
-          visibility: 'list',
-          supported_in_api: true,
-          priority: 1,
-        }],
-      }),
-      onDiagnostic: (message) => diagnostics.push(message),
     });
 
-    expect(await provider.getSupportedModels()).toEqual({
-      OPTIONS: [{
-        value: 'cached-codex',
-        label: 'Cached Codex',
-        description: undefined,
-        effort: undefined,
-      }],
-      DEFAULT: 'cached-codex',
-    });
+    await expect(provider.getSupportedModels()).rejects.toThrow(
+      'incompatible with generated protocol baseline 0.147',
+    );
     expect(stopped).toBeTrue();
-    expect(diagnostics).toEqual([
-      'Codex app-server model catalog unavailable; using the existing cache fallback',
-    ]);
   });
 
   test('rejects a repeated pagination cursor instead of looping forever', async () => {

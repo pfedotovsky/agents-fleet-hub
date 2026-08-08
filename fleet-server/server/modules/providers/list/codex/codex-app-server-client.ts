@@ -15,7 +15,7 @@ import {
 } from './app-server-protocol/index.js';
 
 const SUPPORTED_CLI_MAJOR = 0;
-const SUPPORTED_CLI_MINOR = 146;
+const SUPPORTED_CLI_MINORS = new Set([146, 147]);
 const DEFAULT_MAX_PENDING_REQUESTS = 64;
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
@@ -99,7 +99,7 @@ function defaultSpawnAppServer(
 }
 
 function isSupportedCliVersion(version: CodexCliVersion): boolean {
-  return version[0] === SUPPORTED_CLI_MAJOR && version[1] === SUPPORTED_CLI_MINOR;
+  return version[0] === SUPPORTED_CLI_MAJOR && SUPPORTED_CLI_MINORS.has(version[1]);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -188,7 +188,8 @@ export class CodexAppServerClient {
       this.currentState = 'failed';
       const rendered = cliVersion?.join('.') ?? 'unknown';
       throw new CodexAppServerError(
-        `Codex CLI ${rendered} is incompatible with protocol baseline ${CODEX_APP_SERVER_PROTOCOL_BASELINE}`,
+        `Codex CLI ${rendered} is incompatible with the verified 0.146.x-0.147.x range `
+          + `(generated protocol baseline ${CODEX_APP_SERVER_PROTOCOL_BASELINE})`,
         'UNSUPPORTED_CLI_VERSION',
       );
     }

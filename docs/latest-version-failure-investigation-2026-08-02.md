@@ -40,6 +40,11 @@ SDK's npm-vendored executable is not shipped. Live verification selected
 0.144.1 binary and the formerly silent session returned a normal assistant
 message.
 
+**Current status (2026-08-05).** The native app-server cutover removed
+`@openai/codex-sdk` and its embedded CLI entirely. The newest-host-CLI selector
+remains, and app-server now fails explicitly when that CLI does not match the
+verified protocol baseline.
+
 ## Claude: outbound TCP connection never establishes
 
 The Claude run remains active because the spawned Claude CLI process is still

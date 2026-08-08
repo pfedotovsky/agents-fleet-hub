@@ -7,10 +7,6 @@ import {
   CodexAppServerClient,
   CodexAppServerError,
 } from '@/modules/providers/list/codex/codex-app-server-client.js';
-import {
-  createCodexAppServerClientIfEnabled,
-  isCodexAppServerEnabled,
-} from '@/modules/providers/list/codex/codex-app-server-config.js';
 
 type WireMessage = {
   id?: string | number;
@@ -121,7 +117,7 @@ describe('CodexAppServerClient', () => {
     expect(await Promise.all([first, second])).toEqual(['first-result', 'second-result']);
     expect(handshake).toEqual({
       cliVersion: [0, 146, 0],
-      protocolBaseline: '0.146',
+      protocolBaseline: '0.147',
       initialize: initializeResult,
     });
     expect(child.messages.slice(0, 2)).toEqual([
@@ -180,11 +176,25 @@ describe('CodexAppServerClient', () => {
     client.stop();
   });
 
-  test('fails closed when the CLI version does not match the generated baseline', async () => {
-    let spawned = false;
+  test('accepts the verified 0.147 CLI protocol', async () => {
     const client = new CodexAppServerClient({
       codexPath: '/fake/codex',
       readCliVersion: () => [0, 147, 0],
+      spawnAppServer: () => createReadyFake().asChildProcess(),
+    });
+
+    await expect(client.start()).resolves.toMatchObject({
+      cliVersion: [0, 147, 0],
+      protocolBaseline: '0.147',
+    });
+    client.stop();
+  });
+
+  test('fails closed when the CLI version is outside the verified range', async () => {
+    let spawned = false;
+    const client = new CodexAppServerClient({
+      codexPath: '/fake/codex',
+      readCliVersion: () => [0, 148, 0],
       spawnAppServer: () => {
         spawned = true;
         return createReadyFake().asChildProcess();
@@ -213,21 +223,5 @@ describe('CodexAppServerClient', () => {
     });
     expect(client.state).toBe('ready');
     client.stop();
-  });
-});
-
-describe('Codex app-server feature flag', () => {
-  test('accepts explicit enabled values only', () => {
-    expect(isCodexAppServerEnabled({ CODEX_APP_SERVER_ENABLED: 'true' })).toBeTrue();
-    expect(isCodexAppServerEnabled({ CODEX_APP_SERVER_ENABLED: 'ON' })).toBeTrue();
-    expect(isCodexAppServerEnabled({ CODEX_APP_SERVER_ENABLED: '0' })).toBeFalse();
-    expect(isCodexAppServerEnabled({})).toBeFalse();
-  });
-
-  test('keeps the existing SDK path as the default', () => {
-    expect(createCodexAppServerClientIfEnabled({}, {})).toBeNull();
-    expect(createCodexAppServerClientIfEnabled({}, {
-      CODEX_APP_SERVER_ENABLED: '1',
-    })).toBeInstanceOf(CodexAppServerClient);
   });
 });

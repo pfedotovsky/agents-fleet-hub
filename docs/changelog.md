@@ -21,6 +21,23 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-05
 
 ### Changed
+- **Codex now has one native app-server runtime.** fleet-server routes every
+  Codex model lookup and conversation through the compatible host Codex
+  0.146.x-0.147.x app-server, exposes its supported permission requests, and fails
+  clearly when the installed CLI does not match the checked-in protocol
+  baseline. The `CODEX_APP_SERVER_ENABLED` switch, SDK router, legacy live SDK
+  normalizer, `server/openai-codex.js`, `@openai/codex-sdk`, and its bundled
+  CLI/notices are removed; the provider-model cache version is bumped so an
+  SDK-era catalog cannot mask an incompatible app-server. The consumed
+  protocol subset was regenerated from 0.147.0 and diffed against 0.146 before
+  the compatibility gate was widened. Existing rollout history remains readable,
+  including plan-mode sessions created before the cutover. Local verification
+  is complete: an ephemeral read-only 0.147 turn returned exact usage and the
+  source Hub loaded all seven dynamic models plus Codex permission modes with
+  no browser errors. Recorded Cycle 2 decision
+  `D-37-ssh-host-authorization` choice C accepts that local-only evidence for
+  the SSH verification gate without authorizing remote-host access. Tracked in
+  private backlog #37.
 - **Archived projects can now be permanently removed with a complete impact
   preview and fail-closed server safeguards.** The archived-project sidebar
   shows the canonical host path, session/file/size impact, Git working-tree and
