@@ -4,6 +4,20 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-08
+
+### Changed
+- **A blocker can pause a scheduled backlog cycle only after its decision is
+  visibly actionable.** The loop now persists the canonical decision packet and
+  cycle ledger first and uses the native input card only when that tool actually
+  succeeds. Otherwise it renames the standalone task to `AWAITING INPUT`, pins
+  and leaves it unarchived, records its task id, emits the complete decision as
+  the final response, and finishes normally so standard Codex notifications can
+  fire. Failed runs and hard stops also receive unmistakable visible titles.
+  An unconfirmed delivery keeps the schedule active and retries without changing
+  code. The current automation is explicitly unmuted. Tracked in private backlog
+  #39; operational details are in `docs/automation-notifications.md`.
+
 ## 2026-08-05
 
 ### Changed

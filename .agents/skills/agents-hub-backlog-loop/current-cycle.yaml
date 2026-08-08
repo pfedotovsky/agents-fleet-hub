@@ -18,6 +18,12 @@ schedule:
   preferred_model: gpt-5.6-sol
   preferred_reasoning: high
   archive_completed_tasks: true
+  blocker_pause_requires_confirmed_decision_delivery: true
+  decision_delivery_failure: keep_active_and_retry
+  decision_task_title: "AWAITING INPUT — Cycle 2 — <decision-id>"
+  decision_task_visibility: pinned_and_unarchived
+  decision_task_must_finish_normally: true
+  failed_task_title: "FAILED — Agents Hub Cycle 2 — <short cause>"
 
 limits:
   target_credits: 3500
@@ -60,7 +66,9 @@ issues:
     done_when:
       - "Remaining app-server interaction and execution parity is closed."
       - "Local live verification passes."
-      - "SSH verification passes on a separately named and authorized host."
+      - >-
+        SSH verification passes on a separately named and authorized host,
+        unless superseded by recorded decision D-37-ssh-host-authorization.
       - "App-server is the only Codex conversation runtime."
       - "CODEX_APP_SERVER_ENABLED and the SDK routing branch are removed."
       - "server/openai-codex.js and obsolete SDK tests are deleted."
@@ -70,6 +78,15 @@ issues:
       - "Do not deploy, migrate, or modify an SSH host without separate authorization."
       - "Keep SDK fallback until parity and local verification are complete."
       - "After removal, rollback is a Git revert or prior release, not dual runtime code."
+    decisions:
+      - id: D-37-ssh-host-authorization
+        choice: C
+        recorded_at: "2026-08-08"
+        effect: >-
+          Waive the Cycle 2 SSH verification gate and accept the existing
+          local-only evidence. This does not authorize SSH access, deployment,
+          release, migration, persistent host changes, secrets or signing
+          changes, or deletion of real user data.
 
   - number: 9
     order: 3
@@ -95,7 +112,9 @@ completion:
     - "Issues 1, 37, and 9 are closed as shipped."
   pause_cycle_when:
     - "Any hard limit is reached."
-    - "A required user decision or host authorization blocks all remaining issues."
+    - >-
+      After its decision packet and actionable question are durably delivered,
+      a required user decision or host authorization blocks all remaining issues.
     - "Three consecutive scheduled runs make no durable progress."
   never_do:
     - "Add a Wave 2 or replacement issue."
