@@ -141,7 +141,9 @@ Treat scheduled and background runs as potentially non-interactive. Never
 assume their notification surface renders question buttons. If
 `request_user_input` is callable, use it with two or three mutually exclusive
 choices and put the recommendation first. The text fallback below remains
-mandatory even when the interactive question succeeds.
+mandatory even when the interactive question succeeds. Never claim that Codex
+is showing a native `AWAITING INPUT` state unless the interactive tool call
+actually succeeded.
 
 Use this decision packet:
 
@@ -172,18 +174,32 @@ decision-before-pause invariant:
 1. Persist the decision packet on the canonical issue and cycle ledger.
 2. Use the standard interactive question when callable, while retaining the
    mandatory text fallback.
-3. Emit a visible final notification with the id, question, choices,
-   recommendation, exact reply syntax, and an inbox item summarizing the needed
-   answer. Keep the standalone task visible.
-4. Set the ledger and automation to `paused` only after both the durable packet
-   and visible delivery artifacts exist.
+3. When the interactive tool is unavailable, rename the current standalone
+   task to `AWAITING INPUT — <cycle> — <decision-id>`, pin and unarchive it, and
+   verify that title and pinned visibility through the Codex task tools when
+   callable. Record the exact decision task id and first-delivery timestamp on
+   both the canonical issue and cycle ledger.
+4. Prepare a final response that starts with `AWAITING INPUT — <decision-id>`
+   and repeats the id, question, choices, recommendation, and exact reply
+   syntax. The renamed and pinned task is the app-visible fallback; do not call
+   it a native input card.
+5. Set the ledger and automation to `paused` only after both the durable packet
+   and either the native question or verified fallback task exist.
+6. Finish the standalone task normally by emitting that final response as its
+   last action. Do not leave it running, self-interrupt it, or archive it while
+   input is pending; normal completion is required for standard Codex task
+   notifications to have a chance to fire.
 
 If delivery cannot be confirmed, keep the automation active, record
 `decision delivery failed`, and retry delivery on the next run without changing
 code. Do not duplicate an unchanged decision that was already delivered
 successfully. Completion, expiry, and hard run/credit/no-progress caps may pause
-without a choice, but must still leave a visible status report. Never report a
-blocker-driven pause as complete before the delivery invariant is satisfied.
+without a choice, but must still leave a visible task titled
+`CYCLE STOPPED — <cycle> — <reason>` and a final status report. If a failed run
+reaches its reporting step, title it `FAILED — <cycle> — <short cause>`, keep it
+unarchived, and lead the final response with the failure and exact next action.
+Never report a blocker-driven pause as complete before the delivery invariant
+is satisfied.
 
 An unresolved decision blocks only its dependent slice. On later heartbeats,
 do not notify again when the packet is unchanged. Continue one unrelated
@@ -194,6 +210,8 @@ Resolve a decision from either the exact `<decision-id>: <choice>` reply or an
 unambiguous natural-language answer. Record the chosen option and its stated
 boundary on the canonical issue, clear `needs-decision` when no other decision
 remains, and resume the dependent slice when it becomes the next eligible work.
+If the recorded decision task id is available, unpin and archive that task only
+after the resolution is durable and no review artifact still needs attention.
 
 ## Execute
 
