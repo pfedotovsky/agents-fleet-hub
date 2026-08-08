@@ -21,6 +21,8 @@ The manifest is an allowlist and a stop contract, not a suggestion:
   repository or GitHub inspection;
 - stop without implementation when the cycle is not `active`, has expired, or
   has reached any hard run, estimated-credit, or consecutive-no-progress cap;
+- treat a blocker-driven pause as a decision transition: persist and visibly
+  deliver the decision before changing the automation or ledger to `paused`;
 - increment the durable ledger once per scheduled invocation and record the
   issue, transition, estimate, and cumulative estimate;
 - use a fresh standalone Codex task for every invocation; never continue a
@@ -139,7 +141,9 @@ Treat scheduled and background runs as potentially non-interactive. Never
 assume their notification surface renders question buttons. If
 `request_user_input` is callable, use it with two or three mutually exclusive
 choices and put the recommendation first. The text fallback below remains
-mandatory even when the interactive question succeeds.
+mandatory even when the interactive question succeeds. Never claim that Codex
+is showing a native `AWAITING INPUT` state unless the interactive tool call
+actually succeeded.
 
 Use this decision packet:
 
@@ -164,6 +168,39 @@ notification must repeat the decision id, compact choices, and exact reply
 syntax. If a heartbeat wrapper exposes only a short `message` field, put the
 reply syntax inside that field; do not rely on prose outside the wrapper.
 
+When that decision blocks every remaining item in a finite cycle, enforce this
+decision-before-pause invariant:
+
+1. Persist the decision packet on the canonical issue and cycle ledger.
+2. Use the standard interactive question when callable, while retaining the
+   mandatory text fallback.
+3. When the interactive tool is unavailable, rename the current standalone
+   task to `AWAITING INPUT — <cycle> — <decision-id>`, pin and unarchive it, and
+   verify that title and pinned visibility through the Codex task tools when
+   callable. Record the exact decision task id and first-delivery timestamp on
+   both the canonical issue and cycle ledger.
+4. Prepare a final response that starts with `AWAITING INPUT — <decision-id>`
+   and repeats the id, question, choices, recommendation, and exact reply
+   syntax. The renamed and pinned task is the app-visible fallback; do not call
+   it a native input card.
+5. Set the ledger and automation to `paused` only after both the durable packet
+   and either the native question or verified fallback task exist.
+6. Finish the standalone task normally by emitting that final response as its
+   last action. Do not leave it running, self-interrupt it, or archive it while
+   input is pending; normal completion is required for standard Codex task
+   notifications to have a chance to fire.
+
+If delivery cannot be confirmed, keep the automation active, record
+`decision delivery failed`, and retry delivery on the next run without changing
+code. Do not duplicate an unchanged decision that was already delivered
+successfully. Completion, expiry, and hard run/credit/no-progress caps may pause
+without a choice, but must still leave a visible task titled
+`CYCLE STOPPED — <cycle> — <reason>` and a final status report. If a failed run
+reaches its reporting step, title it `FAILED — <cycle> — <short cause>`, keep it
+unarchived, and lead the final response with the failure and exact next action.
+Never report a blocker-driven pause as complete before the delivery invariant
+is satisfied.
+
 An unresolved decision blocks only its dependent slice. On later heartbeats,
 do not notify again when the packet is unchanged. Continue one unrelated
 eligible slice when no other code-changing slice is active, or wait quietly if
@@ -173,6 +210,8 @@ Resolve a decision from either the exact `<decision-id>: <choice>` reply or an
 unambiguous natural-language answer. Record the chosen option and its stated
 boundary on the canonical issue, clear `needs-decision` when no other decision
 remains, and resume the dependent slice when it becomes the next eligible work.
+If the recorded decision task id is available, unpin and archive that task only
+after the resolution is durable and no review artifact still needs attention.
 
 ## Execute
 
@@ -245,6 +284,7 @@ Remove `agent:active` when the slice completes or blocks. Report:
 
 For scheduled runs, stop after one completed implementation slice, one merged
 PR, one durable checkpoint, or one decision packet. Update the finite-cycle
-ledger before returning. If no eligible work exists, record one no-progress
-run; after the manifest's consecutive cap, pause the cycle instead of repeatedly
-paying for identical checks.
+ledger before returning. If no eligible work exists because user input blocks
+the remaining allowlist, apply the decision-before-pause invariant. Otherwise
+record one no-progress run; after the manifest's consecutive cap, pause with a
+visible status report instead of repeatedly paying for identical checks.

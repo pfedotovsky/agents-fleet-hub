@@ -36,7 +36,7 @@ Browser (Agents Hub SPA)
 | `lib/motion.ts` | Shared `motion` (Framer Motion) variants/transitions (message reveal, card enter/exit, overlay backdrop/modal/panel, list-row layout spring). Enters ~200-240ms ease-out, exits shorter ease-in. Reduced-motion is global via `<MotionConfig reducedMotion="user">` in `main.tsx`. Consumed by `Messages`, `ChatPane` (permission/plan cards in `AnimatePresence`), `SessionRow`/`SessionList` (`layout` reflow), and the overlays (`SettingsPanel`/`SearchOverlay`/`LoginModal`, wrapped in `AnimatePresence` in `App.tsx`). |
 | `lib/theme.ts` + `hooks/useTheme.ts` | Theme system. `index.css` holds a two-layer Tailwind v4 token set: one neutral-grayscale primitive ramp (`--color-ink-*`) and semantic tokens (`--color-canvas/surface/elevated/line/fg/accent/on-accent/…`) — components use **only** the semantic classes (`bg-surface`, `text-fg-muted`, `border-line`, …); no raw `ink-*` classes remain. It's a Codex-style **monochrome** system: there is no brand-color accent — the `accent` role is a high-contrast neutral (near-white primary on dark, near-black on light) that inverts for free because it points at the ramp ends. Color is limited to the functional status tokens and the host/provider identity marks (`lib/format.ts`, `Messages.tsx`). One type family (`--font-display` aliases `--font-sans`). `[data-theme="light"]` on `<html>` defines light by remapping the primitive ramp (plus color-scheme + status colors). Choice (`system`/`dark`/`light`) is persisted at `fleethub.v1.theme` and resolved before paint by an inline FOUC-guard script in `index.html`. `useResolvedTheme()` exposes the concrete dark/light value via a `data-theme` MutationObserver for the two spots that can't use a token — the Prism highlighter in `Markdown.tsx` (`oneLight`/`oneDark`) and the CodeMirror editor in `CodeEditor.tsx`. |
 | `types.ts` | Shared types: `HostConfig/HostRuntime/HostStatus`, `Project`, `SessionSummary`, `FleetSession`, `ChatEvent`, `PermissionMode`, model catalog. |
-| `components/Sidebar.tsx` | Hosts → projects → chats tree: starred first, then recency; long tails behind "N more"; per-project disclosure lists recent sessions inline (embedded poll data, capped at 6; "all N chats…" opens the project pane), each chat prefixed with its provider icon (Claude/Codex/…) from `PROVIDER_META`; the active chat's project auto-expands; status dots. Online project and session rows expose their inline rename forms. Hover "+" per project row opens a **draft** chat directly (handler in `App.tsx`) — the session is created on first send with the provider chosen in the composer toggle (seeded from the last-picked provider). Per-host archived projects and chats are fetched only when their separate archive sections expand. Project restore is reversible; only the pre-existing archived-chat section exposes permanent deletion. |
+| `components/Sidebar.tsx` | Hosts → projects → chats tree: starred first, then recency; long tails behind "N more"; per-project disclosure lists recent sessions inline (embedded poll data, capped at 6; "all N chats…" opens the project pane), each chat prefixed with its provider icon (Claude/Codex/…) from `PROVIDER_META`; the active chat's project auto-expands; status dots. Online project and session rows expose their inline rename forms. Hover "+" per project row opens a **draft** chat directly (handler in `App.tsx`) — the session is created on first send with the provider chosen in the composer toggle (seeded from the last-picked provider). Per-host archived projects and chats are fetched only when their separate archive sections expand. Archived projects can be restored or permanently deleted only after a server-authored impact preview and exact canonical-path confirmation; archived chats retain their separate restore/delete interaction. |
 | `components/ProjectRenameForm.tsx` | Shared project-name editor used by the sidebar and project header. Enter saves, Escape cancels, host errors keep the editor open, and blank input asks the host to restore its default name. |
 | `components/SessionList.tsx` + `SessionRow.tsx` + `SessionRenameForm.tsx` | "All sessions" merged feed rows and the shared inline rename interaction. Save awaits the host mutation; errors keep the editor open, Escape cancels, and stale/offline rows omit the action. `ProjectPane` reuses the row and additionally patches sessions loaded outside the fleet poll's initial page. |
 | `components/ProjectPane.tsx` | One project: editable display name, paged session list, "New session" (opens a draft chat — provider is chosen in the composer, not here), Files/Git buttons, and an inline-confirmed soft Archive action that never deletes files or transcripts. |
@@ -177,12 +177,32 @@ Browser (Agents Hub SPA)
   20-file/200 MB limits, and always removes multipart temp files. Stock CloudCLI
   ignores the extra overwrite field and retains its existing route behavior,
   so the client-side conflict check remains the compatibility guard there.
-- Project archive/restore: the project pane calls
+- Project archive/restore/delete: the project pane calls
   `DELETE /api/projects/:projectId` without `force`, which only marks the host
   DB row archived and removes the project from active fleet state after
   success. Each online host lazily loads `GET /api/projects/archived`; restore
   calls `POST /api/projects/:projectId/restore` and re-polls active projects.
-  The hub does not expose or send the permanent `?force=true` project route.
+  Permanent deletion is available only inside that archived list. The Hub first
+  loads `GET /api/projects/:projectId/deletion-preview`, which returns the
+  canonical absolute path, session/file/byte impact, active operations, and Git
+  dirty/untracked/unpushed risk. It enables
+  `DELETE /api/projects/:projectId?force=true` only when the user types that
+  canonical path exactly; the same path is sent in `confirmationPath` and is
+  checked again by the server.
+- Permanent project deletion holds an exclusive project-tree activity lease.
+  Chat runs, persistent PTYs, clones, uploads, project registration/restore,
+  and other project file routes register ordinary leases, so deletion is
+  rejected while any overlap is active and new operations cannot start after
+  the final check. The server
+  rejects non-archived rows, filesystem/workspace roots, the user's home,
+  fleet-server state (including descendants), database/runtime paths and their
+  ancestors, targets that contain another registered project, non-canonical or
+  symlink roots, and transcript paths outside known provider storage. Recursive
+  filesystem APIs remove the workspace first (directory symlinks are unlinked,
+  never followed),
+  then distinct JSONL transcripts, then session and project rows in one SQLite
+  transaction. A filesystem failure leaves the archived DB rows intact; a
+  retry can finish cleanup even when the workspace was already removed.
 - Project rename: `PUT /api/projects/:projectId/rename {displayName}` changes
   only the host DB display name; it never moves or renames the workspace path.
   fleet-server returns the authoritative resolved `displayName`. A blank value
@@ -392,8 +412,10 @@ There is still no stable `thread/import` or `thread/register` method for
 converting an already-created SDK rollout into a native desktop task. Existing
 SDK-era rollouts remain readable and resumable by provider id, while all new
 and resumed Agents Hub turns use app-server. The staged migration evidence is
-in `docs/codex-app-server-spike-2026-08-02.md`; SSH-host verification remains a
-separate authorization gate.
+in `docs/codex-app-server-spike-2026-08-02.md`. Cycle 2 decision
+`D-37-ssh-host-authorization` choice C accepts the existing local-only evidence
+for the SSH verification gate; it does not authorize access to or modification
+of a remote host.
 
 **Adapter status (2026-08-03).** The first implementation slice lives under
 `fleet-server/server/modules/providers/list/codex/`: `codex-app-server-client.ts`

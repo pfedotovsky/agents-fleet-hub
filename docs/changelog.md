@@ -4,6 +4,20 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-08
+
+### Changed
+- **A blocker can pause a scheduled backlog cycle only after its decision is
+  visibly actionable.** The loop now persists the canonical decision packet and
+  cycle ledger first and uses the native input card only when that tool actually
+  succeeds. Otherwise it renames the standalone task to `AWAITING INPUT`, pins
+  and leaves it unarchived, records its task id, emits the complete decision as
+  the final response, and finishes normally so standard Codex notifications can
+  fire. Failed runs and hard stops also receive unmistakable visible titles.
+  An unconfirmed delivery keeps the schedule active and retries without changing
+  code. The current automation is explicitly unmuted. Tracked in private backlog
+  #39; operational details are in `docs/automation-notifications.md`.
+
 ## 2026-08-05
 
 ### Changed
@@ -20,8 +34,24 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
   including plan-mode sessions created before the cutover. Local verification
   is complete: an ephemeral read-only 0.147 turn returned exact usage and the
   source Hub loaded all seven dynamic models plus Codex permission modes with
-  no browser errors. SSH-host verification still requires a separately named
-  and authorized host. Tracked in private backlog #37.
+  no browser errors. Recorded Cycle 2 decision
+  `D-37-ssh-host-authorization` choice C accepts that local-only evidence for
+  the SSH verification gate without authorizing remote-host access. Tracked in
+  private backlog #37.
+- **Archived projects can now be permanently removed with a complete impact
+  preview and fail-closed server safeguards.** The archived-project sidebar
+  shows the canonical host path, session/file/size impact, Git working-tree and
+  unpushed-work risk, and requires typing that exact path before enabling the
+  irreversible action. fleet-server deletes the workspace tree without
+  following symlinks, then provider JSONL transcripts, then session/project
+  rows in one transaction; filesystem failures preserve an archived retry
+  checkpoint. Filesystem roots, home/server/runtime state, broad or symlinked
+  targets, transcript escapes, paths anywhere inside fleet-server state, and
+  projects with active chats, terminals, clones, file operations, registration,
+  or restore work are rejected. Destructive verification used only
+  isolated temporary workspaces; contract tests used pre-created empty fixture
+  databases and confirmed that an external symlink target survives. Tracked in
+  private backlog #9.
 - **Fresh chats now explain and unblock missing provider setup before the first
   send.** Agents Hub preflights the selected Claude or Codex CLI, distinguishes
   a missing installation from an interactive sign-in requirement, shows the

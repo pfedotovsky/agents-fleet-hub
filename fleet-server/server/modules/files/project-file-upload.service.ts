@@ -2,6 +2,7 @@ import { constants as fsConstants } from 'node:fs';
 import { access, copyFile, lstat, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
+import { projectActivityRegistry } from '@/modules/projects/services/project-activity.service.js';
 import { AppError } from '@/shared/utils.js';
 
 export const MAX_PROJECT_UPLOAD_FILES = 20;
@@ -121,7 +122,7 @@ function resolveRelativePaths(files: TemporaryUploadFile[], relativePaths: unkno
   return relativePaths.map(normalizeRelativeUploadPath);
 }
 
-export async function persistProjectUploads(
+async function persistProjectUploadsUnlocked(
   input: PersistProjectUploadsInput,
   dependencies: UploadDependencies = defaultDependencies,
 ): Promise<{ targetPath: string; files: UploadedProjectFile[] }> {
@@ -217,4 +218,16 @@ export async function persistProjectUploads(
   }
 
   return { targetPath, files: uploadedFiles };
+}
+
+export async function persistProjectUploads(
+  input: PersistProjectUploadsInput,
+  dependencies: UploadDependencies = defaultDependencies,
+): Promise<{ targetPath: string; files: UploadedProjectFile[] }> {
+  const releaseProjectActivity = projectActivityRegistry.begin('file', input.projectRoot);
+  try {
+    return await persistProjectUploadsUnlocked(input, dependencies);
+  } finally {
+    releaseProjectActivity();
+  }
 }

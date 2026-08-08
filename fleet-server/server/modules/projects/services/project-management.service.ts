@@ -1,7 +1,10 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
+
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { projectsDb } from '@/modules/database/index.js';
+import { projectActivityRegistry } from '@/modules/projects/services/project-activity.service.js';
 import type {
   CreateProjectPathResult,
   ProjectRepositoryRow,
@@ -118,32 +121,37 @@ export async function createProject(
   }
 
   const resolvedProjectPath = normalizeProjectPath(pathValidation.resolvedPath);
-  await dependencies.ensureWorkspaceDirectory(resolvedProjectPath);
+  const releaseProjectActivity = projectActivityRegistry.begin('lifecycle', resolvedProjectPath);
+  try {
+    await dependencies.ensureWorkspaceDirectory(resolvedProjectPath);
 
-  const normalizedCustomName = resolveDisplayName(input.customName ?? null, resolvedProjectPath);
-  const persistedProject = dependencies.persistProjectPath(resolvedProjectPath, normalizedCustomName);
+    const normalizedCustomName = resolveDisplayName(input.customName ?? null, resolvedProjectPath);
+    const persistedProject = dependencies.persistProjectPath(resolvedProjectPath, normalizedCustomName);
 
-  if (persistedProject.outcome === 'active_conflict') {
-    throw new AppError('Project path already exists and is active', {
-      code: 'PROJECT_ALREADY_EXISTS',
-      statusCode: 409,
-      details: `Project path already exists: ${resolvedProjectPath}`,
-    });
+    if (persistedProject.outcome === 'active_conflict') {
+      throw new AppError('Project path already exists and is active', {
+        code: 'PROJECT_ALREADY_EXISTS',
+        statusCode: 409,
+        details: `Project path already exists: ${resolvedProjectPath}`,
+      });
+    }
+
+    const projectRow = persistedProject.project ?? dependencies.getProjectByPath(resolvedProjectPath);
+    if (!projectRow) {
+      throw new AppError('Failed to resolve project after creation', {
+        code: 'PROJECT_CREATE_FAILED',
+        statusCode: 500,
+      });
+    }
+
+    // Archived rows intentionally remain archived when reused, as requested.
+    return {
+      outcome: persistedProject.outcome,
+      project: mapProjectRowToApiView(projectRow),
+    };
+  } finally {
+    releaseProjectActivity();
   }
-
-  const projectRow = persistedProject.project ?? dependencies.getProjectByPath(resolvedProjectPath);
-  if (!projectRow) {
-    throw new AppError('Failed to resolve project after creation', {
-      code: 'PROJECT_CREATE_FAILED',
-      statusCode: 500,
-    });
-  }
-
-  // Archived rows intentionally remain archived when reused, as requested.
-  return {
-    outcome: persistedProject.outcome,
-    project: mapProjectRowToApiView(projectRow),
-  };
 }
 
 /** Sets a stable display name without moving the project folder. */

@@ -1,3 +1,5 @@
+// Modified from CloudCLI 1.36.1 — see NOTICE.
+
 import { access, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -5,6 +7,7 @@ import path from 'node:path';
 import spawn from 'cross-spawn';
 
 import { githubTokensDb } from '@/modules/database/index.js';
+import { projectActivityRegistry } from '@/modules/projects/services/project-activity.service.js';
 import { createProject } from '@/modules/projects/services/project-management.service.js';
 import type { WorkspacePathValidationResult } from '@/shared/types.js';
 import { AppError, validateWorkspacePath } from '@/shared/utils.js';
@@ -238,7 +241,14 @@ export async function startCloneProject(
   }
 
   handlers.onProgress(`Cloning into '${repoName}'...`);
-  const gitProcess = dependencies.spawnGitClone(cloneUrl, clonePath);
+  const releaseProjectActivity = projectActivityRegistry.begin('clone', clonePath);
+  let gitProcess: GitCloneProcess;
+  try {
+    gitProcess = dependencies.spawnGitClone(cloneUrl, clonePath);
+  } catch (error) {
+    releaseProjectActivity();
+    throw error;
+  }
   let lastError = '';
 
   gitProcess.stdout?.on('data', (data: Buffer | string) => {
@@ -265,8 +275,10 @@ export async function startCloneProject(
             project: createdProject.project,
             message: 'Repository cloned successfully',
           });
+          releaseProjectActivity();
           resolve();
         } catch (error) {
+          releaseProjectActivity();
           reject(
             new AppError(`Clone succeeded but failed to add project: ${resolveErrorMessage(error)}`, {
               code: 'CLONE_PROJECT_REGISTRATION_FAILED',
@@ -286,6 +298,7 @@ export async function startCloneProject(
         dependencies.logError('Failed to clean up after clone failure:', cleanupError);
       }
 
+      releaseProjectActivity();
       reject(
         new AppError(errorMessage, {
           code: 'GIT_CLONE_FAILED',
@@ -295,6 +308,7 @@ export async function startCloneProject(
     });
 
     gitProcess.on('error', (error) => {
+      releaseProjectActivity();
       if (error.code === 'ENOENT') {
         reject(
           new AppError('Git is not installed or not in PATH', {
