@@ -2,8 +2,9 @@ version: 1
 cycle:
   id: 2
   name: "Native Codex and project lifecycle"
-  status: active
+  status: complete
   approved_at: "2026-08-04"
+  completed_at: "2026-08-08"
   approval: >-
     Approve Cycle 2: #1, #37, and #9; recursively delete workspace
     directories; remove the Codex SDK implementation after native parity.

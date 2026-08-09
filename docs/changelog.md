@@ -4,6 +4,14 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-09
+
+### Fixed
+- **Cycle 2 now reports its completed state consistently.** The canonical
+  finite-cycle manifest is marked complete after all three allowlisted issues
+  shipped, matching the durable ledger and paused automation state instead of
+  leaving `status: active` behind.
+
 ## 2026-08-08
 
 ### Changed
