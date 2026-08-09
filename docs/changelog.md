@@ -7,6 +7,11 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-09
 
 ### Fixed
+- **Finite-cycle finish reports now distinguish success from safety caps.** A
+  cycle completes as soon as its declared outcome ships; run, credit, duration,
+  and no-progress limits only stop an incomplete cycle from continuing. Reports
+  must lead with the outcome and render counters as `used / hard cap`, explicitly
+  stating that unused capacity is not remaining planned work.
 - **Cycle 2 now reports its completed state consistently.** The canonical
   finite-cycle manifest is marked complete after all three allowlisted issues
   shipped, matching the durable ledger and paused automation state instead of

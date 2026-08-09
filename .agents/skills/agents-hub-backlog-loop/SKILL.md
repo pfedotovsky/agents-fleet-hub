@@ -35,6 +35,16 @@ is unavailable, enforce the lower of the estimated-credit ceiling and the
 manifest's run ceilings. A no-op preflight still counts as a total run. Do not
 spend another run merely to report that nothing changed.
 
+Keep successful completion separate from safety stops in every ledger and
+user-facing report. The cycle succeeds as soon as its declared completion
+criteria are met; run, credit, duration, and no-progress limits only cap how
+long an incomplete cycle may continue. State the outcome and its reason first,
+then label counters as `used / hard cap`. When a cycle completes below a cap,
+say explicitly that the unused capacity is not remaining planned work. Never
+present a bare counter such as `13/30 runs`, which can read as 17 required runs
+remaining. Use `complete` only for a satisfied success criterion; describe a
+limit- or blocker-driven stop as paused or stopped incomplete.
+
 ## Preflight
 
 1. Read the applicable `AGENTS.md`. Before changing `fleet-hub/src`, read
@@ -277,6 +287,8 @@ link the PR and leave it open.
 Remove `agent:active` when the slice completes or blocks. Report:
 
 - the user-visible outcome;
+- for a finite cycle, whether it completed successfully or stopped incomplete,
+  the exact criterion or stop reason, and counters labeled `used / hard cap`;
 - issue, branch, commit, PR, and merge commit when present;
 - verification performed and any omitted live check;
 - remaining risk or decision packet;
