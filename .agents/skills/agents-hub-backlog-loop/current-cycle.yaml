@@ -27,6 +27,10 @@ schedule:
   failed_task_title: "FAILED — Agents Hub Cycle 2 — <short cause>"
 
 limits:
+  interpretation: >-
+    Safety ceilings, not planned consumption. The cycle completes immediately
+    when its success criterion is met; unused run or credit capacity is not
+    remaining work.
   target_credits: 3500
   hard_estimated_credits: 4200
   api_equivalent_credits_per_usd: 25
@@ -109,6 +113,10 @@ issues:
       - "Any real deletion requires the exact target and a fresh confirmation immediately before execution."
 
 completion:
+  reporting_rule: >-
+    State the outcome and reason before counters. Label counters as
+    "used / hard cap" and, after successful early completion, say that unused
+    capacity is not remaining planned work.
   close_cycle_when:
     - "Issues 1, 37, and 9 are closed as shipped."
   pause_cycle_when:
