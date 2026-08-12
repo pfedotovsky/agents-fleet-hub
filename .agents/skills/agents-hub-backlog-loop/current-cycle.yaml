@@ -1,41 +1,47 @@
 version: 1
 cycle:
-  id: 2
-  name: "Native Codex and project lifecycle"
-  status: complete
-  approved_at: "2026-08-04"
-  completed_at: "2026-08-08"
+  id: 3
+  name: "Codex transcript fidelity, automated UX QA, and fleet-server truth"
+  status: active
+  approved_at: "2026-08-12"
   approval: >-
-    Approve Cycle 2: #1, #37, and #9; recursively delete workspace
-    directories; remove the Codex SDK implementation after native parity.
+    Approve Cycle 3: #43, then #42, then #44; hourly at minute 19
+    Europe/Moscow; Sol High; 7 days; 30 total runs, 16 substantive runs,
+    6,000 hard estimated credits; allow verified ordinary implementation PR
+    merges, the specified public repository-description update, and #29/#32
+    backlog reconciliation; future #42 repair outputs remain draft PRs; no
+    release, deployment, SSH, secrets, signing, repository access changes,
+    real-host changes, or real-data operations.
   control_issue:
     repository: pfedotovsky/agents-fleet-hub-backlog
-    number: 38
-    ledger_marker: "<!-- agents-hub-loop:cycle-2 -->"
+    number: 45
+    ledger_marker: "<!-- agents-hub-loop:cycle-3 -->"
 
 schedule:
   cadence: hourly
+  minute: 19
+  timezone: Europe/Moscow
   standalone_task_per_run: true
   preferred_model: gpt-5.6-sol
   preferred_reasoning: high
   archive_completed_tasks: true
   blocker_pause_requires_confirmed_decision_delivery: true
   decision_delivery_failure: keep_active_and_retry
-  decision_task_title: "AWAITING INPUT — Cycle 2 — <decision-id>"
+  decision_task_title: "AWAITING INPUT — Cycle 3 — <decision-id>"
   decision_task_visibility: pinned_and_unarchived
   decision_task_must_finish_normally: true
-  failed_task_title: "FAILED — Agents Hub Cycle 2 — <short cause>"
+  failed_task_title: "FAILED — Agents Hub Cycle 3 — <short cause>"
 
 limits:
   interpretation: >-
     Safety ceilings, not planned consumption. The cycle completes immediately
     when its success criterion is met; unused run or credit capacity is not
     remaining work.
-  target_credits: 3500
-  hard_estimated_credits: 4200
+  target_credits: 4800
+  hard_estimated_credits: 6000
   api_equivalent_credits_per_usd: 25
   max_total_runs: 30
-  max_substantive_runs: 14
+  max_substantive_runs: 16
   max_consecutive_no_progress_runs: 3
   expires_after_days: 7
   on_limit: pause_and_report
@@ -47,70 +53,107 @@ execution:
   max_active_code_slices: 1
   max_durable_transitions_per_run: 1
   replacement_issues_allowed: false
+  ordinary_verified_pr_merges_allowed: true
+  generated_repair_pr_auto_merge_allowed: false
+  public_repository_description_update_allowed: true
+  backlog_reconciliation_allowed:
+    - 29
+    - 32
   release_allowed: false
   deployment_allowed: false
-  real_host_migration_allowed: false
-  real_user_data_deletion_allowed: false
+  ssh_access_allowed: false
+  secret_changes_allowed: false
+  signing_changes_allowed: false
+  repository_access_changes_allowed: false
+  real_host_changes_allowed: false
+  real_user_data_operations_allowed: false
 
 issues:
-  - number: 1
+  - number: 43
     order: 1
-    title: "Agent-CLI bootstrap + auth banner"
-    target_credits: 350
-    hard_estimated_credits: 450
+    title: "Fix blank or malformed Codex transcripts and missing user prompts"
+    target_credits: 900
+    hard_estimated_credits: 1200
     done_when:
-      - "The existing installer-readiness PR is integrated after current checks."
-      - "The Hub shows a first-class actionable signed-out or missing-CLI banner."
-      - "Provider-owned install and interactive login remain user-controlled."
-
-  - number: 37
-    order: 2
-    title: "Native Codex app-server adapter"
-    target_credits: 2400
-    hard_estimated_credits: 2600
-    done_when:
-      - "Remaining app-server interaction and execution parity is closed."
-      - "Local live verification passes."
+      - "Both supplied session shapes are reproduced against source Hub and source fleet-server."
+      - "Persisted JSONL, normalized API history, and visible structured DOM are compared."
+      - "Missing, duplicated, misordered, misclassified, and incorrectly grouped entries are fixed."
+      - "Each genuine top-level user prompt renders exactly once and in order."
       - >-
-        SSH verification passes on a separately named and authorized host,
-        unless superseded by recorded decision D-37-ssh-host-authorization.
-      - "App-server is the only Codex conversation runtime."
-      - "CODEX_APP_SERVER_ENABLED and the SDK routing branch are removed."
-      - "server/openai-codex.js and obsolete SDK tests are deleted."
-      - "@openai/codex-sdk is removed from dependencies, lockfile, and notices."
-      - "Unsupported Codex CLI versions fail clearly instead of using SDK fallback."
+        Child sessions stay hidden from normal discovery while a known direct
+        session URL renders their preserved transcript.
+      - >-
+        Developer instructions, system context, injected environment context,
+        and encrypted subagent prompts never render as user messages.
+      - >-
+        Initial load, pagination, completion reconciliation, navigation away
+        and back, full reload, and relevant restart behavior preserve fidelity.
+      - "Sanitized fixtures contain no personal transcript text or private data."
+      - "Hub build/lint, server typecheck/tests, and live source-UI verification pass."
     gates:
-      - "Do not deploy, migrate, or modify an SSH host without separate authorization."
-      - "Keep SDK fallback until parity and local verification are complete."
-      - "After removal, rollback is a Git revert or prior release, not dual runtime code."
-    decisions:
-      - id: D-37-ssh-host-authorization
-        choice: C
-        recorded_at: "2026-08-08"
-        effect: >-
-          Waive the Cycle 2 SSH verification gate and accept the existing
-          local-only evidence. This does not authorize SSH access, deployment,
-          release, migration, persistent host changes, secrets or signing
-          changes, or deletion of real user data.
+      - >-
+        If genuine user content cannot be distinguished safely from injected
+        context, omit the ambiguous content and request a decision.
 
-  - number: 9
+  - number: 42
+    order: 2
+    title: "Add automated UX regression discovery and repair"
+    target_credits: 3000
+    hard_estimated_credits: 3800
+    done_when:
+      - >-
+        A sanitized fake or replay host deterministically covers representative
+        REST and WebSocket loading, empty, streaming, interaction, error,
+        offline, reconnect, long-output, reconciliation, and reload states.
+      - >-
+        Critical browser journeys cover connect/auth, open/create/send/stream,
+        approve/deny/answer, abort/resume/reconnect, archive/restore, search,
+        upload, session-view switching, navigation, and reload.
+      - >-
+        Checks fail on uncaught browser errors, unhandled rejections, broken
+        focus, stale state, or transcript divergence after reload.
+      - >-
+        Representative keyboard, focus, accessible-name, contrast,
+        reduced-motion, desktop, narrow-width, and targeted stable visual
+        checks run without blanket snapshot churn.
+      - "Representative deterministic journeys run in CI without a real personal host or credentials."
+      - >-
+        Documentation explains running the suite, adding fixtures, prohibited
+        sensitive data, snapshot review, and regression intake.
+      - >-
+        The existing backlog loop can turn one reproduced regression into a
+        tested draft PR in an isolated worktree; no second scheduler is added.
+      - "Hub build/lint and all added UX checks pass."
+    gates:
+      - "Every confirmed UX defect receives a minimal deterministic reproduction."
+      - "Ambiguous product behavior becomes an issue and decision request."
+      - "Future regression-repair PRs produced by this workflow remain drafts for human review."
+
+  - number: 44
     order: 3
-    title: "Permanent project and workspace deletion"
-    target_credits: 750
+    title: "Remove obsolete CloudCLI host and runtime mentions"
+    target_credits: 900
     hard_estimated_credits: 1000
     done_when:
-      - "Permanent deletion is available only from Archived Projects."
-      - "The UI previews the canonical absolute path, sessions, size, and Git risk."
-      - "Confirmation requires typing the exact canonical absolute path."
-      - "The server deletes the workspace tree, session JSONL files, session rows, and project row."
-      - "Deletion is rejected while project sessions or file operations are active."
-      - "Filesystem roots, home, server state, runtime paths, ancestors, symlink escapes, and overly broad targets are rejected."
-      - "Symlinks are removed as links and never followed beyond the workspace root."
-      - "The implementation uses filesystem APIs rather than shell rm."
-      - "Destructive verification uses isolated temporary fixtures only."
+      - "Current GitHub, UI, setup, metadata, and documentation describe fleet-server as the supported host runtime."
+      - >-
+        The public repository description is updated to the approved
+        fleet-server wording without changing visibility, permissions, or topics.
+      - >-
+        Backlog #29 is reconciled as superseded without claiming unverified
+        real-host migration, and #32 is rewritten as upstream fork maintenance.
+      - >-
+        AGPL and Section 7 attribution, NOTICE, UPSTREAM.md, third-party notices,
+        modified-source headers, historical records, useful upstream-defect
+        documentation, and necessary legacy storage compatibility remain intact.
+      - "Canonical Markdown and generated HTML mirrors are synchronized."
+      - >-
+        Every remaining CloudCLI occurrence is classified as legal provenance,
+        historical record, legacy on-disk compatibility, or inherited API contract.
+      - "Hub build/lint, server typecheck/tests, and live visible-copy verification pass."
     gates:
-      - "Cycle approval covers implementation and fixture tests, not deletion of real user data."
-      - "Any real deletion requires the exact target and a fresh confirmation immediately before execution."
+      - "Do not remove compatibility code without tests proving it is obsolete."
+      - "Do not change repository visibility, permissions, access, or topics."
 
 completion:
   reporting_rule: >-
@@ -118,13 +161,14 @@ completion:
     "used / hard cap" and, after successful early completion, say that unused
     capacity is not remaining planned work.
   close_cycle_when:
-    - "Issues 1, 37, and 9 are closed as shipped."
+    - "Issues 43, 42, and 44 are closed as shipped."
   pause_cycle_when:
     - "Any hard limit is reached."
     - >-
       After its decision packet and actionable question are durably delivered,
-      a required user decision or host authorization blocks all remaining issues.
+      a required user decision blocks all remaining issues.
     - "Three consecutive scheduled runs make no durable progress."
   never_do:
     - "Add a Wave 2 or replacement issue."
     - "Continue hourly no-op runs after completion or pause."
+    - "Report unused safety capacity as remaining planned work."
