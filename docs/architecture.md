@@ -26,7 +26,7 @@ Browser (Agents Hub SPA)
 
 | Module | Role |
 | --- | --- |
-| `App.tsx` | View router: a `View` union (`feed` / `project` / `files` / `chat`) in component state. Only the open `chat` view syncs to the URL — mirrored into `location.hash` and hydrated back from an incoming hash once the host loads (see `lib/deepLink.ts`); all other navigation stays in-memory. The feed's global New session action opens a stable-key, initially unbound chat draft and supplies `ChatPane` with project targets derived from online `useFleet` runtimes. Selecting one replaces the draft's host/project fields without remounting it. |
+| `App.tsx` | View router: a `View` union (`feed` / `project` / `files` / `chat`) in component state. Only the open `chat` view syncs to the URL — mirrored into `location.hash` and hydrated back from an incoming hash once the host loads (see `lib/deepLink.ts`); all other navigation stays in-memory. Deep links first reuse discovery metadata, then fall back to exact-id `GET /api/providers/sessions/:sessionId` so a known child transcript can open without adding hidden child rows to any list. The feed's global New session action opens a stable-key, initially unbound chat draft and supplies `ChatPane` with project targets derived from online `useFleet` runtimes. Selecting one replaces the draft's host/project fields without remounting it. |
 | `lib/deepLink.ts` | Shareable session links. Serializes an open chat to `#/s/<hostId>/<projectId>/<sessionId>` and back, and builds an absolute URL against `document.baseURI` so it resolves under `/fleet-hub/`, `/` (dev), and Tauri. Hash-only (no server routing); carries host+project because a session id is unique only per host and is resolved from the loaded projects list. |
 | `hooks/useFleet.ts` | The heart of the app: host configs + prefs from storage, 12 s polling loop per host, host status machine, merged cross-host session feed, project creation/clone/rename/archive/restore, star toggle, session rename, login. Successful project creates, clones, renames, and archives plus session renames patch the loaded host state without waiting for the next poll; restores trigger reconciliation. |
 | `lib/api.ts` | All REST calls. `fetchJson` adds timeout (AbortController), Bearer header, captures `X-Refreshed-Token`, maps 401/403 → `AuthError`, network failure → `HostUnreachableError`, and normalizes both legacy string errors and fleet-server's structured `{error:{message,details}}` responses into readable exceptions. |
@@ -648,6 +648,22 @@ them by id, and permanent project cleanup deliberately uses the unfiltered
 repository query so hidden rows cannot be orphaned. Parent Agent rows are
 unchanged because they are reconstructed from the parent transcript's
 collaboration calls/activity, independently of child-session discovery.
+
+`GET /api/providers/sessions/:sessionId` is the matching exact-id metadata
+lookup. It returns the owning project, provider, title, timestamps, archive
+state, and top-level flag without changing discovery. The Hub uses it only when
+an incoming session hash names an active project but its session is absent from
+that project's discovery page; archived or cross-project results remain closed.
+
+Codex transcript order follows persisted JSONL sequence, not record timestamps.
+Current paginated rollouts use `ordinal` as each normalized row's stable source
+position; legacy rollouts use the physical line index. This keeps repeated
+identical prompts distinct across API refreshes and React reconciliation even
+when their content and timestamps match. Only canonical
+`event_msg/user_message` records with absent or `plain` kind become visible user
+turns. User-role `response_item/message` records are model-input history and are
+not a safe user boundary: they can duplicate the prompt or carry developer,
+environment, and subagent context, so the transcript never forwards them.
 
 A source-UI image-view turn then created native task
 `019fc7cf-d975-7f10-a81a-f36bc4f4c804`. After a clean server rebuild and page

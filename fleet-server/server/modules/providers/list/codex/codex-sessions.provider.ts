@@ -45,6 +45,7 @@ function stableCodexId(raw: AnyRecord, sessionId: string | null): string {
       : JSON.stringify(raw.message?.content ?? raw.toolInput ?? raw.output ?? '');
   const key = [
     sessionId ?? '',
+    raw.rolloutPosition ?? '',
     raw.timestamp ?? '',
     raw.type ?? '',
     role,
@@ -504,13 +505,17 @@ async function getCodexSessionMessages(
     const appServerPlanCallIds = new Set<string>();
     const appServerCodeModeCallIds = new Set<string>();
     const appServerPlanMessageIndexes = new Map<string, number>();
+    let rolloutLineIndex = 0;
     for await (const line of readJsonlLines(sessionFilePath)) {
+      const currentLineIndex = rolloutLineIndex;
+      rolloutLineIndex += 1;
       if (!line.trim()) {
         continue;
       }
 
       try {
         const entry = JSON.parse(line) as AnyRecord;
+        const firstMessageIndex = messages.length;
 
         if (entry.type === 'event_msg' && entry.payload?.type === 'token_count' && entry.payload?.info) {
           const info = entry.payload.info as AnyRecord;
@@ -745,14 +750,24 @@ async function getCodexSessionMessages(
             output: entry.payload.output || '',
           });
         }
+
+        // [fork-fix #22] Rollout order is the transcript authority. Attach a
+        // stable source position before normalization so repeated identical
+        // turns never collapse to the same React/reconciliation id. Current
+        // paginated rollouts provide `ordinal`; legacy files fall back to the
+        // stable physical line index.
+        const rolloutPosition = entry.ordinal ?? currentLineIndex;
+        for (let index = firstMessageIndex; index < messages.length; index += 1) {
+          messages[index].rolloutPosition = rolloutPosition;
+        }
       } catch {
         // Skip malformed lines.
       }
     }
 
-    messages.sort(
-      (a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime(),
-    );
+    // [fork-fix #22] Do not reorder canonical JSONL by timestamps. Adjacent
+    // records can share a timestamp, and asynchronously recorded timestamps
+    // can move backwards; the persisted sequence is the only lossless order.
     const total = messages.length;
 
     if (limit !== null) {

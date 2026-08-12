@@ -94,6 +94,20 @@ export interface ArchivedSession {
   isProjectArchived: boolean
 }
 
+/** Exact-id session metadata used to open hidden transcripts by direct URL. */
+export interface DirectSession {
+  sessionId: string
+  provider: Provider
+  projectId: string | null
+  projectPath: string | null
+  projectDisplayName: string
+  sessionTitle: string
+  lastActivity: string | null
+  isArchived: boolean
+  isProjectArchived: boolean
+  isTopLevel: boolean
+}
+
 export type SessionView = 'structured' | 'terminal'
 
 export interface Prefs {

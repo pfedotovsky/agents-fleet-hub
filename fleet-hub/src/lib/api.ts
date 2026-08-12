@@ -1,6 +1,7 @@
 import type {
   ArchivedProject,
   ArchivedSession,
+  DirectSession,
   FileNode,
   GitBranches,
   GitCommitSummary,
@@ -464,6 +465,21 @@ export async function getSessionMessages(
     `/api/providers/sessions/${encodeURIComponent(sessionId)}/messages?limit=${page.limit}&offset=${page.offset}`,
     { token, onTokenRefresh, timeoutMs: 15000 },
   )) as { success: boolean; data: MessagesPage }
+  return body.data
+}
+
+/** Resolve one exact session, including a child hidden from discovery lists. */
+export async function getSessionById(
+  baseUrl: string,
+  token: string,
+  sessionId: string,
+  onTokenRefresh: (token: string) => void,
+): Promise<DirectSession> {
+  const body = (await fetchJson(
+    baseUrl,
+    `/api/providers/sessions/${encodeURIComponent(sessionId)}`,
+    { token, onTokenRefresh, timeoutMs: 15000 },
+  )) as { success: boolean; data: DirectSession }
   return body.data
 }
 

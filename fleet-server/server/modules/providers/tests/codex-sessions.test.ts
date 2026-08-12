@@ -7,6 +7,7 @@ import test from 'node:test';
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
 import { CodexSessionSynchronizer } from '@/modules/providers/list/codex/codex-session-synchronizer.provider.js';
 import { CodexSessionsProvider } from '@/modules/providers/list/codex/codex-sessions.provider.js';
+import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 
 const patchHomeDir = (nextHomeDir: string) => {
   const original = os.homedir;
@@ -136,6 +137,162 @@ test('Codex history assigns stable ids across reads and strips the plan preamble
       const userTurn = first.messages.find((m) => m.role === 'user');
       assert.ok(userTurn, 'expected a user turn');
       assert.equal(userTurn?.content, 'Add a logout button');
+    });
+  } finally {
+    restoreHomeDir();
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('Codex history renders each canonical user event once in persisted order', { concurrency: false }, async () => {
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'codex-history-user-order-'));
+  const workspacePath = path.join(tempRoot, 'workspace');
+  await mkdir(workspacePath, { recursive: true });
+  const restoreHomeDir = patchHomeDir(tempRoot);
+
+  try {
+    const jsonlPath = await writeCodexTranscript(
+      tempRoot,
+      'codex-user-order-1',
+      workspacePath,
+    );
+    const repeatedPrompt = 'Repeat this sanitized request';
+    await writeFile(jsonlPath, `${[
+      JSON.stringify({
+        type: 'session_meta',
+        payload: { id: 'codex-user-order-1', cwd: workspacePath, source: 'vscode' },
+      }),
+      // User-role response items are model input, not a safe user-turn
+      // boundary. The matching plain event below is the canonical prompt.
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-08-12T10:00:03.000Z',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: repeatedPrompt }],
+        },
+      }),
+      JSON.stringify({
+        ordinal: 2,
+        type: 'event_msg',
+        timestamp: '2026-08-12T10:00:03.000Z',
+        payload: { type: 'user_message', kind: 'plain', message: repeatedPrompt },
+      }),
+      JSON.stringify({
+        ordinal: 3,
+        type: 'response_item',
+        timestamp: '2026-08-12T10:00:01.000Z',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'First sanitized answer' }],
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-08-12T10:00:04.000Z',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: '<developer_instructions>PRIVATE_SENTINEL' }],
+        },
+      }),
+      JSON.stringify({
+        type: 'event_msg',
+        timestamp: '2026-08-12T10:00:04.000Z',
+        payload: {
+          type: 'user_message',
+          kind: 'environment_context',
+          message: '<environment_context>PRIVATE_ENV_SENTINEL',
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-08-12T10:00:05.000Z',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: 'ENCRYPTED_SUBAGENT_SENTINEL' }],
+        },
+      }),
+      JSON.stringify({
+        type: 'response_item',
+        timestamp: '2026-08-12T10:00:03.000Z',
+        payload: {
+          type: 'message',
+          role: 'user',
+          content: [{ type: 'input_text', text: repeatedPrompt }],
+        },
+      }),
+      JSON.stringify({
+        ordinal: 8,
+        type: 'event_msg',
+        timestamp: '2026-08-12T10:00:03.000Z',
+        payload: { type: 'user_message', kind: 'plain', message: repeatedPrompt },
+      }),
+      JSON.stringify({
+        ordinal: 9,
+        type: 'response_item',
+        timestamp: '2026-08-12T10:00:00.000Z',
+        payload: {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'output_text', text: 'Second sanitized answer' }],
+        },
+      }),
+    ].join('\n')}\n`, 'utf8');
+
+    await withIsolatedDatabase(async () => {
+      sessionsDb.createSession(
+        'codex-user-order-1',
+        'codex',
+        workspacePath,
+        undefined,
+        undefined,
+        undefined,
+        jsonlPath,
+      );
+
+      const history = await new CodexSessionsProvider().fetchHistory('codex-user-order-1');
+      assert.deepEqual(
+        history.messages.map((message) => [message.role, message.content]),
+        [
+          ['user', repeatedPrompt],
+          ['assistant', 'First sanitized answer'],
+          ['user', repeatedPrompt],
+          ['assistant', 'Second sanitized answer'],
+        ],
+      );
+      assert.equal(new Set(history.messages.map((message) => message.id)).size, 4);
+      assert.equal(JSON.stringify(history.messages).includes('PRIVATE_SENTINEL'), false);
+      assert.equal(JSON.stringify(history.messages).includes('PRIVATE_ENV_SENTINEL'), false);
+      assert.equal(JSON.stringify(history.messages).includes('ENCRYPTED_SUBAGENT_SENTINEL'), false);
+
+      const newestPage = await new CodexSessionsProvider().fetchHistory(
+        'codex-user-order-1',
+        { limit: 2, offset: 0 },
+      );
+      const olderPage = await new CodexSessionsProvider().fetchHistory(
+        'codex-user-order-1',
+        { limit: 2, offset: 2 },
+      );
+      assert.deepEqual(
+        newestPage.messages.map((message) => [message.role, message.content]),
+        [
+          ['user', repeatedPrompt],
+          ['assistant', 'Second sanitized answer'],
+        ],
+      );
+      assert.equal(newestPage.hasMore, true);
+      assert.deepEqual(
+        olderPage.messages.map((message) => [message.role, message.content]),
+        [
+          ['user', repeatedPrompt],
+          ['assistant', 'First sanitized answer'],
+        ],
+      );
+      assert.equal(olderPage.hasMore, false);
     });
   } finally {
     restoreHomeDir();
@@ -712,6 +869,13 @@ test('Codex synchronizer keeps subagent rollouts addressable but out of top-leve
       assert.equal(spawnedChild?.parentSessionId, 'codex-user-1');
       assert.equal(guardianChild?.isTopLevel, 0);
       assert.equal(guardianChild?.parentSessionId, 'codex-user-1');
+
+      const directChild = sessionsService.getSessionById('codex-child-1');
+      assert.equal(directChild.sessionId, 'codex-child-1');
+      assert.equal(directChild.provider, 'codex');
+      assert.equal(directChild.projectPath, workspacePath);
+      assert.equal(directChild.isTopLevel, false);
+      assert.equal(directChild.isArchived, false);
 
       const directHistory = await new CodexSessionsProvider().fetchHistory('codex-child-1');
       assert.equal(

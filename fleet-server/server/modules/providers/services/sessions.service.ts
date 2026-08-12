@@ -32,6 +32,19 @@ type ArchivedSessionListItem = {
   isProjectArchived: boolean;
 };
 
+type DirectSessionItem = {
+  sessionId: string;
+  provider: LLMProvider;
+  projectId: string | null;
+  projectPath: string | null;
+  projectDisplayName: string;
+  sessionTitle: string;
+  lastActivity: string | null;
+  isArchived: boolean;
+  isProjectArchived: boolean;
+  isTopLevel: boolean;
+};
+
 /**
  * Removes one file if it exists.
  */
@@ -186,6 +199,40 @@ export const sessionsService = {
         ...message,
         sessionId,
       })),
+    };
+  },
+
+  /**
+   * Resolves one exact session without adding hidden child rows to discovery.
+   *
+   * [fork-fix #22] Direct transcript links need enough metadata to construct a
+   * chat target even when the session is deliberately absent from project,
+   * feed, and search lists. This lookup is exact-id only and does not change
+   * any top-level discovery query.
+   */
+  getSessionById(sessionId: string): DirectSessionItem {
+    const session = sessionsDb.getSessionById(sessionId);
+    if (!session) {
+      throw new AppError(`Session "${sessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    const projectPath = session.project_path?.trim() ? session.project_path : null;
+    const project = projectPath ? projectsDb.getProjectPath(projectPath) : null;
+
+    return {
+      sessionId: session.session_id,
+      provider: session.provider as LLMProvider,
+      projectId: project?.project_id ?? null,
+      projectPath,
+      projectDisplayName: resolveProjectDisplayName(projectPath, project?.custom_project_name),
+      sessionTitle: session.custom_name?.trim() || session.session_id,
+      lastActivity: session.updated_at ?? session.created_at ?? null,
+      isArchived: Boolean(session.isArchived),
+      isProjectArchived: Boolean(project?.isArchived),
+      isTopLevel: Boolean(session.isTopLevel),
     };
   },
 
