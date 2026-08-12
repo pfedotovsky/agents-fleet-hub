@@ -4,6 +4,20 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-12
+
+### Added
+- **The autonomous backlog worker now has an approved finite Cycle 3.** The
+  source-controlled contract runs private backlog issues #43, #42, and #44 in
+  that order: restore Codex transcript fidelity, establish deterministic UX
+  regression discovery and repair, then remove obsolete CloudCLI-host wording
+  while preserving required provenance and legacy compatibility. The hourly
+  cycle uses Sol High, stops after seven days or its explicit run/estimate
+  ceilings, permits ordinary verified implementation PR merges, keeps future
+  automatically generated repair PRs as drafts, and does not authorize release,
+  deployment, SSH, secrets, signing, repository access changes, real-host
+  changes, or real-data operations.
+
 ## 2026-08-09
 
 ### Fixed
