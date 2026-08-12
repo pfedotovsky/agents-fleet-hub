@@ -290,6 +290,23 @@ with no spawn error and exit status 0. A regression test covers an executable
 that cannot be started, keeping the Hub's missing-CLI and signed-out states
 truthfully distinguishable.
 
+### 22. Codex transcript identity and direct child links lose visible turns
+
+The inherited Codex history reader derived message identity from timestamp and
+content, then sorted the parsed JSONL by timestamp. Repeated identical turns
+could therefore share one frontend id, while asynchronous timestamps could
+move persisted rows out of order. Separately, hidden child sessions remained
+readable by exact history id but the Hub could not construct a chat target
+because it resolved links only through top-level discovery rows.
+
+**Fork status (`[fork-fix #22]`):** normalized Codex rows use rollout ordinal
+(or legacy physical line position) in their stable identity and preserve JSONL
+order. An exact-id session metadata route lets a known direct link open a hidden
+child transcript without admitting that child to project, feed, or search
+discovery. Sanitized regression fixtures cover repeated prompts, out-of-order
+timestamps, hidden developer/environment/subagent input, and direct child
+resolution.
+
 ## Fork decision — considerations, not a verdict
 
 **What a fork buys:**
@@ -349,3 +366,5 @@ truthfully distinguishable.
 - 2026-08-05 — added and fixed #21 after live Hub verification showed a
   nonexistent Claude executable as installed and incorrectly routed recovery
   to sign-in.
+- 2026-08-12 — added and fixed #22 after a hidden Codex child link rendered no
+  transcript and a top-level rollout lost or malformed visible user turns.

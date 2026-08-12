@@ -20,6 +20,8 @@ import {
 import { useFleet } from './hooks/useFleet'
 import { useTheme } from './hooks/useTheme'
 import { parseSessionHash, sessionHash, type SessionLink } from './lib/deepLink'
+import { getSessionById } from './lib/api'
+import { getToken, saveToken } from './lib/storage'
 import { Sidebar } from './components/Sidebar'
 import { SessionList } from './components/SessionList'
 import { ChatPane } from './components/ChatPane'
@@ -316,12 +318,12 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
-  // Resolve a pending deep-link once its host has finished loading. The chat
-  // view needs the full FleetSession, so we wait for the host's projects rather
-  // than opening on the raw ids. A session that isn't in the loaded list (gone,
-  // archived, or older than the feed's per-project window) falls back to feed.
+  // Resolve a pending deep-link once its host has finished loading. Ordinary
+  // sessions reuse discovery metadata. An exact-id lookup fills the same target
+  // for a known child transcript that is intentionally hidden from discovery.
   useEffect(() => {
     if (!linkRequest) return
+    let cancelled = false
     const runtime = fleet.hosts.find((r) => r.config.id === linkRequest.hostId)
     // Host still coming up — wait for the next hosts update before deciding.
     if (runtime && runtime.status === 'loading') return
@@ -329,12 +331,62 @@ export default function App() {
     const session = project?.sessions.find((s) => s.id === linkRequest.sessionId)
     if (runtime && project && session) {
       openSessionFromSidebar(runtime.config.id, project.projectId, session)
-    } else {
+      setLinkRequest(null)
+      return
+    }
+
+    if (!runtime || !project || runtime.status !== 'online') {
       setCreateError(
         'That session link could not be opened — it may have been archived, or its host is offline.',
       )
+      setLinkRequest(null)
+      return
     }
-    setLinkRequest(null)
+
+    const token = getToken(runtime.config.id)
+    if (!token) {
+      setCreateError('That session link could not be opened — sign in to its host first.')
+      setLinkRequest(null)
+      return
+    }
+
+    void getSessionById(
+      runtime.config.baseUrl,
+      token,
+      linkRequest.sessionId,
+      (refreshed) => saveToken(runtime.config.id, refreshed),
+    )
+      .then((direct) => {
+        if (cancelled) return
+        if (
+          direct.projectId !== project.projectId ||
+          direct.isArchived ||
+          direct.isProjectArchived
+        ) {
+          throw new Error('The session is archived or belongs to a different project.')
+        }
+        openSessionFromSidebar(runtime.config.id, project.projectId, {
+          id: direct.sessionId,
+          provider: direct.provider,
+          summary: direct.sessionTitle,
+          messageCount: 0,
+          lastActivity: direct.lastActivity ?? new Date(0).toISOString(),
+        })
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCreateError(
+            'That session link could not be opened — it may have been archived, or its host is offline.',
+          )
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLinkRequest(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
     // openSessionFromSidebar is recreated each render; the effect is driven by
     // linkRequest/hosts and re-reads it lazily, so it's intentionally omitted.
     // eslint-disable-next-line react-hooks/exhaustive-deps

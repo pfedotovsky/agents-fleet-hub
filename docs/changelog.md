@@ -6,6 +6,17 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 
 ## 2026-08-12
 
+### Fixed
+- **Codex transcript links and persisted user turns now retain their exact
+  fidelity.** A known direct URL can open a child session while the child stays
+  excluded from project, feed, and search discovery. Canonical JSONL order now
+  drives the normalized transcript, and rollout position makes repeated
+  identical turns distinct across pagination, reload, and React reconciliation.
+  User-role model-input records remain hidden, so developer instructions,
+  environment context, and subagent payloads cannot be misclassified as user
+  prompts. Sanitized fixtures cover both reported top-level and child shapes.
+  Tracked in private backlog #43 and fleet-server `[fork-fix #22]`.
+
 ### Added
 - **The autonomous backlog worker now has an approved finite Cycle 3.** The
   source-controlled contract runs private backlog issues #43, #42, and #44 in
