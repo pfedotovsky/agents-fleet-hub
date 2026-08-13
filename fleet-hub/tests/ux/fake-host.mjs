@@ -9,8 +9,11 @@ const port = Number(process.env.FAKE_HOST_PORT ?? 4312)
 const requests = []
 const socketMessages = []
 const createdSessionId = 'fixture-created-session'
+const interactionPrompt = 'Review synthetic interaction choices.'
+const interactionReply = 'Synthetic interaction flow finished.'
 let createdSession = null
 let createdMessages = []
+let createdRun = { processing: false, lastSeq: 0, pendingPermissions: [] }
 
 async function requestJson(request) {
   const chunks = []
@@ -50,6 +53,7 @@ const server = createServer(async (request, response) => {
     socketMessages.length = 0
     createdSession = null
     createdMessages = []
+    createdRun = { processing: false, lastSeq: 0, pendingPermissions: [] }
     return json(response, 204, {})
   }
   if (url.pathname === '/__state') {
@@ -72,6 +76,7 @@ const server = createServer(async (request, response) => {
       lastActivity: '2026-01-03T04:05:00.000Z',
     }
     createdMessages = []
+    createdRun = { processing: false, lastSeq: 0, pendingPermissions: [] }
     return json(response, 200, {
       success: true,
       data: {
@@ -137,11 +142,103 @@ sockets.on('connection', (socket) => {
         JSON.stringify({
           kind: 'chat_subscribed',
           sessionId,
-          isProcessing: false,
-          lastSeq: 0,
-          pendingPermissions: [],
+          isProcessing: sessionId === createdSessionId ? createdRun.processing : false,
+          lastSeq: sessionId === createdSessionId ? createdRun.lastSeq : 0,
+          pendingPermissions:
+            sessionId === createdSessionId ? createdRun.pendingPermissions : [],
         }),
       )
+      return
+    }
+    if (message.type === 'chat.permission-response') {
+      const pending = createdRun.pendingPermissions[0]
+      if (!pending || message.requestId !== pending.requestId) return
+
+      if (pending.requestId === 'fixture-allow-edit' && message.allow === true) {
+        const request = {
+          requestId: 'fixture-deny-command',
+          toolName: 'Bash',
+          input: { command: 'fixture-check --dry-run' },
+        }
+        createdRun.lastSeq += 1
+        createdRun.pendingPermissions = [request]
+        socket.send(
+          JSON.stringify({
+            kind: 'permission_request',
+            sessionId: createdSessionId,
+            seq: createdRun.lastSeq,
+            ...request,
+          }),
+        )
+        return
+      }
+
+      if (pending.requestId === 'fixture-deny-command' && message.allow === false) {
+        const request = {
+          requestId: 'fixture-answer-question',
+          toolName: 'AskUserQuestion',
+          input: {
+            questions: [
+              {
+                question: 'Which synthetic response style should be used?',
+                header: 'Style',
+                options: [
+                  { label: 'Concise', description: 'Use the shorter fixture response.' },
+                  { label: 'Detailed', description: 'Use the longer fixture response.' },
+                ],
+                multiSelect: false,
+              },
+            ],
+          },
+        }
+        createdRun.lastSeq += 1
+        createdRun.pendingPermissions = [request]
+        socket.send(
+          JSON.stringify({
+            kind: 'permission_request',
+            sessionId: createdSessionId,
+            seq: createdRun.lastSeq,
+            ...request,
+          }),
+        )
+        return
+      }
+
+      if (
+        pending.requestId === 'fixture-answer-question' &&
+        message.allow === true &&
+        message.updatedInput?.answers?.['Which synthetic response style should be used?'] ===
+          'Concise'
+      ) {
+        createdRun.pendingPermissions = []
+        createdMessages.push({
+          id: 'fixture-interaction-assistant-1',
+          sessionId: createdSessionId,
+          timestamp: '2026-01-03T04:05:02.000Z',
+          provider: 'codex',
+          kind: 'text',
+          role: 'assistant',
+          content: interactionReply,
+        })
+        createdRun.lastSeq += 1
+        socket.send(
+          JSON.stringify({
+            ...createdMessages[1],
+            id: 'fixture-interaction-assistant-live-1',
+            seq: createdRun.lastSeq,
+          }),
+        )
+        createdRun.lastSeq += 1
+        createdRun.processing = false
+        socket.send(
+          JSON.stringify({
+            kind: 'complete',
+            sessionId: createdSessionId,
+            seq: createdRun.lastSeq,
+            success: true,
+          }),
+        )
+      }
       return
     }
     if (message.type !== 'chat.send' || message.sessionId !== createdSessionId) return
@@ -156,16 +253,8 @@ sockets.on('connection', (socket) => {
         role: 'user',
         content: message.content,
       },
-      {
-        id: 'fixture-created-assistant-1',
-        sessionId: createdSessionId,
-        timestamp: '2026-01-03T04:05:02.000Z',
-        provider: 'codex',
-        kind: 'text',
-        role: 'assistant',
-        content: 'Synthetic stream finished successfully.',
-      },
     ]
+    createdRun = { processing: true, lastSeq: 0, pendingPermissions: [] }
     socket.send(
       JSON.stringify({
         kind: 'chat_subscribed',
@@ -175,8 +264,37 @@ sockets.on('connection', (socket) => {
         pendingPermissions: [],
       }),
     )
+    if (message.content === interactionPrompt) {
+      const request = {
+        requestId: 'fixture-allow-edit',
+        toolName: 'Edit',
+        input: { filePath: '/safe/fixture-project/status.txt' },
+      }
+      createdRun.lastSeq = 1
+      createdRun.pendingPermissions = [request]
+      socket.send(
+        JSON.stringify({
+          kind: 'permission_request',
+          sessionId: createdSessionId,
+          seq: createdRun.lastSeq,
+          ...request,
+        }),
+      )
+      return
+    }
+
+    createdMessages.push({
+      id: 'fixture-created-assistant-1',
+      sessionId: createdSessionId,
+      timestamp: '2026-01-03T04:05:02.000Z',
+      provider: 'codex',
+      kind: 'text',
+      role: 'assistant',
+      content: 'Synthetic stream finished successfully.',
+    })
     setTimeout(() => {
       if (socket.readyState !== 1) return
+      createdRun.lastSeq = 1
       socket.send(
         JSON.stringify({
           ...createdMessages[1],
@@ -187,6 +305,8 @@ sockets.on('connection', (socket) => {
     }, 100)
     setTimeout(() => {
       if (socket.readyState !== 1) return
+      createdRun.lastSeq = 2
+      createdRun.processing = false
       socket.send(
         JSON.stringify({
           kind: 'complete',

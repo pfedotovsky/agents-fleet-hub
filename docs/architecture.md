@@ -20,8 +20,10 @@ Browser regression coverage uses a deterministic, sanitized fake host under
 the Playwright journeys, so CI exercises source Hub behavior without a real
 host, credentials, or transcript data. The fixture covers opening and reloading
 persisted history plus creating a session, sending its first prompt, receiving a
-live response, reconciling against canonical history, and reloading that created
-session. Shared page setup also makes console, page, and HTTP failures fatal
+live response, approving and denying tool requests, restoring a pending request
+after reload, answering a structured user question, reconciling against canonical
+history, and reloading that created session. Shared page setup also makes console,
+page, and HTTP failures fatal
 across transcript, keyboard/focus, accessible-name, contrast, reduced-motion,
 narrow-width, and targeted visual checks. See `docs/ux-regression-testing.md`.
 
@@ -131,6 +133,10 @@ Browser (Agents Hub SPA)
   and re-attaches the stream. Permission responses are checked for delivery:
   a send on a closed socket keeps the card and shows a banner instead of
   silently dropping the answer (interactive requests wait server-side forever).
+  The deterministic browser fixture exercises allow and deny responses, restores
+  a pending request from `chat_subscribed.pendingPermissions` after a full reload,
+  and checks that an `AskUserQuestion` answer returns in `updatedInput` before the
+  canonical transcript is reconciled.
 - Image attachments on user messages come in two shapes: hub-sent ones are
   stored-asset paths (`{path, name}`, fetched with auth via `AuthedImage`);
   messages sent from CloudCLI's own UI inline the image as

@@ -16,17 +16,20 @@ small REST and WebSocket contract on port 4312. Each journey resets that shared
 state machine and the suite uses one worker, so mutation and reload checks cannot
 race other fixtures. The connected journeys use only a fixture token and
 currently check transcript reload fidelity; session creation, first-send
-streaming, canonical completion reconciliation, and full reload; browser failure
-gates; keyboard focus and accessible names; representative text contrast;
-reduced-motion behavior; narrow-width layout; and one targeted stable snapshot
-of the search dialog.
+streaming, allow and deny responses, pending-permission restoration after a full
+reload, structured user-question answers, canonical completion reconciliation,
+and final transcript reload; browser failure gates; keyboard focus and accessible
+names; representative text contrast; reduced-motion behavior; narrow-width
+layout; and one targeted stable snapshot of the search dialog.
 
 ## Add a fixture or journey
 
 - Put reusable payloads under `fleet-hub/tests/ux/fixtures/` and use obviously
   synthetic names, paths, prompts, tokens, timestamps, and output.
 - Extend `fake-host.mjs` only with routes or socket frames required by an
-  observable journey. Keep responses deterministic; do not call a real host.
+  observable journey. Keep responses deterministic; persist pending interactive
+  state so reload assertions use the same `chat_subscribed.pendingPermissions`
+  contract as the Hub. Do not call a real host.
 - Prefer assertions on roles, accessible names, focus, and visible state.
   Screenshots are reserved for stable surfaces with a specific regression, not
   broad snapshots of every page. Review a changed snapshot as a product diff;

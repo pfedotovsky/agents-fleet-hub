@@ -7,6 +7,12 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-13
 
 ### Added
+- **Deterministic UX coverage now exercises interactive agent requests.** A
+  sanitized Playwright journey allows an edit, restores a pending command
+  denial after a full reload, answers a structured user question, verifies the
+  exact WebSocket responses, and confirms one canonical prompt and reply after
+  reconciliation without a personal host or credentials. Tracked in private
+  backlog #42.
 - **The deterministic UX host now covers session creation and a complete live
   turn.** A Playwright journey creates a sanitized Codex session, sends its
   first synthetic prompt, observes the WebSocket response, waits for canonical
