@@ -12,10 +12,13 @@ npm run test:ux
 ```
 
 Playwright starts both Vite and `tests/ux/fake-host.mjs`. The fake host serves a
-small REST and WebSocket contract on port 4312. The connected journeys use only
-a fixture token and currently check transcript reload fidelity, browser failure
-gates, keyboard focus and accessible names, representative text contrast,
-reduced-motion behavior, narrow-width layout, and one targeted stable snapshot
+small REST and WebSocket contract on port 4312. Each journey resets that shared
+state machine and the suite uses one worker, so mutation and reload checks cannot
+race other fixtures. The connected journeys use only a fixture token and
+currently check transcript reload fidelity; session creation, first-send
+streaming, canonical completion reconciliation, and full reload; browser failure
+gates; keyboard focus and accessible names; representative text contrast;
+reduced-motion behavior; narrow-width layout; and one targeted stable snapshot
 of the search dialog.
 
 ## Add a fixture or journey

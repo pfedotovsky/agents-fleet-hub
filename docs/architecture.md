@@ -18,10 +18,12 @@ All state that must survive a reload lives in the browser's localStorage.
 Browser regression coverage uses a deterministic, sanitized fake host under
 `fleet-hub/tests/ux/`. It implements only the REST/WebSocket states required by
 the Playwright journeys, so CI exercises source Hub behavior without a real
-host, credentials, or transcript data. Shared page setup also makes console,
-page, and HTTP failures fatal across transcript, keyboard/focus, accessible-name,
-contrast, reduced-motion, narrow-width, and targeted visual checks. See
-`docs/ux-regression-testing.md`.
+host, credentials, or transcript data. The fixture covers opening and reloading
+persisted history plus creating a session, sending its first prompt, receiving a
+live response, reconciling against canonical history, and reloading that created
+session. Shared page setup also makes console, page, and HTTP failures fatal
+across transcript, keyboard/focus, accessible-name, contrast, reduced-motion,
+narrow-width, and targeted visual checks. See `docs/ux-regression-testing.md`.
 
 ```
 Browser (Agents Hub SPA)

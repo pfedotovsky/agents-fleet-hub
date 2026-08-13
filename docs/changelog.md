@@ -7,6 +7,12 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-13
 
 ### Added
+- **The deterministic UX host now covers session creation and a complete live
+  turn.** A Playwright journey creates a sanitized Codex session, sends its
+  first synthetic prompt, observes the WebSocket response, waits for canonical
+  history reconciliation, and verifies exact prompt/reply multiplicity after a
+  full reload without a personal host or credentials. Tracked in private
+  backlog #42.
 - **Deterministic UX quality gates now cover representative accessibility and
   layout behavior.** The sanitized Playwright harness checks keyboard focus,
   accessible names, text contrast, reduced motion, a narrow desktop width, and
