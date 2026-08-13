@@ -22,6 +22,17 @@ Browser (Agents Hub SPA)
   └─ /ws?token=JWT ────────► whichever host owns the open chat
 ```
 
+## Deterministic UX test harness
+
+`fleet-hub/tests/ux/replay-server.mjs` is a localhost, sanitized replay of the
+fleet-server REST and WebSocket contracts. It lets representative Hub journeys
+run without a real daemon, personal host, credential, or transcript. The
+harness exposes captured authorization and client WebSocket messages for
+protocol assertions, while specs verify the visible structured DOM, focus,
+browser errors, and state after reload. CI runs the suite inside the existing
+`Hub` job. See
+`docs/ux-regression-testing.md` for fixture and repair rules.
+
 ## Module map (`fleet-hub/src`)
 
 | Module | Role |

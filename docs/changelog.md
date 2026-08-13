@@ -4,6 +4,18 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-13
+
+### Added
+- **The Hub now has a deterministic UX regression-test foundation.** A
+  sanitized localhost fleet-server replay covers loopback token minting,
+  authenticated REST polling, WebSocket subscription, keyboard focus, exact
+  transcript rendering, browser error detection, and full-reload fidelity
+  without a personal host or credentials. Playwright runs the representative
+  journey in the existing Hub CI job, and the fixture/repair contract requires
+  synthetic data, focused visual checks, minimal reproductions, and draft-only
+  automatically generated repair PRs. Tracked in private backlog #42.
+
 ## 2026-08-12
 
 ### Fixed

@@ -34,6 +34,17 @@ bumping the version in `src-tauri/tauri.conf.json` and pushing a `v*` tag
 (CI attaches bundles to the GitHub Release), then updating `version`/`sha256`
 in the tap's `Casks/agents-hub.rb`.
 
+Deterministic browser checks use a sanitized localhost fleet-server replay,
+never a personal host or credential:
+
+```bash
+npx playwright install chromium
+npm run test:ux
+```
+
+See `../docs/ux-regression-testing.md` before adding fixtures, snapshots, or an
+automatically prepared regression repair.
+
 Or open it straight from a host — fleet-server serves this same UI at
 `http://<host>:3011/fleet-hub/` (the build is embedded in the fleet-server
 binary, so there's nothing to install and no code signing). Use it over plain

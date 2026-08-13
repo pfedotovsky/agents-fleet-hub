@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test:ux": "playwright test",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -28,6 +29,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@tailwindcss/vite": "^4.3.2",
     "@tauri-apps/cli": "^2.11.4",
     "@types/diff": "^7.0.2",
@@ -39,6 +41,7 @@
     "oxlint": "^1.71.0",
     "tailwindcss": "^4.3.2",
     "typescript": "~6.0.2",
-    "vite": "^8.1.1"
+    "vite": "^8.1.1",
+    "ws": "^8.18.3"
   }
 }

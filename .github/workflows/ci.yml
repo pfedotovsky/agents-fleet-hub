@@ -42,6 +42,14 @@ jobs:
         run: npm run lint
         working-directory: fleet-hub
 
+      - name: Install UX browser
+        run: npx playwright install --with-deps chromium
+        working-directory: fleet-hub
+
+      - name: UX checks
+        run: npm run test:ux
+        working-directory: fleet-hub
+
   server:
     name: Server
     runs-on: ubuntu-latest
