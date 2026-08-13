@@ -7,6 +7,11 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-13
 
 ### Added
+- **Deterministic UX coverage now exercises reversible session archives.** A
+  sanitized Chromium journey archives a session, preserves that state across a
+  full reload, restores it from the lazy archive list, and verifies its canonical
+  transcript remains exact after restore and another reload. Tracked in private
+  backlog #42.
 - **Deterministic UX coverage now exercises conversation search.** A sanitized
   SSE fixture drives a Chromium journey that searches by keyboard, opens the
   selected result, verifies the canonical transcript exactly once, and preserves
