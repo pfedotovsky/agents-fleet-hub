@@ -66,6 +66,56 @@ const server = createServer(async (request, response) => {
   if (url.pathname === '/api/providers/sessions/running') {
     return json(response, 200, { success: true, data: { sessions: [] } })
   }
+  if (request.method === 'GET' && url.pathname === '/api/providers/search/sessions') {
+    const query = url.searchParams.get('q')?.trim().toLowerCase() ?? ''
+    response.writeHead(200, {
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache',
+      'Content-Type': 'text/event-stream',
+    })
+    if (query === 'synthetic status') {
+      response.write('event: result\n')
+      response.write(
+        `data: ${JSON.stringify({
+          projectResult: {
+            projectId: fixture.project.projectId,
+            projectName: fixture.project.path,
+            projectDisplayName: fixture.project.displayName,
+            sessions: [
+              {
+                sessionId: fixture.project.sessions[0].id,
+                provider: fixture.project.sessions[0].provider,
+                sessionSummary: fixture.project.sessions[0].summary,
+                matches: [
+                  {
+                    role: 'assistant',
+                    snippet: 'The synthetic status is ready.',
+                    highlights: [{ start: 4, end: 20 }],
+                    timestamp: '2026-01-02T03:04:05.000Z',
+                    provider: 'codex',
+                  },
+                ],
+              },
+            ],
+          },
+          totalMatches: 1,
+          scannedProjects: 1,
+          totalProjects: 1,
+        })}\n\n`,
+      )
+    } else {
+      response.write(
+        `event: progress\ndata: ${JSON.stringify({
+          totalMatches: 0,
+          scannedProjects: 1,
+          totalProjects: 1,
+        })}\n\n`,
+      )
+    }
+    response.end('event: done\n\n')
+    return
+  }
   if (request.method === 'POST' && url.pathname === '/api/providers/sessions') {
     const body = await requestJson(request)
     createdSession = {

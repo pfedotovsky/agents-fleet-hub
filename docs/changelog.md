@@ -7,6 +7,11 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-13
 
 ### Added
+- **Deterministic UX coverage now exercises conversation search.** A sanitized
+  SSE fixture drives a Chromium journey that searches by keyboard, opens the
+  selected result, verifies the canonical transcript exactly once, and preserves
+  that fidelity after a full reload without a personal host or credentials.
+  Tracked in private backlog #42.
 - **Deterministic UX coverage now exercises interactive agent requests.** A
   sanitized Playwright journey allows an edit, restores a pending command
   denial after a full reload, answers a structured user question, verifies the

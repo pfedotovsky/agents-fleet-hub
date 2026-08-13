@@ -22,7 +22,9 @@ host, credentials, or transcript data. The fixture covers opening and reloading
 persisted history plus creating a session, sending its first prompt, receiving a
 live response, approving and denying tool requests, restoring a pending request
 after reload, answering a structured user question, reconciling against canonical
-history, and reloading that created session. Shared page setup also makes console,
+history, reloading that created session, and streaming a sanitized
+conversation-search result that opens and reloads its canonical transcript.
+Shared page setup also makes console,
 page, and HTTP failures fatal
 across transcript, keyboard/focus, accessible-name, contrast, reduced-motion,
 narrow-width, and targeted visual checks. See `docs/ux-regression-testing.md`.
