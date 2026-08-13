@@ -20,8 +20,10 @@ streaming, allow and deny responses, pending-permission restoration after a full
 reload, structured user-question answers, canonical completion reconciliation,
 final transcript reload, and SSE conversation search with keyboard selection and
 reload fidelity; reversible session archive/restore with archived-state and
-post-restore transcript reload checks; browser failure gates; keyboard focus and
-accessible names; representative text contrast; reduced-motion behavior;
+post-restore transcript reload checks; abort/resume with a forced mid-run socket
+reconnect, missed-sequence replay, canonical reconciliation, and final reload;
+browser failure gates; keyboard focus and accessible names; representative text
+contrast; reduced-motion behavior;
 narrow-width layout; and one targeted stable snapshot of the search dialog.
 
 ## Add a fixture or journey
@@ -31,7 +33,9 @@ narrow-width layout; and one targeted stable snapshot of the search dialog.
 - Extend `fake-host.mjs` only with routes or socket frames required by an
   observable journey. Keep responses deterministic; persist pending interactive
   state so reload assertions use the same `chat_subscribed.pendingPermissions`
-  contract as the Hub. Search fixtures should stream the production SSE event
+  contract as the Hub. Reconnect fixtures retain a bounded per-run event list and
+  replay only events after the subscriber's `lastSeq`. Search fixtures should
+  stream the production SSE event
   shapes and use explicit highlight offsets. Do not call a real host.
 - Prefer assertions on roles, accessible names, focus, and visible state.
   Screenshots are reserved for stable surfaces with a specific regression, not

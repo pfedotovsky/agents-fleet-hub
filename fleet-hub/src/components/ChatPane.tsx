@@ -1088,6 +1088,7 @@ export function ChatPane({
     })
     setProcessing(true)
     // A fresh run's seqs start at 1 — clear any stale high-water mark.
+    lastSeq.current = 0
     ackedRunSeq.current = 0
     scrollToBottom(false)
     setPendingFirst(null)
@@ -1394,7 +1395,8 @@ export function ChatPane({
     })
     setProcessing(true)
     // The new run's seqs start over at 1 — a stale high-water mark from the
-    // previous run would swallow its live permission prompts.
+    // previous run would swallow replayed messages and live permission prompts.
+    lastSeq.current = 0
     ackedRunSeq.current = 0
     setInput('')
     setPendingImages([])
