@@ -14,6 +14,7 @@ const interactionReply = 'Synthetic interaction flow finished.'
 let createdSession = null
 let createdMessages = []
 let createdRun = { processing: false, lastSeq: 0, pendingPermissions: [] }
+let fixtureSessionArchived = false
 
 async function requestJson(request) {
   const chunks = []
@@ -22,13 +23,16 @@ async function requestJson(request) {
 }
 
 function projectState() {
-  if (!createdSession) return fixture.project
+  const fixtureSessions = fixtureSessionArchived ? [] : fixture.project.sessions
   return {
     ...fixture.project,
-    sessions: [createdSession, ...fixture.project.sessions],
+    sessions: createdSession ? [createdSession, ...fixtureSessions] : fixtureSessions,
     sessionMeta: {
       ...fixture.project.sessionMeta,
-      total: fixture.project.sessionMeta.total + 1,
+      total:
+        fixture.project.sessionMeta.total -
+        (fixtureSessionArchived ? 1 : 0) +
+        (createdSession ? 1 : 0),
     },
   }
 }
@@ -54,10 +58,17 @@ const server = createServer(async (request, response) => {
     createdSession = null
     createdMessages = []
     createdRun = { processing: false, lastSeq: 0, pendingPermissions: [] }
+    fixtureSessionArchived = false
     return json(response, 204, {})
   }
   if (url.pathname === '/__state') {
-    return json(response, 200, { requests, socketMessages, createdSession, createdMessages })
+    return json(response, 200, {
+      requests,
+      socketMessages,
+      createdSession,
+      createdMessages,
+      fixtureSessionArchived,
+    })
   }
   if (url.pathname === '/api/auth/status') {
     return json(response, 200, { needsSetup: false, localAuthBypass: false })
@@ -133,6 +144,40 @@ const server = createServer(async (request, response) => {
         sessionId: createdSessionId,
         provider: body.provider,
         projectPath: body.projectPath,
+      },
+    })
+  }
+  if (request.method === 'DELETE' && url.pathname === '/api/providers/sessions/fixture-session') {
+    fixtureSessionArchived = true
+    return json(response, 200, { success: true })
+  }
+  if (
+    request.method === 'POST' &&
+    url.pathname === '/api/providers/sessions/fixture-session/restore'
+  ) {
+    fixtureSessionArchived = false
+    return json(response, 200, { success: true })
+  }
+  if (request.method === 'GET' && url.pathname === '/api/providers/sessions/archived') {
+    return json(response, 200, {
+      success: true,
+      data: {
+        sessions: fixtureSessionArchived
+          ? [
+              {
+                sessionId: fixture.project.sessions[0].id,
+                provider: fixture.project.sessions[0].provider,
+                projectId: fixture.project.projectId,
+                projectPath: fixture.project.fullPath,
+                projectDisplayName: fixture.project.displayName,
+                sessionTitle: fixture.project.sessions[0].summary,
+                createdAt: '2026-01-02T03:04:00.000Z',
+                updatedAt: fixture.project.sessions[0].lastActivity,
+                lastActivity: fixture.project.sessions[0].lastActivity,
+                isProjectArchived: false,
+              },
+            ]
+          : [],
       },
     })
   }

@@ -23,7 +23,9 @@ persisted history plus creating a session, sending its first prompt, receiving a
 live response, approving and denying tool requests, restoring a pending request
 after reload, answering a structured user question, reconciling against canonical
 history, reloading that created session, and streaming a sanitized
-conversation-search result that opens and reloads its canonical transcript.
+conversation-search result that opens and reloads its canonical transcript. It
+also persists a reversible session archive across reload, restores the session
+from the lazy archive list, and verifies the unchanged transcript after restore.
 Shared page setup also makes console,
 page, and HTTP failures fatal
 across transcript, keyboard/focus, accessible-name, contrast, reduced-motion,

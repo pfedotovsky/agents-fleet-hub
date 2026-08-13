@@ -19,9 +19,10 @@ currently check transcript reload fidelity; session creation, first-send
 streaming, allow and deny responses, pending-permission restoration after a full
 reload, structured user-question answers, canonical completion reconciliation,
 final transcript reload, and SSE conversation search with keyboard selection and
-reload fidelity; browser failure gates; keyboard focus and accessible
-names; representative text contrast; reduced-motion behavior; narrow-width
-layout; and one targeted stable snapshot of the search dialog.
+reload fidelity; reversible session archive/restore with archived-state and
+post-restore transcript reload checks; browser failure gates; keyboard focus and
+accessible names; representative text contrast; reduced-motion behavior;
+narrow-width layout; and one targeted stable snapshot of the search dialog.
 
 ## Add a fixture or journey
 
