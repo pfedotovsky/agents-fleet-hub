@@ -15,6 +15,11 @@ directly to each configured CloudCLI host:
 CloudCLI's CORS is wide open, which is what makes the no-backend design work.
 All state that must survive a reload lives in the browser's localStorage.
 
+Browser regression coverage uses a deterministic, sanitized fake host under
+`fleet-hub/tests/ux/`. It implements only the REST/WebSocket states required by
+the Playwright journeys, so CI exercises source Hub behavior without a real
+host, credentials, or transcript data. See `docs/ux-regression-testing.md`.
+
 ```
 Browser (Agents Hub SPA)
   ├─ REST poll every 12 s ──► host A  (remote VM, CloudCLI :3001)
