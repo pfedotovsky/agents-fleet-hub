@@ -4,6 +4,16 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-13
+
+### Added
+- **Deterministic UX regression coverage now has its first connected slice.**
+  A sanitized fake REST/WebSocket host drives a Playwright
+  connect/open/transcript-reload journey, browser errors fail the run, CI runs
+  the journey without a personal host or credentials, and documentation defines
+  fixture hygiene plus the draft-only automated repair contract. Tracked in
+  private backlog #42.
+
 ## 2026-08-12
 
 ### Fixed

@@ -12,6 +12,17 @@ npm install
 npm run dev     # http://localhost:5173
 ```
 
+Deterministic browser regression journeys run against a sanitized local replay
+host and require no personal host or credentials:
+
+```bash
+npx playwright install chromium
+npm run test:ux
+```
+
+Fixture and regression-intake rules are documented in
+[`docs/ux-regression-testing.md`](../docs/ux-regression-testing.md).
+
 The Vite UI discovers the source fleet-server at `http://localhost:3012`
 (`cd ../fleet-server && bun run dev`). That command uses
 `~/.fleet-server-dev`; released fleet-server stays on 3011 with

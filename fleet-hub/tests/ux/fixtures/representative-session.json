@@ -1,0 +1,39 @@
+{
+  "project": {
+    "projectId": "fixture-project",
+    "path": "fixture-project",
+    "displayName": "Fixture project",
+    "fullPath": "/safe/fixture-project",
+    "isStarred": false,
+    "sessions": [
+      {
+        "id": "fixture-session",
+        "provider": "codex",
+        "summary": "Deterministic transcript",
+        "messageCount": 0,
+        "lastActivity": "2026-01-02T03:04:05.000Z"
+      }
+    ],
+    "sessionMeta": { "hasMore": false, "total": 1 }
+  },
+  "messages": [
+    {
+      "id": "fixture-user-1",
+      "sessionId": "fixture-session",
+      "timestamp": "2026-01-02T03:04:00.000Z",
+      "provider": "codex",
+      "kind": "text",
+      "role": "user",
+      "content": "Open the synthetic status file."
+    },
+    {
+      "id": "fixture-assistant-1",
+      "sessionId": "fixture-session",
+      "timestamp": "2026-01-02T03:04:05.000Z",
+      "provider": "codex",
+      "kind": "text",
+      "role": "assistant",
+      "content": "The synthetic status is ready."
+    }
+  ]
+}
