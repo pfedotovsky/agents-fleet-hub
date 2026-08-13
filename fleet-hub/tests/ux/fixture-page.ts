@@ -7,6 +7,8 @@ export interface BrowserFailureLog {
 
 export async function prepareFixturePage(page: Page): Promise<BrowserFailureLog> {
   const failures: BrowserFailureLog = { browserFailures: [], failedResponses: [] }
+  const reset = await page.request.post('http://127.0.0.1:4312/__reset')
+  expect(reset.ok()).toBeTruthy()
   page.on('console', (message) => {
     if (message.type() === 'error') failures.browserFailures.push(`console: ${message.text()}`)
   })
