@@ -1,50 +1,13 @@
 import { expect, test } from '@playwright/test'
+import {
+  expectNoBrowserFailures,
+  openFixtureTranscript,
+  prepareFixturePage,
+} from './fixture-page'
 
 test('connects to the replay host and preserves the transcript after reload', async ({ page }) => {
-  const browserFailures: string[] = []
-  const failedResponses: string[] = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') browserFailures.push(`console: ${message.text()}`)
-  })
-  page.on('pageerror', (error) => browserFailures.push(`pageerror: ${error.message}`))
-  page.on('response', (response) => {
-    if (response.status() >= 400) failedResponses.push(`${response.status()} ${response.url()}`)
-  })
-  // Local-host discovery is intentionally best-effort. Stub its well-known
-  // probes so the browser-error gate stays about the journey under test.
-  await page.route(/^http:\/\/localhost:(3012|3001)\/health$/, (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ status: 'not-configured' }),
-    }),
-  )
-
-  await page.addInitScript(() => {
-    localStorage.clear()
-    localStorage.setItem(
-      'fleethub.v1.hosts',
-      JSON.stringify([
-        {
-          id: 'fixture-host',
-          name: 'Sanitized replay host',
-          baseUrl: 'http://127.0.0.1:4312',
-        },
-      ]),
-    )
-    localStorage.setItem(
-      'fleethub.v1.tokens',
-      JSON.stringify({ 'fixture-host': 'fixture-token' }),
-    )
-    localStorage.setItem(
-      'fleethub.v1.autoAdded',
-      JSON.stringify(['http://localhost:3012', 'http://localhost:3001']),
-    )
-  })
-
-  await page.goto('/')
-  await expect(page.getByText('Deterministic transcript', { exact: true })).toBeVisible()
-  await page.getByText('Deterministic transcript', { exact: true }).click()
+  const failures = await prepareFixturePage(page)
+  await openFixtureTranscript(page)
 
   const userPrompt = page.getByText('Open the synthetic status file.', { exact: true })
   const assistantReply = page.getByText('The synthetic status is ready.', { exact: true })
@@ -72,5 +35,5 @@ test('connects to the replay host and preserves the transcript after reload', as
   ).length
   expect(historyLoadsBeforeReload).toBeGreaterThan(0)
   expect(historyLoadsAfterReload).toBeGreaterThan(historyLoadsBeforeReload)
-  expect({ browserFailures, failedResponses }).toEqual({ browserFailures: [], failedResponses: [] })
+  expectNoBrowserFailures(failures)
 })

@@ -7,6 +7,11 @@ Agents: add an entry here after every substantive change (see AGENTS.md).
 ## 2026-08-13
 
 ### Added
+- **Deterministic UX quality gates now cover representative accessibility and
+  layout behavior.** The sanitized Playwright harness checks keyboard focus,
+  accessible names, text contrast, reduced motion, a narrow desktop width, and
+  one targeted stable search-dialog snapshot while preserving the shared
+  browser-error and HTTP-failure gates. Tracked in private backlog #42.
 - **Deterministic UX regression coverage now has its first connected slice.**
   A sanitized fake REST/WebSocket host drives a Playwright
   connect/open/transcript-reload journey, browser errors fail the run, CI runs

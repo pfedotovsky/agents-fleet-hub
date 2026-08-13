@@ -12,10 +12,11 @@ npm run test:ux
 ```
 
 Playwright starts both Vite and `tests/ux/fake-host.mjs`. The fake host serves a
-small REST and WebSocket contract on port 4312. The initial journey connects
-with a fixture-only token, opens a structured transcript, reloads the page, and
-checks that the canonical user and assistant turns remain visible without
-duplication. Console errors and unhandled page exceptions fail the run.
+small REST and WebSocket contract on port 4312. The connected journeys use only
+a fixture token and currently check transcript reload fidelity, browser failure
+gates, keyboard focus and accessible names, representative text contrast,
+reduced-motion behavior, narrow-width layout, and one targeted stable snapshot
+of the search dialog.
 
 ## Add a fixture or journey
 
@@ -25,7 +26,10 @@ duplication. Console errors and unhandled page exceptions fail the run.
   observable journey. Keep responses deterministic; do not call a real host.
 - Prefer assertions on roles, accessible names, focus, and visible state.
   Screenshots are reserved for stable surfaces with a specific regression, not
-  broad snapshots of every page.
+  broad snapshots of every page. Review a changed snapshot as a product diff;
+  update it only after the visible change is understood and accepted.
+- Keep viewport checks explicit. Add a representative width only when its
+  expected interaction and overflow behavior are stable enough to assert.
 - Test reload reconciliation whenever a journey changes persisted or streamed
   state. Failures should retain a Playwright trace for local diagnosis.
 
