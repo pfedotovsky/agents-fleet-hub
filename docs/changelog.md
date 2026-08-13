@@ -4,6 +4,17 @@ All notable changes to this workspace. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/); newest entries first.
 Agents: add an entry here after every substantive change (see AGENTS.md).
 
+## 2026-08-14
+
+### Added
+- **Deterministic UX coverage now exercises interrupted and reconnected runs.**
+  A sanitized Chromium journey aborts a partial run, resumes it, forces a
+  mid-run WebSocket disconnect, replays missed events from the acknowledged
+  sequence, reconciles canonical history, and verifies every synthetic turn
+  exactly once after reload. The journey also fixes the Hub's stale replay
+  watermark between consecutive runs, which could skip live events after a
+  reconnect. Tracked in private backlog #42.
+
 ## 2026-08-13
 
 ### Added

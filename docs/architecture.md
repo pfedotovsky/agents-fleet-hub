@@ -26,8 +26,10 @@ history, reloading that created session, and streaming a sanitized
 conversation-search result that opens and reloads its canonical transcript. It
 also persists a reversible session archive across reload, restores the session
 from the lazy archive list, and verifies the unchanged transcript after restore.
-Shared page setup also makes console,
-page, and HTTP failures fatal
+An interrupted run emits one aborted terminal frame, accepts a follow-up resume
+turn, drops the synthetic socket mid-run, and replays the missed completion from
+the last acknowledged sequence before canonical history and reload are checked.
+Shared page setup also makes console, page, and HTTP failures fatal
 across transcript, keyboard/focus, accessible-name, contrast, reduced-motion,
 narrow-width, and targeted visual checks. See `docs/ux-regression-testing.md`.
 
@@ -164,7 +166,9 @@ Browser (Agents Hub SPA)
   replay and carries the run's current `lastSeq`; ChatPane keeps it in
   `ackedRunSeq` and drops `permission_request` frames at `seq <=` that mark
   (still-pending ones arrive via the ack's `pendingPermissions`). Seqs
-  restart at 0 per run, so the mark resets on complete/send/mount/idle acks.
+  restart at 0 per run, so ChatPane clears both its replay watermark and
+  permission mark before every send; otherwise a reconnect during a later run
+  could skip events whose sequence is below the prior run's terminal sequence.
 - New session: `POST /api/providers/sessions {provider, projectPath}` creates
   an empty app session; the first `chat.send` actually starts the agent.
 - Arbitrary project folder: a global draft calls

@@ -11,10 +11,13 @@ const socketMessages = []
 const createdSessionId = 'fixture-created-session'
 const interactionPrompt = 'Review synthetic interaction choices.'
 const interactionReply = 'Synthetic interaction flow finished.'
+const interruptPrompt = 'Start a synthetic task that will be interrupted.'
+const resumePrompt = 'Resume the interrupted synthetic task.'
 let createdSession = null
 let createdMessages = []
-let createdRun = { processing: false, lastSeq: 0, pendingPermissions: [] }
+let createdRun = { processing: false, lastSeq: 0, pendingPermissions: [], events: [] }
 let fixtureSessionArchived = false
+let socketConnections = 0
 
 async function requestJson(request) {
   const chunks = []
@@ -57,8 +60,9 @@ const server = createServer(async (request, response) => {
     socketMessages.length = 0
     createdSession = null
     createdMessages = []
-    createdRun = { processing: false, lastSeq: 0, pendingPermissions: [] }
+    createdRun = { processing: false, lastSeq: 0, pendingPermissions: [], events: [] }
     fixtureSessionArchived = false
+    socketConnections = 0
     return json(response, 204, {})
   }
   if (url.pathname === '/__state') {
@@ -67,7 +71,9 @@ const server = createServer(async (request, response) => {
       socketMessages,
       createdSession,
       createdMessages,
+      createdRun,
       fixtureSessionArchived,
+      socketConnections,
     })
   }
   if (url.pathname === '/api/auth/status') {
@@ -137,7 +143,7 @@ const server = createServer(async (request, response) => {
       lastActivity: '2026-01-03T04:05:00.000Z',
     }
     createdMessages = []
-    createdRun = { processing: false, lastSeq: 0, pendingPermissions: [] }
+    createdRun = { processing: false, lastSeq: 0, pendingPermissions: [], events: [] }
     return json(response, 200, {
       success: true,
       data: {
@@ -228,11 +234,13 @@ server.on('upgrade', (request, socket, head) => {
   sockets.handleUpgrade(request, socket, head, (client) => sockets.emit('connection', client))
 })
 sockets.on('connection', (socket) => {
+  socketConnections += 1
   socket.on('message', (raw) => {
     const message = JSON.parse(raw.toString())
     socketMessages.push(message)
     if (message.type === 'chat.subscribe') {
       const sessionId = message.sessions?.[0]?.sessionId
+      const lastSeq = message.sessions?.[0]?.lastSeq ?? 0
       socket.send(
         JSON.stringify({
           kind: 'chat_subscribed',
@@ -243,6 +251,27 @@ sockets.on('connection', (socket) => {
             sessionId === createdSessionId ? createdRun.pendingPermissions : [],
         }),
       )
+      if (sessionId === createdSessionId) {
+        for (const event of createdRun.events.filter((candidate) => candidate.seq > lastSeq)) {
+          socket.send(JSON.stringify(event))
+        }
+      }
+      return
+    }
+    if (message.type === 'chat.abort' && message.sessionId === createdSessionId) {
+      if (!createdRun.processing) return
+      createdRun.lastSeq += 1
+      createdRun.processing = false
+      const event = {
+        kind: 'complete',
+        sessionId: createdSessionId,
+        seq: createdRun.lastSeq,
+        exitCode: 0,
+        success: false,
+        aborted: true,
+      }
+      createdRun.events.push(event)
+      socket.send(JSON.stringify(event))
       return
     }
     if (message.type === 'chat.permission-response') {
@@ -338,18 +367,18 @@ sockets.on('connection', (socket) => {
     }
     if (message.type !== 'chat.send' || message.sessionId !== createdSessionId) return
 
-    createdMessages = [
-      {
-        id: 'fixture-created-user-1',
-        sessionId: createdSessionId,
-        timestamp: '2026-01-03T04:05:01.000Z',
-        provider: 'codex',
-        kind: 'text',
-        role: 'user',
-        content: message.content,
-      },
-    ]
-    createdRun = { processing: true, lastSeq: 0, pendingPermissions: [] }
+    const isResume = message.content === resumePrompt && createdMessages[0]?.content === interruptPrompt
+    const userMessage = {
+      id: isResume ? 'fixture-resume-user-2' : 'fixture-created-user-1',
+      sessionId: createdSessionId,
+      timestamp: isResume ? '2026-01-03T04:05:03.000Z' : '2026-01-03T04:05:01.000Z',
+      provider: 'codex',
+      kind: 'text',
+      role: 'user',
+      content: message.content,
+    }
+    createdMessages = isResume ? [...createdMessages, userMessage] : [userMessage]
+    createdRun = { processing: true, lastSeq: 0, pendingPermissions: [], events: [] }
     socket.send(
       JSON.stringify({
         kind: 'chat_subscribed',
@@ -375,6 +404,71 @@ sockets.on('connection', (socket) => {
           ...request,
         }),
       )
+      return
+    }
+
+    if (message.content === interruptPrompt) {
+      const partial = {
+        id: 'fixture-interrupted-assistant-live-1',
+        sessionId: createdSessionId,
+        timestamp: '2026-01-03T04:05:02.000Z',
+        provider: 'codex',
+        kind: 'text',
+        role: 'assistant',
+        content: 'Synthetic task reached a safe checkpoint.',
+        seq: 1,
+      }
+      createdMessages.push({ ...partial, id: 'fixture-interrupted-assistant-1' })
+      createdRun.lastSeq = 1
+      createdRun.events.push(partial)
+      socket.send(JSON.stringify(partial))
+      return
+    }
+
+    if (isResume) {
+      const reconnecting = {
+        id: 'fixture-resume-assistant-live-1',
+        sessionId: createdSessionId,
+        timestamp: '2026-01-03T04:05:04.000Z',
+        provider: 'codex',
+        kind: 'text',
+        role: 'assistant',
+        content: 'Synthetic resume is waiting for reconnection.',
+        seq: 1,
+      }
+      createdMessages.push({ ...reconnecting, id: 'fixture-resume-assistant-1' })
+      createdRun.lastSeq = 1
+      createdRun.events.push(reconnecting)
+      socket.send(JSON.stringify(reconnecting))
+
+      setTimeout(() => socket.close(), 100)
+      setTimeout(() => {
+        const finished = {
+          id: 'fixture-resume-assistant-live-2',
+          sessionId: createdSessionId,
+          timestamp: '2026-01-03T04:05:05.000Z',
+          provider: 'codex',
+          kind: 'text',
+          role: 'assistant',
+          content: 'Synthetic task resumed and finished.',
+          seq: 2,
+        }
+        createdMessages.push({ ...finished, id: 'fixture-resume-assistant-2' })
+        createdRun.lastSeq = 2
+        createdRun.events.push(finished)
+
+        const complete = {
+          kind: 'complete',
+          sessionId: createdSessionId,
+          seq: 3,
+          exitCode: 0,
+          success: true,
+          aborted: false,
+        }
+        createdRun.lastSeq = 3
+        createdRun.processing = false
+        createdRun.events.push(complete)
+      }, 150)
       return
     }
 
